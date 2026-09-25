@@ -149,6 +149,17 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
     }
   };
 
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(typeof window !== 'undefined' && window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   return (
     <div className="space-y-1">
       <div
@@ -160,7 +171,7 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
           <button
             type="button"
             onClick={() => {
-              if (typeof window !== 'undefined' && window.innerWidth < 768) {
+              if (isMobile) {
                 setIsMobileKeypadOpen(true);
               } else {
                 setIsCalcOpen(true);
@@ -176,21 +187,29 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
 
           <input
             type="text"
-            inputMode="decimal"
+            inputMode={isMobile ? 'none' : 'decimal'}
+            readOnly={isMobile}
             autoComplete="off"
             name="poupix_transaction_amount"
             placeholder="0,00"
             value={displayValue}
             onChange={handleInputChange}
             onClick={() => {
-              if (typeof window !== 'undefined' && window.innerWidth < 768) {
+              if (isMobile) {
                 setIsMobileKeypadOpen(true);
               }
             }}
-            onFocus={handleFocus}
+            onFocus={(e) => {
+              if (isMobile) {
+                e.target.blur();
+                setIsMobileKeypadOpen(true);
+              } else {
+                handleFocus();
+              }
+            }}
             onBlur={handleBlur}
-            className={`w-full bg-transparent text-2xl font-black ${colors.text} placeholder:text-slate-600 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-inner-spin-button]:m-0`}
-            autoFocus
+            className={`w-full bg-transparent text-2xl font-black ${colors.text} placeholder:text-slate-600 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-inner-spin-button]:m-0 cursor-pointer md:cursor-text`}
+            autoFocus={!isMobile}
           />
         </div>
 

@@ -116,9 +116,35 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     }
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showScopeModal) {
+          setShowScopeModal(false);
+          setPendingUpdateData(null);
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, showScopeModal, onClose]);
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-fadeIn overflow-y-auto"
+    >
       <div
+        onClick={(e) => e.stopPropagation()}
         className={`bg-slate-900 border border-slate-800 rounded-3xl w-full ${
           isExpanded ? 'max-w-4xl' : 'max-w-lg'
         } max-h-[92vh] overflow-hidden shadow-2xl flex flex-col transition-all duration-300 my-auto`}
