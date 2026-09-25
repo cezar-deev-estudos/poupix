@@ -157,7 +157,41 @@ export const syncAllToSupabase = async (data: {
         }
       })
       const { error: txErr } = await supabase.from('transactions').upsert(txPayload as any)
-      if (txErr) console.error('[Supabase Sync] Erro em transações:', txErr.message)
+      if (txErr) {
+        console.warn('[Supabase Sync] Tentando fallback para transações essenciais:', txErr.message)
+        // Fallback básico com colunas fundamentais
+        const essentialPayload = data.transactions.map(tx => {
+          const accId = tx.accountId ? ensureValidUUID(tx.accountId) : null
+          const destAccId = tx.destinationAccountId ? ensureValidUUID(tx.destinationAccountId) : null
+          const cardId = tx.creditCardId ? ensureValidUUID(tx.creditCardId) : null
+          const catId = tx.categoryId ? ensureValidUUID(tx.categoryId) : null
+
+          return {
+            id: ensureValidUUID(tx.id),
+            user_id: userId,
+            account_id: accId && validAccountIds.has(accId) ? accId : null,
+            destination_account_id: destAccId && validAccountIds.has(destAccId) ? destAccId : null,
+            credit_card_id: cardId && validCardIds.has(cardId) ? cardId : null,
+            category_id: catId && validCategoryIds.has(catId) ? catId : null,
+            type: tx.type,
+            amount: Number(tx.amount) || 0,
+            description: tx.description || 'Lançamento',
+            date: tx.date || new Date().toISOString().split('T')[0],
+            paid: tx.paid ?? true,
+            is_recurring: tx.isRecurring ?? false,
+            recurring_period: tx.recurringPeriod || null,
+            installment_current: tx.installmentCurrent || null,
+            installment_total: tx.installmentTotal || null,
+            created_at: tx.createdAt || new Date().toISOString(),
+          }
+        })
+        const { error: fallbackErr } = await supabase.from('transactions').upsert(essentialPayload as any)
+        if (fallbackErr) {
+          console.error('[Supabase Sync] Falha crítica em transações:', fallbackErr.message)
+        } else {
+          console.log('[Supabase Sync] Transações sincronizadas via fallback essencial com sucesso!')
+        }
+      }
     }
 
     // 6. Sincronizar Metas
