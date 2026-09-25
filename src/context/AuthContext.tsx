@@ -41,8 +41,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+      setSession(prev => (prev?.access_token === session?.access_token ? prev : session));
+      setUser(prev => (prev?.id === session?.user?.id ? prev : (session?.user ?? null)));
       if (session?.user) {
         setIsDemoMode(false);
         localStorage.removeItem(DEMO_STORAGE_KEY);
@@ -51,8 +51,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+      setSession(prev => (prev?.access_token === session?.access_token ? prev : session));
+      setUser(prev => (prev?.id === session?.user?.id ? prev : (session?.user ?? null)));
       if (session?.user) {
         setIsDemoMode(false);
         localStorage.removeItem(DEMO_STORAGE_KEY);

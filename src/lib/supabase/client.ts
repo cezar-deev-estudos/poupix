@@ -1,5 +1,9 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { Database } from './types'
+
+let cachedClient: SupabaseClient<Database> | null = null
+let cachedUrl = ''
+let cachedKey = ''
 
 // Configurações lidas de variáveis de ambiente com fallback para localStorage (configuração dinâmica no app)
 const getSupabaseConfig = () => {
@@ -19,20 +23,28 @@ const getSupabaseConfig = () => {
   }
 }
 
-export const getSupabaseClient = () => {
+export const getSupabaseClient = (): SupabaseClient<Database> | null => {
   const { url, anonKey } = getSupabaseConfig()
   
   if (!url || !anonKey) {
     return null
   }
 
+  // Se já existe uma instância com as mesmas credenciais, reutiliza o Singleton
+  if (cachedClient && cachedUrl === url && cachedKey === anonKey) {
+    return cachedClient
+  }
+
   try {
-    return createClient<Database>(url, anonKey, {
+    cachedClient = createClient<Database>(url, anonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
       }
     })
+    cachedUrl = url
+    cachedKey = anonKey
+    return cachedClient
   } catch (err) {
     console.warn('[Supabase] Falha ao instanciar cliente:', err)
     return null
@@ -48,6 +60,7 @@ export const saveSupabaseCredentials = (url: string, anonKey: string) => {
   if (typeof window !== 'undefined') {
     localStorage.setItem('mobills_supabase_url', url.trim())
     localStorage.setItem('mobills_supabase_anon_key', anonKey.trim())
+    cachedClient = null // Forçar reinicialização na próxima chamada
   }
 }
 
@@ -55,5 +68,6 @@ export const clearSupabaseCredentials = () => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('mobills_supabase_url')
     localStorage.removeItem('mobills_supabase_anon_key')
+    cachedClient = null
   }
 }

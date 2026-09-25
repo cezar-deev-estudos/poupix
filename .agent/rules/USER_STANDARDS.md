@@ -52,3 +52,8 @@ trigger: always_on
 8. **Idioma**:
    - Todo o processo de trabalho, respostas, planos e relatórios devem ser em **Português do Brasil (pt-BR)**.
    - Código, variáveis e comentários técnicos permanecem em Inglês.
+
+9. **Avaliação Prévia de Refatoração & Performance (Grandes Alterações)**:
+   - Em tarefas de grande porte ou impacto estrutural, o assistente deve avaliar previamente se arquivos relacionados estão excessivamente extensos (> 250 linhas) ou sobrecarregados de responsabilidades.
+   - Nesses casos, o assistente deve proativamente sugerir e planejar a modularização em Custom Hooks / subcomponentes antes ou junto à implementação para garantir alta performance e manutenibilidade futura.
+   - Em alterações rotineiras de baixo ou médio impacto, seguir diretamente o fluxo padrão enxuto.
