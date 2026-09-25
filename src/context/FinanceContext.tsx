@@ -260,10 +260,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (t.ignoreInTotals) return;
       if (t.type === 'income') {
         expectedMonthlyIncome += t.amount;
-        if (t.paid) monthlyIncome += t.amount;
+        monthlyIncome += t.amount;
       } else if (t.type === 'expense') {
         expectedMonthlyExpense += t.amount;
-        if (t.paid) monthlyExpense += t.amount;
+        monthlyExpense += t.amount;
         if (t.creditCardId) creditCardTotalInvoice += t.amount;
       }
     });

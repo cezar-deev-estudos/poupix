@@ -119,54 +119,55 @@ export const MobileKeypad: React.FC<MobileKeypadProps> = ({
   };
 
   return (
-    <div className="block md:hidden fixed inset-x-0 bottom-0 z-50 bg-[#373b45] text-white rounded-t-3xl shadow-2xl p-4 border-t border-slate-700/80 animate-slideUp">
-      {/* Top Bar com Moeda e Valor */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-600/50">
-        <span className="text-xs font-semibold text-slate-300">R$</span>
-        
-        <div className="flex items-center gap-3">
-          <span className="text-2xl font-bold tracking-tight text-slate-100">
-            {expression ? `${expression} ` : ''}{currentInput || '0,0'}
-          </span>
-          <button
-            type="button"
-            onClick={handleBackspace}
-            className="p-1.5 text-slate-300 hover:text-white bg-slate-600/40 rounded-xl transition-colors cursor-pointer"
-            title="Apagar dígito"
-          >
-            <Delete className="w-5 h-5" />
-          </button>
+    <div className="block md:hidden fixed inset-x-0 bottom-4 z-50 flex justify-center px-3 pointer-events-none animate-slideUp">
+      <div className="w-full max-w-[330px] bg-[#2a2e39]/95 backdrop-blur-md text-white rounded-3xl shadow-2xl p-3.5 border border-slate-700/80 pointer-events-auto">
+        {/* Top Bar com Moeda e Valor */}
+        <div className="flex items-center justify-between pb-2 border-b border-slate-600/40">
+          <span className="text-xs font-semibold text-slate-300">R$</span>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-xl font-bold tracking-tight text-slate-100">
+              {expression ? `${expression} ` : ''}{currentInput || '0,0'}
+            </span>
+            <button
+              type="button"
+              onClick={handleBackspace}
+              className="p-1 text-slate-300 hover:text-white bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
+              title="Apagar dígito"
+            >
+              <Delete className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Grid do Teclado (4x4) */}
-      <div className="grid grid-cols-4 gap-2 pt-3">
+        {/* Grid do Teclado (4x4) */}
+        <div className="grid grid-cols-4 gap-1.5 pt-2.5">
         {/* Linha 1: 7, 8, 9, ÷ */}
         <button
           type="button"
           onClick={() => handleDigit('7')}
-          className="h-13 rounded-2xl bg-transparent hover:bg-slate-600/40 text-white font-medium text-2xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-transparent hover:bg-slate-700/50 text-white font-medium text-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           7
         </button>
         <button
           type="button"
           onClick={() => handleDigit('8')}
-          className="h-13 rounded-2xl bg-transparent hover:bg-slate-600/40 text-white font-medium text-2xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-transparent hover:bg-slate-700/50 text-white font-medium text-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           8
         </button>
         <button
           type="button"
           onClick={() => handleDigit('9')}
-          className="h-13 rounded-2xl bg-transparent hover:bg-slate-600/40 text-white font-medium text-2xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-transparent hover:bg-slate-700/50 text-white font-medium text-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           9
         </button>
         <button
           type="button"
           onClick={() => handleOperator('/')}
-          className="h-13 rounded-2xl bg-slate-600/50 hover:bg-slate-600/70 text-slate-200 font-medium text-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-slate-700/60 hover:bg-slate-700/80 text-slate-200 font-medium text-base transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           ÷
         </button>
@@ -175,28 +176,28 @@ export const MobileKeypad: React.FC<MobileKeypadProps> = ({
         <button
           type="button"
           onClick={() => handleDigit('4')}
-          className="h-13 rounded-2xl bg-transparent hover:bg-slate-600/40 text-white font-medium text-2xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-transparent hover:bg-slate-700/50 text-white font-medium text-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           4
         </button>
         <button
           type="button"
           onClick={() => handleDigit('5')}
-          className="h-13 rounded-2xl bg-transparent hover:bg-slate-600/40 text-white font-medium text-2xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-transparent hover:bg-slate-700/50 text-white font-medium text-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           5
         </button>
         <button
           type="button"
           onClick={() => handleDigit('6')}
-          className="h-13 rounded-2xl bg-transparent hover:bg-slate-600/40 text-white font-medium text-2xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-transparent hover:bg-slate-700/50 text-white font-medium text-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           6
         </button>
         <button
           type="button"
           onClick={() => handleOperator('*')}
-          className="h-13 rounded-2xl bg-slate-600/50 hover:bg-slate-600/70 text-slate-200 font-medium text-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-slate-700/60 hover:bg-slate-700/80 text-slate-200 font-medium text-base transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           ×
         </button>
@@ -205,28 +206,28 @@ export const MobileKeypad: React.FC<MobileKeypadProps> = ({
         <button
           type="button"
           onClick={() => handleDigit('1')}
-          className="h-13 rounded-2xl bg-transparent hover:bg-slate-600/40 text-white font-medium text-2xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-transparent hover:bg-slate-700/50 text-white font-medium text-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           1
         </button>
         <button
           type="button"
           onClick={() => handleDigit('2')}
-          className="h-13 rounded-2xl bg-transparent hover:bg-slate-600/40 text-white font-medium text-2xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-transparent hover:bg-slate-700/50 text-white font-medium text-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           2
         </button>
         <button
           type="button"
           onClick={() => handleDigit('3')}
-          className="h-13 rounded-2xl bg-transparent hover:bg-slate-600/40 text-white font-medium text-2xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-transparent hover:bg-slate-700/50 text-white font-medium text-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           3
         </button>
         <button
           type="button"
           onClick={() => handleOperator('-')}
-          className="h-13 rounded-2xl bg-slate-600/50 hover:bg-slate-600/70 text-slate-200 font-medium text-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-slate-700/60 hover:bg-slate-700/80 text-slate-200 font-medium text-base transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           -
         </button>
@@ -235,39 +236,39 @@ export const MobileKeypad: React.FC<MobileKeypadProps> = ({
         <button
           type="button"
           onClick={() => handleDigit('0')}
-          className="h-13 rounded-2xl bg-transparent hover:bg-slate-600/40 text-white font-medium text-2xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-transparent hover:bg-slate-700/50 text-white font-medium text-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           0
         </button>
         <button
           type="button"
           onClick={() => handleDigit(',')}
-          className="h-13 rounded-2xl bg-transparent hover:bg-slate-600/40 text-white font-medium text-2xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-transparent hover:bg-slate-700/50 text-white font-medium text-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           ,
         </button>
         <button
           type="button"
           onClick={handleEquals}
-          className="h-13 rounded-2xl bg-[#eb5757]/80 hover:bg-[#eb5757] text-white font-bold text-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-[#eb5757]/80 hover:bg-[#eb5757] text-white font-bold text-base transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           =
         </button>
         <button
           type="button"
           onClick={() => handleOperator('+')}
-          className="h-13 rounded-2xl bg-slate-600/50 hover:bg-slate-600/70 text-slate-200 font-medium text-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+          className="h-10 rounded-xl bg-slate-700/60 hover:bg-slate-700/80 text-slate-200 font-medium text-base transition-all active:scale-95 cursor-pointer flex items-center justify-center"
         >
           +
         </button>
       </div>
 
       {/* Botões Inferiores: CANCELAR e CONCLUÍDO */}
-      <div className="grid grid-cols-2 gap-3 pt-4">
+      <div className="grid grid-cols-2 gap-2 pt-3">
         <button
           type="button"
           onClick={onClose}
-          className="py-3 rounded-full border border-rose-500/40 text-rose-300 hover:text-rose-200 text-xs font-bold tracking-wider uppercase transition-all active:scale-95 cursor-pointer"
+          className="py-2.5 rounded-full border border-rose-500/40 text-rose-300 hover:text-rose-200 text-[11px] font-bold tracking-wider uppercase transition-all active:scale-95 cursor-pointer"
         >
           CANCELAR
         </button>
@@ -275,11 +276,12 @@ export const MobileKeypad: React.FC<MobileKeypadProps> = ({
         <button
           type="button"
           onClick={handleConfirm}
-          className={`py-3 rounded-full ${getConfirmButtonColor()} text-xs font-bold tracking-wider uppercase transition-all active:scale-95 cursor-pointer shadow-lg`}
+          className={`py-2.5 rounded-full ${getConfirmButtonColor()} text-[11px] font-bold tracking-wider uppercase transition-all active:scale-95 cursor-pointer shadow-lg`}
         >
           CONCLUÍDO
         </button>
       </div>
     </div>
-  );
+  </div>
+);
 };
