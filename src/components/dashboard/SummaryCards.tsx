@@ -7,7 +7,7 @@ import { ActiveTab } from '@/components/layout/Sidebar';
 import { Wallet, TrendingUp, TrendingDown, CreditCard, ArrowUpRight, ArrowDownRight, ShieldCheck } from 'lucide-react';
 
 interface SummaryCardsProps {
-  onNavigateTab?: (tab: ActiveTab) => void;
+  onNavigateTab?: (tab: ActiveTab, filterType?: 'all' | 'income' | 'expense' | 'transfer') => void;
 }
 
 export const SummaryCards: React.FC<SummaryCardsProps> = ({ onNavigateTab }) => {
@@ -41,9 +41,9 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ onNavigateTab }) => 
         </div>
       </div>
 
-      {/* Receitas do Mês -> Abre Extrato de Transações */}
+      {/* Receitas do Mês -> Abre Extrato de Transações Filtrado por Receita */}
       <div 
-        onClick={() => onNavigateTab?.('transactions')}
+        onClick={() => onNavigateTab?.('transactions', 'income')}
         className={`relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-950/90 border border-slate-800/80 p-5 rounded-3xl shadow-xl backdrop-blur-md group hover:border-teal-500/50 transition-all ${onNavigateTab ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.99]' : ''}`}
       >
         <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/10 rounded-full blur-2xl group-hover:bg-teal-500/15 transition-all"></div>
@@ -62,9 +62,9 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ onNavigateTab }) => 
         </div>
       </div>
 
-      {/* Despesas do Mês -> Abre Extrato de Transações */}
+      {/* Despesas do Mês -> Abre Extrato de Transações Filtrado por Despesa */}
       <div 
-        onClick={() => onNavigateTab?.('transactions')}
+        onClick={() => onNavigateTab?.('transactions', 'expense')}
         className={`relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-950/90 border border-slate-800/80 p-5 rounded-3xl shadow-xl backdrop-blur-md group hover:border-rose-500/50 transition-all ${onNavigateTab ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.99]' : ''}`}
       >
         <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 rounded-full blur-2xl group-hover:bg-rose-500/15 transition-all"></div>

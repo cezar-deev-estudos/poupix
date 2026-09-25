@@ -19,7 +19,7 @@ import { ActiveTab } from '../layout/Sidebar';
 import { TransactionFlowType } from '../transactions/modal/TransactionModal';
 
 interface MobillsMobileHomeProps {
-  onNavigateTab: (tab: ActiveTab) => void;
+  onNavigateTab: (tab: ActiveTab, filterType?: 'all' | 'income' | 'expense' | 'transfer') => void;
   onOpenNewTransaction: (flowType?: TransactionFlowType) => void;
 }
 
@@ -155,7 +155,7 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           </span>
           <div 
             onClick={() => onNavigateTab('accounts')}
-            className="text-3xl font-black text-white tracking-tight cursor-pointer hover:scale-[1.02] active:scale-[0.99] transition-transform"
+            className="text-xl font-bold text-white tracking-tight cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-transform"
           >
             {displayVal(summary.totalBalance)}
           </div>
@@ -174,7 +174,7 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           {/* Receitas */}
           <button
             type="button"
-            onClick={() => onNavigateTab('transactions')}
+            onClick={() => onNavigateTab('transactions', 'income')}
             className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-[#242937] border border-slate-700/50 text-left hover:border-emerald-500/50 hover:bg-[#282e3e] active:scale-[0.98] transition-all cursor-pointer group"
           >
             <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-slate-950 font-black shrink-0 shadow-md group-hover:scale-105 transition-transform">
@@ -191,7 +191,7 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           {/* Despesas */}
           <button
             type="button"
-            onClick={() => onNavigateTab('transactions')}
+            onClick={() => onNavigateTab('transactions', 'expense')}
             className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-[#242937] border border-slate-700/50 text-left hover:border-rose-500/50 hover:bg-[#282e3e] active:scale-[0.98] transition-all cursor-pointer group"
           >
             <div className="w-8 h-8 rounded-full bg-rose-500 flex items-center justify-center text-white font-black shrink-0 shadow-md group-hover:scale-105 transition-transform">

@@ -8,6 +8,8 @@ import { SummaryCards } from '@/components/dashboard/SummaryCards';
 import { CategoryExpenseChart } from '@/components/dashboard/CategoryExpenseChart';
 import { CashflowHistoryChart } from '@/components/dashboard/CashflowHistoryChart';
 import { TransactionList } from '@/components/transactions/TransactionList';
+import { TransactionsView } from '@/components/transactions/TransactionsView';
+import { MobileTransactionsView } from '@/components/transactions/MobileTransactionsView';
 import { NewTransactionModal } from '@/components/transactions/NewTransactionModal';
 import { CardsView } from '@/components/cards/CardsView';
 import { AccountsView } from '@/components/accounts/AccountsView';
@@ -27,6 +29,7 @@ import { Plus, ArrowRight, UploadCloud, Bell } from 'lucide-react';
 
 function DashboardContent() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  const [selectedTxFilter, setSelectedTxFilter] = useState<'all' | 'income' | 'expense' | 'transfer'>('all');
   const [isNewTxModalOpen, setIsNewTxModalOpen] = useState(false);
   const [txModalFlow, setTxModalFlow] = useState<TransactionFlowType>('expense');
   const [isImporterOpen, setIsImporterOpen] = useState(false);
@@ -39,12 +42,21 @@ function DashboardContent() {
     setIsNewTxModalOpen(true);
   };
 
+  const handleNavigateTab = (tab: ActiveTab, filterType?: 'all' | 'income' | 'expense' | 'transfer') => {
+    if (filterType) {
+      setSelectedTxFilter(filterType);
+    } else if (tab === 'transactions') {
+      setSelectedTxFilter('all');
+    }
+    setActiveTab(tab);
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row antialiased selection:bg-emerald-500 selection:text-slate-950 pb-20 md:pb-6">
       {/* Sidebar de Navegação */}
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleNavigateTab}
         onOpenNewTransaction={handleOpenNewTransaction}
         onOpenImporter={() => setIsImporterOpen(true)}
       />
@@ -53,8 +65,8 @@ function DashboardContent() {
       <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Top Header com Seletor de Período & Ações Globais */}
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-900">
-          <div>
-            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+          <div className="hidden md:block">
+            <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
               {activeTab === 'dashboard' && 'Visão Geral'}
               {activeTab === 'transactions' && 'Extrato de Transações'}
               {activeTab === 'cards' && 'Cartões de Crédito'}
@@ -75,10 +87,10 @@ function DashboardContent() {
             {/* Botão Importar Extrato */}
             <button
               onClick={() => setIsImporterOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm"
             >
               <UploadCloud className="w-4 h-4 text-emerald-400" />
-              <span className="hidden sm:inline">Importar OFX/CSV</span>
+              <span>Importar OFX/CSV</span>
             </button>
 
             {/* Sininho de Notificações / Alertas */}
@@ -106,7 +118,7 @@ function DashboardContent() {
             {/* Versão Mobile / Tablet (Mobills Standard) */}
             <div className="block md:hidden">
               <MobillsMobileHome
-                onNavigateTab={setActiveTab}
+                onNavigateTab={handleNavigateTab}
                 onOpenNewTransaction={handleOpenNewTransaction}
               />
             </div>
@@ -114,7 +126,7 @@ function DashboardContent() {
             {/* Versão Desktop (Inalterada) */}
             <div className="hidden md:block space-y-6">
               {/* Cards de Métricas Principais com Navegação Rápida */}
-              <SummaryCards onNavigateTab={setActiveTab} />
+              <SummaryCards onNavigateTab={handleNavigateTab} />
 
               {/* Gráficos em Duas Colunas */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -130,7 +142,7 @@ function DashboardContent() {
                     <p className="text-xs text-slate-400">Atividades recentes registradas</p>
                   </div>
                   <button
-                    onClick={() => setActiveTab('transactions')}
+                    onClick={() => handleNavigateTab('transactions', 'all')}
                     className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors cursor-pointer"
                   >
                     Ver todas
@@ -145,32 +157,14 @@ function DashboardContent() {
         )}
 
         {activeTab === 'transactions' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-white">Todas as Transações do Período</h3>
-                <p className="text-xs text-slate-400">Clique para marcar como efetivado, editar ou excluir.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsImporterOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-2xl text-xs font-semibold transition-all cursor-pointer"
-                >
-                  <UploadCloud className="w-4 h-4 text-emerald-400" />
-                  Importar Extrato
-                </button>
-                <button
-                  onClick={() => handleOpenNewTransaction('expense')}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-semibold shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  Nova Transação
-                </button>
-              </div>
+          <>
+            <div className="block md:hidden">
+              <MobileTransactionsView initialTypeFilter={selectedTxFilter} />
             </div>
-
-            <TransactionList showAll />
-          </div>
+            <div className="hidden md:block">
+              <TransactionsView initialTypeFilter={selectedTxFilter} />
+            </div>
+          </>
         )}
 
         {activeTab === 'cards' && <CardsView />}
