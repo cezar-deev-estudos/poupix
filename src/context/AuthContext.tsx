@@ -10,7 +10,7 @@ interface AuthContextType {
   loading: boolean;
   isDemoMode: boolean;
   loginWithEmail: (email: string, password: string) => Promise<{ error?: string }>;
-  signUpWithEmail: (email: string, password: string, name: string) => Promise<{ error?: string }>;
+  signUpWithEmail: (email: string, password: string, name: string) => Promise<{ error?: string; needsEmailConfirmation?: boolean }>;
   signOut: () => Promise<void>;
   enterDemoMode: () => void;
   exitDemoMode: () => void;
@@ -88,7 +88,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return {};
   };
 
-  const signUpWithEmail = async (email: string, password: string, name: string) => {
+  const signUpWithEmail = async (email: string, password: string, name: string): Promise<{ error?: string; needsEmailConfirmation?: boolean }> => {
     const supabase = getSupabaseClient();
     if (!supabase) return { error: 'Cliente Supabase não configurado.' };
 
@@ -106,7 +106,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return { error: error.message };
     }
 
-    // Criar registro na tabela profiles se usuário criado
+    // Criar perfil preliminar no Supabase se usuário foi criado
     if (data.user) {
       await supabase.from('profiles').upsert({
         id: data.user.id,
@@ -116,6 +116,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         currency: 'BRL',
         monthly_income_target: 0,
       } as any);
+
+      // Se não há sessão ativa (confirmação de email obrigatória no Supabase)
+      if (!data.session) {
+        return { needsEmailConfirmation: true };
+      }
 
       setUser(data.user);
       setSession(data.session);

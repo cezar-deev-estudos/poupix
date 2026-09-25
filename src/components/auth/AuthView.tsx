@@ -27,6 +27,7 @@ export const AuthView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [emailConfirmationPending, setEmailConfirmationPending] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,12 +50,14 @@ export const AuthView: React.FC = () => {
       if (mode === 'login') {
         const res = await loginWithEmail(email, password);
         if (res.error) {
-          setErrorMsg(res.error === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : res.error);
+          setErrorMsg(res.error === 'Invalid login credentials' ? 'E-mail ou senha incorretos, ou e-mail ainda não confirmado.' : res.error);
         }
       } else {
         const res = await signUpWithEmail(email, password, name);
         if (res.error) {
           setErrorMsg(res.error);
+        } else if (res.needsEmailConfirmation) {
+          setEmailConfirmationPending(true);
         } else {
           setSuccessMsg('Conta criada com sucesso! Você já está conectado.');
         }
@@ -65,6 +68,41 @@ export const AuthView: React.FC = () => {
       setLoading(false);
     }
   };
+
+  if (emailConfirmationPending) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 relative overflow-hidden">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="w-full max-w-md bg-slate-900/70 backdrop-blur-xl border border-slate-800/80 rounded-3xl p-8 shadow-2xl relative z-10 text-center space-y-5">
+          <div className="inline-flex items-center justify-center p-4 bg-emerald-500/10 rounded-3xl border border-emerald-500/20 text-emerald-400">
+            <Mail className="w-10 h-10 animate-bounce" />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black text-white">Confirme seu E-mail</h2>
+            <p className="text-xs text-slate-300">
+              Enviamos um link de confirmação para <strong className="text-emerald-400">{email}</strong>.
+            </p>
+            <p className="text-[11px] text-slate-400">
+              Clique no link recebido para ativar sua conta e depois faça login para começar a usar o Poupix PRO.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setEmailConfirmationPending(false);
+              setMode('login');
+            }}
+            className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-500/10"
+          >
+            <span>Ir para o Login</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 relative overflow-hidden">
