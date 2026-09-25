@@ -8,6 +8,7 @@ import { CheckCircle2, Clock, Trash2, Pencil, ArrowRightLeft, CreditCard, Wallet
 import { Transaction } from '@/types/finance';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { NewTransactionModal } from './NewTransactionModal';
+import { TransactionScopeModal } from './TransactionScopeModal';
 
 interface TransactionListProps {
   limit?: number;
@@ -210,124 +211,18 @@ export const TransactionList: React.FC<TransactionListProps> = ({ limit, showAll
 
       {/* Modal de Confirmação de Exclusão Especial para Recorrência / Parcelas */}
       {deletingTransaction && isRecurringOrInstallment ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-5 animate-scaleUp">
-            <div className="flex items-center gap-3 pb-3 border-b border-slate-800">
-              <div className="w-10 h-10 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
-                <Trash2 className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-base font-bold text-white">
-                  {isInstallment ? 'Excluir Parcela' : 'Excluir Despesa Fixa'}
-                </h4>
-                <p className="text-xs text-slate-400 truncate">
-                  {deletingTransaction.description} ({formatCurrency(deletingTransaction.amount)})
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2.5">
-              <p className="text-xs text-slate-300 font-medium">
-                Como você deseja aplicar esta exclusão?
-              </p>
-
-              <button
-                type="button"
-                onClick={() => setDeleteMode('single')}
-                className={`w-full flex items-center justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                  deleteMode === 'single'
-                    ? 'bg-rose-500/10 border-rose-500/60 text-white'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                }`}
-              >
-                <div>
-                  <div className="text-xs font-bold text-white">
-                    {isInstallment ? 'Apenas esta parcela' : 'Apenas esta despesa'}
-                  </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    Remove somente o lançamento do mês selecionado.
-                  </div>
-                </div>
-                <div
-                  className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                    deleteMode === 'single' ? 'border-rose-500 bg-rose-500' : 'border-slate-700'
-                  }`}
-                >
-                  {deleteMode === 'single' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDeleteMode('following')}
-                className={`w-full flex items-center justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                  deleteMode === 'following'
-                    ? 'bg-rose-500/10 border-rose-500/60 text-white'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                }`}
-              >
-                <div>
-                  <div className="text-xs font-bold text-white">
-                    {isInstallment ? 'Esta e as próximas pendentes' : 'Esta e as futuras pendentes'}
-                  </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    Cancela os lançamentos futuros não pagos desta série.
-                  </div>
-                </div>
-                <div
-                  className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                    deleteMode === 'following' ? 'border-rose-500 bg-rose-500' : 'border-slate-700'
-                  }`}
-                >
-                  {deleteMode === 'following' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDeleteMode('all')}
-                className={`w-full flex items-center justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                  deleteMode === 'all'
-                    ? 'bg-rose-500/10 border-rose-500/60 text-white'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                }`}
-              >
-                <div>
-                  <div className="text-xs font-bold text-white">
-                    {isInstallment ? 'Todas as parcelas' : 'Todas as despesas da série'}
-                  </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    Remove todo o histórico e pendências vinculadas.
-                  </div>
-                </div>
-                <div
-                  className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                    deleteMode === 'all' ? 'border-rose-500 bg-rose-500' : 'border-slate-700'
-                  }`}
-                >
-                  {deleteMode === 'all' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                </div>
-              </button>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => setDeletingTransaction(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/25 transition-all cursor-pointer"
-              >
-                Confirmar Exclusão
-              </button>
-            </div>
-          </div>
-        </div>
+        <TransactionScopeModal
+          isOpen={!!deletingTransaction}
+          actionType="delete"
+          transaction={deletingTransaction}
+          selectedMode={deleteMode}
+          onSelectMode={setDeleteMode}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => {
+            setDeletingTransaction(null);
+            setDeleteMode('single');
+          }}
+        />
       ) : (
         /* Modal Padrão de Confirmação de Exclusão para Transações Simples */
         <ConfirmModal

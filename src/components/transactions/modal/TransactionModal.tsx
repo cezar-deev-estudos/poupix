@@ -7,6 +7,7 @@ import { ExpenseForm } from './ExpenseForm';
 import { IncomeForm } from './IncomeForm';
 import { CreditCardExpenseForm } from './CreditCardExpenseForm';
 import { TransferForm } from './TransferForm';
+import { TransactionScopeModal } from '../TransactionScopeModal';
 import { X, TrendingDown, TrendingUp, CreditCard, ArrowRightLeft, CheckCircle2 } from 'lucide-react';
 
 export type TransactionFlowType = 'expense' | 'income' | 'creditCard' | 'transfer';
@@ -47,11 +48,26 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     setSuccessToast(null);
   }, [flowType, transactionToEdit, isOpen]);
 
-  if (!isOpen) return null;
+  const [pendingUpdateData, setPendingUpdateData] = useState<Omit<Transaction, 'id' | 'createdAt'> | null>(null);
+  const [scopeMode, setScopeMode] = useState<'single' | 'following' | 'all'>('single');
+  const [showScopeModal, setShowScopeModal] = useState(false);
+
+  const isRecurringOrInstallment = !!(
+    transactionToEdit?.recurringGroupId ||
+    transactionToEdit?.isRecurring ||
+    transactionToEdit?.installmentGroupId ||
+    (transactionToEdit?.installmentTotal && transactionToEdit.installmentTotal > 1)
+  );
 
   const handleSave = (data: Omit<Transaction, 'id' | 'createdAt'>, createAnother: boolean = false) => {
     if (transactionToEdit) {
-      updateTransaction(transactionToEdit.id, data);
+      if (isRecurringOrInstallment) {
+        setPendingUpdateData(data);
+        setScopeMode('single');
+        setShowScopeModal(true);
+        return;
+      }
+      updateTransaction(transactionToEdit.id, data, 'single');
       onClose();
     } else {
       addTransaction(data);
@@ -61,6 +77,15 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       } else {
         onClose();
       }
+    }
+  };
+
+  const handleConfirmScopeEdit = () => {
+    if (transactionToEdit && pendingUpdateData) {
+      updateTransaction(transactionToEdit.id, pendingUpdateData, scopeMode);
+      setShowScopeModal(false);
+      setPendingUpdateData(null);
+      onClose();
     }
   };
 
@@ -219,6 +244,22 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Modal de Escopo para Edição de Recorrentes / Parcelados */}
+      {showScopeModal && (
+        <TransactionScopeModal
+          isOpen={showScopeModal}
+          actionType="edit"
+          transaction={transactionToEdit}
+          selectedMode={scopeMode}
+          onSelectMode={setScopeMode}
+          onConfirm={handleConfirmScopeEdit}
+          onCancel={() => {
+            setShowScopeModal(false);
+            setPendingUpdateData(null);
+          }}
+        />
+      )}
     </div>
   );
 };
