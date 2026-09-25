@@ -20,6 +20,7 @@ interface UseFinanceCloudSyncProps {
     accounts?: Account[];
     creditCards?: CreditCard[];
     categories?: Category[];
+    tags?: Tag[];
     transactions?: Transaction[];
     goals?: Goal[];
     openFinanceConnections?: OpenFinanceConnection[];

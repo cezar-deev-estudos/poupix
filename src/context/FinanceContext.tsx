@@ -202,6 +202,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     accounts?: Account[];
     creditCards?: CreditCard[];
     categories?: Category[];
+    tags?: Tag[];
     transactions?: Transaction[];
     goals?: Goal[];
     openFinanceConnections?: OpenFinanceConnection[];
@@ -209,6 +210,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (cloudData.accounts && cloudData.accounts.length > 0) setAccounts(cloudData.accounts);
     if (cloudData.creditCards && cloudData.creditCards.length > 0) setCreditCards(cloudData.creditCards);
     if (cloudData.categories && cloudData.categories.length > 0) setCategories(cloudData.categories);
+    if (cloudData.tags && cloudData.tags.length > 0) setTags(cloudData.tags);
     if (cloudData.transactions && cloudData.transactions.length > 0) setTransactions(cloudData.transactions);
     if (cloudData.goals && cloudData.goals.length > 0) setGoals(cloudData.goals);
     if (cloudData.openFinanceConnections && cloudData.openFinanceConnections.length > 0) setOpenFinanceConnections(cloudData.openFinanceConnections);

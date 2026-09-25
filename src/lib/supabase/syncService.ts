@@ -77,6 +77,19 @@ export const syncAllToSupabase = async (data: {
       if (catErr) console.warn('[Supabase Sync] Erro em categorias:', catErr.message)
     }
 
+    // 2.1. Sincronizar Tags
+    if (data.tags && data.tags.length > 0) {
+      const tagsPayload = data.tags.map(tag => ({
+        id: ensureValidUUID(tag.id),
+        user_id: userId,
+        name: tag.name,
+        color: tag.color || '#3B82F6',
+        created_at: tag.createdAt || new Date().toISOString(),
+      }))
+      const { error: tagErr } = await supabase.from('tags').upsert(tagsPayload as any)
+      if (tagErr) console.warn('[Supabase Sync] Erro em tags:', tagErr.message)
+    }
+
     // 3. Sincronizar Contas
     const validAccountIds = new Set<string>()
     if (data.accounts.length > 0) {
@@ -234,10 +247,11 @@ export const fetchAllFromSupabase = async (userId: string) => {
   if (!supabase) return null
 
   try {
-    const [accRes, cardRes, catRes, txRes, goalRes, ofRes] = await Promise.all([
+    const [accRes, cardRes, catRes, tagRes, txRes, goalRes, ofRes] = await Promise.all([
       supabase.from('accounts').select('*').eq('user_id', userId),
       supabase.from('credit_cards').select('*').eq('user_id', userId),
       supabase.from('categories').select('*').eq('user_id', userId),
+      supabase.from('tags').select('*').eq('user_id', userId),
       supabase.from('transactions').select('*').eq('user_id', userId),
       supabase.from('goals').select('*').eq('user_id', userId),
       supabase.from('open_finance_connections').select('*').eq('user_id', userId),
@@ -275,6 +289,13 @@ export const fetchAllFromSupabase = async (userId: string) => {
       parentId: cat.parent_id || undefined,
       budgetLimit: cat.budget_limit ? Number(cat.budget_limit) : undefined,
       isDefault: cat.is_default ?? false,
+    }))
+
+    const tags: Tag[] = (tagRes.data || []).map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      color: t.color || '#3B82F6',
+      createdAt: t.created_at,
     }))
 
     const transactions: Transaction[] = (txRes.data || []).map((t: any) => ({
@@ -333,6 +354,7 @@ export const fetchAllFromSupabase = async (userId: string) => {
       accounts,
       creditCards,
       categories,
+      tags,
       transactions,
       goals,
       openFinanceConnections,
@@ -371,8 +393,8 @@ export const deleteTransactionFromSupabase = async (txId: string, recurringGroup
   }
 }
 
-// 4. Exclusão Direta de Entidades (Contas, Cartões, Categorias, Metas)
-export const deleteEntityFromSupabase = async (table: 'accounts' | 'credit_cards' | 'categories' | 'goals', id: string) => {
+// 4. Exclusão Direta de Entidades (Contas, Cartões, Categorias, Tags, Metas)
+export const deleteEntityFromSupabase = async (table: 'accounts' | 'credit_cards' | 'categories' | 'tags' | 'goals', id: string) => {
   const supabase = getSupabaseClient()
   if (!supabase) return
 

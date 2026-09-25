@@ -96,6 +96,7 @@ export const entityManager: EntityManagerActions = {
     }
   },
   deleteTag: (id, tags, setTags, setTransactions) => {
+    deleteEntityFromSupabase('tags', id);
     const existing = tags.find(t => t.id === id);
     if (!existing) return;
     setTags(prev => prev.filter(t => t.id !== id));
