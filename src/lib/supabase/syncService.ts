@@ -81,6 +81,7 @@ export const syncAllToSupabase = async (data: {
         type: cat.type,
         icon: cat.icon,
         color: cat.color,
+        parent_id: cat.parentId || null,
         budget_limit: cat.budgetLimit || null,
         is_default: cat.isDefault ?? false
       }))
@@ -104,9 +105,13 @@ export const syncAllToSupabase = async (data: {
         paid: tx.paid ?? true,
         is_recurring: tx.isRecurring ?? false,
         recurring_period: tx.recurringPeriod || null,
+        recurring_group_id: tx.recurringGroupId || null,
         installment_current: tx.installmentCurrent || null,
         installment_total: tx.installmentTotal || null,
         installment_group_id: tx.installmentGroupId || null,
+        ignore_in_totals: tx.ignoreInTotals ?? false,
+        invoice_date: tx.invoiceDate || null,
+        is_favorite: tx.isFavorite ?? false,
         tags: tx.tags || [],
         notes: tx.notes || null,
         created_at: tx.createdAt || new Date().toISOString()

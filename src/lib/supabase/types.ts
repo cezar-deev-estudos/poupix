@@ -118,6 +118,7 @@ export interface Database {
         Row: {
           id: string
           user_id: string
+          parent_id: string | null
           name: string
           type: 'income' | 'expense'
           icon: string
@@ -128,6 +129,7 @@ export interface Database {
         Insert: {
           id?: string
           user_id: string
+          parent_id?: string | null
           name: string
           type: 'income' | 'expense'
           icon?: string
@@ -138,6 +140,7 @@ export interface Database {
         Update: {
           id?: string
           user_id?: string
+          parent_id?: string | null
           name?: string
           type?: 'income' | 'expense'
           icon?: string
@@ -164,6 +167,9 @@ export interface Database {
           installment_current: number | null
           installment_total: number | null
           installment_group_id: string | null
+          ignore_in_totals: boolean
+          invoice_date: string | null
+          is_favorite: boolean
           tags: string[]
           notes: string | null
           created_at: string
@@ -185,6 +191,9 @@ export interface Database {
           installment_current?: number | null
           installment_total?: number | null
           installment_group_id?: string | null
+          ignore_in_totals?: boolean
+          invoice_date?: string | null
+          is_favorite?: boolean
           tags?: string[]
           notes?: string | null
           created_at?: string
@@ -206,6 +215,9 @@ export interface Database {
           installment_current?: number | null
           installment_total?: number | null
           installment_group_id?: string | null
+          ignore_in_totals?: boolean
+          invoice_date?: string | null
+          is_favorite?: boolean
           tags?: string[]
           notes?: string | null
           created_at?: string

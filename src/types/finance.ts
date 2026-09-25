@@ -33,7 +33,15 @@ export interface Category {
   icon: string;
   color: string;
   budgetLimit?: number; // Teto de gastos mensal
+  parentId?: string; // ID da categoria pai para subcategorias
   isDefault?: boolean;
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  color?: string;
+  createdAt: string;
 }
 
 export interface Transaction {
@@ -51,9 +59,13 @@ export interface Transaction {
   notes?: string;
   isRecurring?: boolean;
   recurringPeriod?: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  recurringGroupId?: string; // ID do grupo da despesa fixa
   installmentCurrent?: number;
   installmentTotal?: number;
   installmentGroupId?: string;
+  ignoreInTotals?: boolean; // Ignorar transação em cálculos e relatórios
+  invoiceDate?: string; // Data de vencimento da fatura do cartão
+  isFavorite?: boolean; // Transação marcada como favorita
   createdAt: string;
 }
 

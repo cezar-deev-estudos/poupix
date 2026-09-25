@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS public.credit_cards (
 CREATE TABLE IF NOT EXISTS public.categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    parent_id UUID REFERENCES public.categories(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     type TEXT NOT NULL, -- 'expense' | 'income'
     icon TEXT NOT NULL DEFAULT 'Tag',
@@ -87,6 +88,9 @@ CREATE TABLE IF NOT EXISTS public.transactions (
     installment_group_id TEXT,
     tags TEXT[] DEFAULT '{}',
     notes TEXT,
+    ignore_in_totals BOOLEAN NOT NULL DEFAULT false,
+    invoice_date DATE,
+    is_favorite BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

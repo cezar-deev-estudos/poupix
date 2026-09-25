@@ -1,8 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { Account, Category, CreditCard, Transaction, FinancialSummary, Goal, AlertNotification, OpenFinanceConnection } from '@/types/finance';
-import { INITIAL_ACCOUNTS, INITIAL_CATEGORIES, INITIAL_CREDIT_CARDS, INITIAL_TRANSACTIONS, INITIAL_GOALS } from '@/data/initialData';
+import { Account, Category, CreditCard, Transaction, FinancialSummary, Goal, AlertNotification, OpenFinanceConnection, Tag } from '@/types/finance';
+import { INITIAL_ACCOUNTS, INITIAL_CATEGORIES, INITIAL_CREDIT_CARDS, INITIAL_TRANSACTIONS, INITIAL_GOALS, INITIAL_TAGS } from '@/data/initialData';
 import { generateSmartAlerts } from '@/lib/alerts';
 import { INITIAL_OPEN_FINANCE_CONNECTIONS, simulateOpenFinanceSyncTransactions } from '@/lib/openFinance';
 
@@ -16,6 +16,7 @@ interface FinanceContextType {
   accounts: Account[];
   creditCards: CreditCard[];
   categories: Category[];
+  tags: Tag[];
   transactions: Transaction[];
   goals: Goal[];
   alerts: AlertNotification[];
@@ -31,8 +32,8 @@ interface FinanceContextType {
   setSelectedYear: (year: number) => void;
   addTransaction: (tx: Omit<Transaction, 'id' | 'createdAt'>) => void;
   importTransactions: (txs: Omit<Transaction, 'id' | 'createdAt'>[]) => void;
-  updateTransaction: (id: string, tx: Partial<Transaction>) => void;
-  deleteTransaction: (id: string) => void;
+  updateTransaction: (id: string, tx: Partial<Transaction>, mode?: 'single' | 'following' | 'all') => void;
+  deleteTransaction: (id: string, mode?: 'single' | 'following' | 'all') => void;
   addAccount: (acc: Omit<Account, 'id' | 'createdAt'>) => void;
   updateAccount: (id: string, acc: Partial<Account>) => void;
   deleteAccount: (id: string) => void;
@@ -42,6 +43,9 @@ interface FinanceContextType {
   addCategory: (cat: Omit<Category, 'id'>) => void;
   updateCategory: (id: string, cat: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
+  addTag: (tag: Omit<Tag, 'id' | 'createdAt'>) => void;
+  updateTag: (id: string, tag: Partial<Tag>) => void;
+  deleteTag: (id: string) => void;
   addGoal: (goal: Omit<Goal, 'id' | 'createdAt'>) => void;
   updateGoal: (id: string, goal: Partial<Goal>) => void;
   deleteGoal: (id: string) => void;
@@ -88,6 +92,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [openFinanceConnections, setOpenFinanceConnections] = useState<OpenFinanceConnection[]>([]);
@@ -105,6 +110,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const savedAccounts = localStorage.getItem(`${userStoragePrefix}accounts`);
       const savedCards = localStorage.getItem(`${userStoragePrefix}cards`);
       const savedCategories = localStorage.getItem(`${userStoragePrefix}categories`);
+      const savedTags = localStorage.getItem(`${userStoragePrefix}tags`);
       const savedTransactions = localStorage.getItem(`${userStoragePrefix}transactions`);
       const savedGoals = localStorage.getItem(`${userStoragePrefix}goals`);
       const savedReadAlerts = localStorage.getItem(`${userStoragePrefix}read_alerts`);
@@ -128,6 +134,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setAccounts(savedAccounts ? JSON.parse(savedAccounts) : []);
         setCreditCards(savedCards ? JSON.parse(savedCards) : []);
         setCategories(savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES);
+        setTags(savedTags ? JSON.parse(savedTags) : INITIAL_TAGS);
         setTransactions(savedTransactions ? JSON.parse(savedTransactions) : []);
         setGoals(savedGoals ? JSON.parse(savedGoals) : []);
         setOpenFinanceConnections(savedOpenFinance ? JSON.parse(savedOpenFinance) : []);
@@ -139,6 +146,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setAccounts(savedAccounts ? JSON.parse(savedAccounts) : INITIAL_ACCOUNTS);
         setCreditCards(savedCards ? JSON.parse(savedCards) : INITIAL_CREDIT_CARDS);
         setCategories(savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES);
+        setTags(savedTags ? JSON.parse(savedTags) : INITIAL_TAGS);
         setTransactions(savedTransactions ? JSON.parse(savedTransactions) : INITIAL_TRANSACTIONS);
         setGoals(savedGoals ? JSON.parse(savedGoals) : INITIAL_GOALS);
         setOpenFinanceConnections(savedOpenFinance ? JSON.parse(savedOpenFinance) : INITIAL_OPEN_FINANCE_CONNECTIONS);
@@ -162,6 +170,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem(`${userStoragePrefix}accounts`, JSON.stringify(accounts));
     localStorage.setItem(`${userStoragePrefix}cards`, JSON.stringify(creditCards));
     localStorage.setItem(`${userStoragePrefix}categories`, JSON.stringify(categories));
+    localStorage.setItem(`${userStoragePrefix}tags`, JSON.stringify(tags));
     localStorage.setItem(`${userStoragePrefix}transactions`, JSON.stringify(transactions));
     localStorage.setItem(`${userStoragePrefix}goals`, JSON.stringify(goals));
     localStorage.setItem(`${userStoragePrefix}read_alerts`, JSON.stringify(readAlertIds));
@@ -176,7 +185,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       document.documentElement.classList.add('light');
       document.documentElement.classList.remove('dark');
     }
-  }, [accounts, creditCards, categories, transactions, goals, readAlertIds, openFinanceConnections, isPrivacyMode, theme, isInitialized, userStoragePrefix]);
+  }, [accounts, creditCards, categories, tags, transactions, goals, readAlertIds, openFinanceConnections, isPrivacyMode, theme, isInitialized, userStoragePrefix]);
 
   const currentUser = useMemo(() => {
     return users.find(u => u.id === currentUserId) || users[0] || {
@@ -260,6 +269,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     let creditCardTotalInvoice = 0;
 
     filteredTransactions.forEach(t => {
+      if (t.ignoreInTotals) return;
       if (t.type === 'income') {
         expectedMonthlyIncome += t.amount;
         if (t.paid) monthlyIncome += t.amount;
@@ -287,28 +297,26 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [filteredTransactions, accounts]);
 
+  // Helper para cálculo robusto de datas mês a mês (respeitando último dia de cada mês)
+  const getNextMonthDate = (baseDateStr: string, monthOffset: number): string => {
+    const [baseYear, baseMonth, baseDay] = baseDateStr.split('-').map(Number);
+    const totalMonths = (baseMonth - 1) + monthOffset;
+    const targetYear = baseYear + Math.floor(totalMonths / 12);
+    const targetMonth = (totalMonths % 12) + 1;
+    const maxDays = new Date(targetYear, targetMonth, 0).getDate();
+    const day = Math.min(baseDay, maxDays);
+    return `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  };
+
   // Ações de Transação
   const addTransaction = (tx: Omit<Transaction, 'id' | 'createdAt'>) => {
-    const newTx: Transaction = {
-      ...tx,
-      id: 'tx-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
-      createdAt: new Date().toISOString(),
-    };
-
+    // 1. Caso seja Repetição / Parcelamento (Repetir N vezes)
     if (tx.installmentTotal && tx.installmentTotal > 1 && !tx.installmentGroupId) {
-      const groupId = 'group-' + Date.now();
+      const groupId = 'parc-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
       const parcelTransactions: Transaction[] = [];
-      const [baseYear, baseMonth, baseDay] = tx.date.split('-').map(Number);
 
       for (let i = 1; i <= tx.installmentTotal; i++) {
-        let nextMonth = baseMonth - 1 + (i - 1);
-        let nextYear = baseYear + Math.floor(nextMonth / 12);
-        nextMonth = (nextMonth % 12) + 1;
-        
-        const padMonth = String(nextMonth).padStart(2, '0');
-        const padDay = String(Math.min(baseDay, 28)).padStart(2, '0');
-        const parcelDate = `${nextYear}-${padMonth}-${padDay}`;
-
+        const parcelDate = getNextMonthDate(tx.date, i - 1);
         parcelTransactions.push({
           ...tx,
           id: `tx-parc-${Date.now()}-${i}`,
@@ -332,11 +340,59 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
               balance: tx.type === 'income' ? a.balance + tx.amount : a.balance - tx.amount
             };
           }
+          if (tx.type === 'transfer' && a.id === tx.destinationAccountId) {
+            return { ...a, balance: a.balance + tx.amount };
+          }
           return a;
         }));
       }
       return;
     }
+
+    // 2. Caso seja Despesa / Receita / Transferência Fixa (Recorrente mensal por 12 meses)
+    if (tx.isRecurring && !tx.recurringGroupId) {
+      const recurringGroupId = 'rec-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+      const recurringTransactions: Transaction[] = [];
+
+      for (let i = 0; i < 12; i++) {
+        const recDate = getNextMonthDate(tx.date, i);
+        recurringTransactions.push({
+          ...tx,
+          id: `tx-rec-${Date.now()}-${i + 1}`,
+          date: recDate,
+          isRecurring: true,
+          recurringPeriod: 'monthly',
+          recurringGroupId,
+          paid: i === 0 ? tx.paid : false,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      setTransactions(prev => [...recurringTransactions, ...prev]);
+
+      if (tx.accountId && !tx.creditCardId && tx.paid) {
+        setAccounts(prev => prev.map(a => {
+          if (a.id === tx.accountId) {
+            return {
+              ...a,
+              balance: tx.type === 'income' ? a.balance + tx.amount : a.balance - tx.amount
+            };
+          }
+          if (tx.type === 'transfer' && a.id === tx.destinationAccountId) {
+            return { ...a, balance: a.balance + tx.amount };
+          }
+          return a;
+        }));
+      }
+      return;
+    }
+
+    // 3. Caso padrão: Transação Única
+    const newTx: Transaction = {
+      ...tx,
+      id: 'tx-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      createdAt: new Date().toISOString(),
+    };
 
     setTransactions(prev => [newTx, ...prev]);
 
@@ -381,12 +437,166 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  const updateTransaction = (id: string, updated: Partial<Transaction>) => {
-    setTransactions(prev => prev.map(t => (t.id === id ? { ...t, ...updated } : t)));
+  const updateTransaction = (
+    id: string,
+    updated: Partial<Transaction>,
+    mode: 'single' | 'following' | 'all' = 'single'
+  ) => {
+    const target = transactions.find(t => t.id === id);
+    if (!target) return;
+
+    if (mode === 'single' || (!target.recurringGroupId && !target.installmentGroupId)) {
+      setTransactions(prev => prev.map(t => (t.id === id ? { ...t, ...updated } : t)));
+      return;
+    }
+
+    if (mode === 'following') {
+      if (target.recurringGroupId) {
+        setTransactions(prev =>
+          prev.map(t => {
+            if (t.recurringGroupId === target.recurringGroupId && t.date >= target.date && (!t.paid || t.id === target.id)) {
+              return {
+                ...t,
+                ...updated,
+                id: t.id,
+                date: t.id === target.id ? (updated.date || t.date) : t.date,
+              };
+            }
+            return t;
+          })
+        );
+      } else if (target.installmentGroupId) {
+        setTransactions(prev =>
+          prev.map(t => {
+            if (
+              t.installmentGroupId === target.installmentGroupId &&
+              (t.installmentCurrent || 0) >= (target.installmentCurrent || 0) &&
+              (!t.paid || t.id === target.id)
+            ) {
+              return {
+                ...t,
+                ...updated,
+                id: t.id,
+                date: t.id === target.id ? (updated.date || t.date) : t.date,
+                installmentCurrent: t.installmentCurrent,
+                installmentTotal: t.installmentTotal,
+              };
+            }
+            return t;
+          })
+        );
+      }
+      return;
+    }
+
+    if (mode === 'all') {
+      if (target.recurringGroupId) {
+        setTransactions(prev =>
+          prev.map(t =>
+            t.recurringGroupId === target.recurringGroupId
+              ? { ...t, ...updated, id: t.id, date: t.id === target.id ? (updated.date || t.date) : t.date }
+              : t
+          )
+        );
+      } else if (target.installmentGroupId) {
+        setTransactions(prev =>
+          prev.map(t =>
+            t.installmentGroupId === target.installmentGroupId
+              ? {
+                  ...t,
+                  ...updated,
+                  id: t.id,
+                  date: t.id === target.id ? (updated.date || t.date) : t.date,
+                  installmentCurrent: t.installmentCurrent,
+                  installmentTotal: t.installmentTotal,
+                }
+              : t
+          )
+        );
+      }
+    }
   };
 
-  const deleteTransaction = (id: string) => {
-    setTransactions(prev => prev.filter(t => t.id !== id));
+  const deleteTransaction = (id: string, mode: 'single' | 'following' | 'all' = 'single') => {
+    const target = transactions.find(t => t.id === id);
+    if (!target) return;
+
+    if (mode === 'single' || (!target.recurringGroupId && !target.installmentGroupId)) {
+      setTransactions(prev => prev.filter(t => t.id !== id));
+      return;
+    }
+
+    if (mode === 'following') {
+      if (target.recurringGroupId) {
+        setTransactions(prev =>
+          prev.filter(t => !(t.recurringGroupId === target.recurringGroupId && t.date >= target.date && (!t.paid || t.id === target.id)))
+        );
+      } else if (target.installmentGroupId) {
+        setTransactions(prev =>
+          prev.filter(
+            t =>
+              !(
+                t.installmentGroupId === target.installmentGroupId &&
+                (t.installmentCurrent || 0) >= (target.installmentCurrent || 0) &&
+                (!t.paid || t.id === target.id)
+              )
+          )
+        );
+      }
+      return;
+    }
+
+    if (mode === 'all') {
+      if (target.recurringGroupId) {
+        setTransactions(prev => prev.filter(t => t.recurringGroupId !== target.recurringGroupId));
+      } else if (target.installmentGroupId) {
+        setTransactions(prev => prev.filter(t => t.installmentGroupId !== target.installmentGroupId));
+      }
+    }
+  };
+
+  // Ações de Tags
+  const addTag = (tag: Omit<Tag, 'id' | 'createdAt'>) => {
+    const newTag: Tag = {
+      ...tag,
+      id: 'tag-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      createdAt: new Date().toISOString(),
+    };
+    setTags(prev => [...prev, newTag]);
+  };
+
+  const updateTag = (id: string, updated: Partial<Tag>) => {
+    const existing = tags.find(t => t.id === id);
+    if (!existing) return;
+    setTags(prev => prev.map(t => (t.id === id ? { ...t, ...updated } : t)));
+    // Se o nome mudou, atualizar nas transações existentes
+    if (updated.name && updated.name !== existing.name) {
+      setTransactions(prev =>
+        prev.map(tx => {
+          if (!tx.tags || !tx.tags.includes(existing.name)) return tx;
+          return {
+            ...tx,
+            tags: tx.tags.map(t => (t === existing.name ? updated.name! : t)),
+          };
+        })
+      );
+    }
+  };
+
+  const deleteTag = (id: string) => {
+    const existing = tags.find(t => t.id === id);
+    if (!existing) return;
+    setTags(prev => prev.filter(t => t.id !== id));
+    // Remover a tag das transações existentes
+    setTransactions(prev =>
+      prev.map(tx => {
+        if (!tx.tags || !tx.tags.includes(existing.name)) return tx;
+        return {
+          ...tx,
+          tags: tx.tags.filter(t => t !== existing.name),
+        };
+      })
+    );
   };
 
   // Ações de Contas
@@ -603,6 +813,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         accounts,
         creditCards,
         categories,
+        tags,
         transactions,
         goals,
         alerts,
@@ -635,6 +846,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addCategory,
         updateCategory,
         deleteCategory,
+        addTag,
+        updateTag,
+        deleteTag,
         addGoal,
         updateGoal,
         deleteGoal,

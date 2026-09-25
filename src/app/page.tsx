@@ -13,22 +13,31 @@ import { CardsView } from '@/components/cards/CardsView';
 import { AccountsView } from '@/components/accounts/AccountsView';
 import { BudgetsView } from '@/components/budgets/BudgetsView';
 import { GoalsView } from '@/components/goals/GoalsView';
+import { TagsView } from '@/components/tags/TagsView';
 import { CashFlowProjectionView } from '@/components/projections/CashFlowProjectionView';
 import { OpenFinanceView } from '@/components/openfinance/OpenFinanceView';
 import { ReportsView } from '@/components/reports/ReportsView';
 import { SettingsView } from '@/components/settings/SettingsView';
 import { UsersManagementView } from '@/components/users/UsersManagementView';
+import { TransactionModal, TransactionFlowType } from '@/components/transactions/modal/TransactionModal';
 import { BankStatementImporterModal } from '@/components/importer/BankStatementImporterModal';
 import { AlertsDrawer } from '@/components/alerts/AlertsDrawer';
+import { MobillsMobileHome } from '@/components/dashboard/MobillsMobileHome';
 import { Plus, ArrowRight, UploadCloud, Bell } from 'lucide-react';
 
 function DashboardContent() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [isNewTxModalOpen, setIsNewTxModalOpen] = useState(false);
+  const [txModalFlow, setTxModalFlow] = useState<TransactionFlowType>('expense');
   const [isImporterOpen, setIsImporterOpen] = useState(false);
   const [isAlertsDrawerOpen, setIsAlertsDrawerOpen] = useState(false);
 
   const { unreadAlertsCount } = useFinance();
+
+  const handleOpenNewTransaction = (flow: TransactionFlowType = 'expense') => {
+    setTxModalFlow(flow);
+    setIsNewTxModalOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row antialiased selection:bg-emerald-500 selection:text-slate-950 pb-20 md:pb-6">
@@ -36,7 +45,7 @@ function DashboardContent() {
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        onOpenNewTransaction={() => setIsNewTxModalOpen(true)}
+        onOpenNewTransaction={handleOpenNewTransaction}
         onOpenImporter={() => setIsImporterOpen(true)}
       />
 
@@ -52,6 +61,7 @@ function DashboardContent() {
               {activeTab === 'accounts' && 'Contas & Carteiras'}
               {activeTab === 'budgets' && 'Orçamentos & Categorias'}
               {activeTab === 'goals' && 'Metas & Sonhos'}
+              {activeTab === 'tags' && 'Tags & Etiquetas'}
               {activeTab === 'projections' && 'Projeção de Fluxo de Caixa'}
               {activeTab === 'openfinance' && 'Hub Open Finance'}
               {activeTab === 'reports' && 'Relatórios & Exportação'}
@@ -92,35 +102,46 @@ function DashboardContent() {
 
         {/* Visualização Condicional por Aba */}
         {activeTab === 'dashboard' && (
-          <div className="space-y-6">
-            {/* Cards de Métricas Principais */}
-            <SummaryCards />
-
-            {/* Gráficos em Duas Colunas */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <CategoryExpenseChart />
-              <CashflowHistoryChart />
+          <>
+            {/* Versão Mobile / Tablet (Mobills Standard) */}
+            <div className="block md:hidden">
+              <MobillsMobileHome
+                onNavigateTab={setActiveTab}
+                onOpenNewTransaction={handleOpenNewTransaction}
+              />
             </div>
 
-            {/* Últimos Lançamentos com Atalho */}
-            <div className="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-6 shadow-xl space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-white text-base">Últimas Transações do Mês</h3>
-                  <p className="text-xs text-slate-400">Atividades recentes registradas</p>
-                </div>
-                <button
-                  onClick={() => setActiveTab('transactions')}
-                  className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors cursor-pointer"
-                >
-                  Ver todas
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+            {/* Versão Desktop (Inalterada) */}
+            <div className="hidden md:block space-y-6">
+              {/* Cards de Métricas Principais */}
+              <SummaryCards />
+
+              {/* Gráficos em Duas Colunas */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <CategoryExpenseChart />
+                <CashflowHistoryChart />
               </div>
 
-              <TransactionList limit={5} />
+              {/* Últimos Lançamentos com Atalho */}
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-6 shadow-xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-white text-base">Últimas Transações do Mês</h3>
+                    <p className="text-xs text-slate-400">Atividades recentes registradas</p>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('transactions')}
+                    className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors cursor-pointer"
+                  >
+                    Ver todas
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <TransactionList limit={5} />
+              </div>
             </div>
-          </div>
+          </>
         )}
 
         {activeTab === 'transactions' && (
@@ -128,7 +149,7 @@ function DashboardContent() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-white">Todas as Transações do Período</h3>
-                <p className="text-xs text-slate-400">Clique para marcar como efetivado ou excluir.</p>
+                <p className="text-xs text-slate-400">Clique para marcar como efetivado, editar ou excluir.</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -139,7 +160,7 @@ function DashboardContent() {
                   Importar Extrato
                 </button>
                 <button
-                  onClick={() => setIsNewTxModalOpen(true)}
+                  onClick={() => handleOpenNewTransaction('expense')}
                   className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-semibold shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
@@ -156,6 +177,7 @@ function DashboardContent() {
         {activeTab === 'accounts' && <AccountsView />}
         {activeTab === 'budgets' && <BudgetsView />}
         {activeTab === 'goals' && <GoalsView />}
+        {activeTab === 'tags' && <TagsView />}
         {activeTab === 'projections' && <CashFlowProjectionView />}
         {activeTab === 'openfinance' && <OpenFinanceView />}
         {activeTab === 'reports' && <ReportsView />}
@@ -164,9 +186,10 @@ function DashboardContent() {
       </main>
 
       {/* Modais e Drawers Globais */}
-      <NewTransactionModal
+      <TransactionModal
         isOpen={isNewTxModalOpen}
         onClose={() => setIsNewTxModalOpen(false)}
+        flowType={txModalFlow}
       />
 
       <BankStatementImporterModal

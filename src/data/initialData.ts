@@ -267,5 +267,17 @@ export const INITIAL_USERS: import('@/types/finance').UserProfile[] = [
   }
 ];
 
+export const INITIAL_TAGS: import('@/types/finance').Tag[] = [
+  { id: 'tag-alimentacao', name: 'Alimentação', color: '#EF4444', createdAt: new Date().toISOString() },
+  { id: 'tag-carro', name: 'Carro', color: '#F59E0B', createdAt: new Date().toISOString() },
+  { id: 'tag-viagem', name: 'Viagem', color: '#3B82F6', createdAt: new Date().toISOString() },
+  { id: 'tag-lazer', name: 'Lazer', color: '#8B5CF6', createdAt: new Date().toISOString() },
+  { id: 'tag-trabalho', name: 'Trabalho', color: '#10B981', createdAt: new Date().toISOString() },
+  { id: 'tag-saude', name: 'Saúde', color: '#EC4899', createdAt: new Date().toISOString() },
+  { id: 'tag-casa', name: 'Casa', color: '#06B6D4', createdAt: new Date().toISOString() },
+  { id: 'tag-educacao', name: 'Educação', color: '#6366F1', createdAt: new Date().toISOString() },
+  { id: 'tag-investimento', name: 'Investimento', color: '#14B8A6', createdAt: new Date().toISOString() },
+];
+
 
 
