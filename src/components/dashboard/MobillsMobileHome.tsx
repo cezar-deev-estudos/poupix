@@ -147,8 +147,16 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
       {/* 1. HERO CARD: SALDO EM CONTAS */}
       <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-5 shadow-xl space-y-4">
         <div className="text-center space-y-1">
-          <span className="text-xs font-semibold text-slate-400 block">Saldo em contas</span>
-          <div className="text-3xl font-black text-white tracking-tight">
+          <span 
+            onClick={() => onNavigateTab('accounts')}
+            className="text-xs font-semibold text-slate-400 block cursor-pointer hover:text-slate-200 transition-colors"
+          >
+            Saldo em contas
+          </span>
+          <div 
+            onClick={() => onNavigateTab('accounts')}
+            className="text-3xl font-black text-white tracking-tight cursor-pointer hover:scale-[1.02] active:scale-[0.99] transition-transform"
+          >
             {displayVal(summary.totalBalance)}
           </div>
           <button
@@ -161,13 +169,13 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           </button>
         </div>
 
-        {/* Pílulas de Receitas e Despesas */}
+        {/* Pílulas de Receitas e Despesas -> Abre Extrato de Transações */}
         <div className="grid grid-cols-2 gap-3 pt-1">
           {/* Receitas */}
           <button
             type="button"
-            onClick={() => onOpenNewTransaction('income')}
-            className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-[#242937] border border-slate-700/50 text-left hover:border-emerald-500/50 transition-all cursor-pointer group"
+            onClick={() => onNavigateTab('transactions')}
+            className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-[#242937] border border-slate-700/50 text-left hover:border-emerald-500/50 hover:bg-[#282e3e] active:scale-[0.98] transition-all cursor-pointer group"
           >
             <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-slate-950 font-black shrink-0 shadow-md group-hover:scale-105 transition-transform">
               <ArrowUp className="w-4 h-4 stroke-[3]" />
@@ -183,8 +191,8 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           {/* Despesas */}
           <button
             type="button"
-            onClick={() => onOpenNewTransaction('expense')}
-            className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-[#242937] border border-slate-700/50 text-left hover:border-rose-500/50 transition-all cursor-pointer group"
+            onClick={() => onNavigateTab('transactions')}
+            className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-[#242937] border border-slate-700/50 text-left hover:border-rose-500/50 hover:bg-[#282e3e] active:scale-[0.98] transition-all cursor-pointer group"
           >
             <div className="w-8 h-8 rounded-full bg-rose-500 flex items-center justify-center text-white font-black shrink-0 shadow-md group-hover:scale-105 transition-transform">
               <ArrowDown className="w-4 h-4 stroke-[3]" />
