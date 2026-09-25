@@ -113,8 +113,8 @@ function DashboardContent() {
 
             {/* Versão Desktop (Inalterada) */}
             <div className="hidden md:block space-y-6">
-              {/* Cards de Métricas Principais */}
-              <SummaryCards />
+              {/* Cards de Métricas Principais com Navegação Rápida */}
+              <SummaryCards onNavigateTab={setActiveTab} />
 
               {/* Gráficos em Duas Colunas */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
