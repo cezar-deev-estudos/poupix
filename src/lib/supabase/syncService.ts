@@ -40,11 +40,11 @@ export const syncAllToSupabase = async (data: {
     return { success: false, message: 'Supabase não configurado.' }
   }
 
-  try {
-    const userId = ensureValidUUID(data.currentUser.id)
+  const userId = ensureValidUUID(data.currentUser.id)
 
-    // Sincronizar Perfil
-    await supabase.from('profiles').upsert({
+  try {
+    // 1. Sincronizar Perfil
+    const { error: profileErr } = await supabase.from('profiles').upsert({
       id: userId,
       email: data.currentUser.email,
       name: data.currentUser.name,
@@ -53,103 +53,131 @@ export const syncAllToSupabase = async (data: {
       currency: data.currentUser.currency || 'BRL',
       monthly_income_target: data.currentUser.monthlyIncomeTarget || 0,
     } as any)
+    if (profileErr) console.warn('[Supabase Sync] Erro no perfil:', profileErr.message)
 
-    // Sincronizar Contas
-    if (data.accounts.length > 0) {
-      const accountsPayload = data.accounts.map(acc => ({
-        id: ensureValidUUID(acc.id),
-        user_id: userId,
-        name: acc.name,
-        type: acc.type,
-        balance: acc.balance,
-        initial_balance: acc.initialBalance || 0,
-        color: acc.color,
-        institution: acc.institution || null,
-        include_in_total: acc.includeInTotal ?? true,
-        created_at: acc.createdAt || new Date().toISOString(),
-      }))
-      await supabase.from('accounts').upsert(accountsPayload as any)
-    }
-
-    // Sincronizar Cartões
-    if (data.creditCards.length > 0) {
-      const cardsPayload = data.creditCards.map(c => ({
-        id: ensureValidUUID(c.id),
-        user_id: userId,
-        name: c.name,
-        limit_amount: c.limit,
-        closing_day: c.closingDay,
-        due_day: c.dueDay,
-        color: c.color,
-        brand: c.brand,
-        created_at: c.createdAt || new Date().toISOString(),
-      }))
-      await supabase.from('credit_cards').upsert(cardsPayload as any)
-    }
-
-    // Sincronizar Categorias
+    // 2. Sincronizar Categorias (Necessário antes das Transações por causa de FK)
+    const validCategoryIds = new Set<string>()
     if (data.categories.length > 0) {
-      const categoriesPayload = data.categories.map(cat => ({
-        id: ensureValidUUID(cat.id),
-        user_id: userId,
-        name: cat.name,
-        type: cat.type,
-        icon: cat.icon,
-        color: cat.color,
-        parent_id: cat.parentId ? ensureValidUUID(cat.parentId) : null,
-        budget_limit: cat.budgetLimit || null,
-        is_default: cat.isDefault ?? false,
-      }))
-      await supabase.from('categories').upsert(categoriesPayload as any)
+      const categoriesPayload = data.categories.map(cat => {
+        const catUuid = ensureValidUUID(cat.id)
+        validCategoryIds.add(catUuid)
+        return {
+          id: catUuid,
+          user_id: userId,
+          name: cat.name,
+          type: cat.type,
+          icon: cat.icon || 'Tag',
+          color: cat.color || '#64748B',
+          parent_id: cat.parentId ? ensureValidUUID(cat.parentId) : null,
+          budget_limit: cat.budgetLimit || null,
+          is_default: cat.isDefault ?? false,
+        }
+      })
+      const { error: catErr } = await supabase.from('categories').upsert(categoriesPayload as any)
+      if (catErr) console.warn('[Supabase Sync] Erro em categorias:', catErr.message)
     }
 
-    // Sincronizar Transações
+    // 3. Sincronizar Contas
+    const validAccountIds = new Set<string>()
+    if (data.accounts.length > 0) {
+      const accountsPayload = data.accounts.map(acc => {
+        const accUuid = ensureValidUUID(acc.id)
+        validAccountIds.add(accUuid)
+        return {
+          id: accUuid,
+          user_id: userId,
+          name: acc.name,
+          type: acc.type,
+          balance: acc.balance || 0,
+          initial_balance: acc.initialBalance || 0,
+          color: acc.color || '#10B981',
+          institution: acc.institution || null,
+          include_in_total: acc.includeInTotal ?? true,
+          created_at: acc.createdAt || new Date().toISOString(),
+        }
+      })
+      const { error: accErr } = await supabase.from('accounts').upsert(accountsPayload as any)
+      if (accErr) console.warn('[Supabase Sync] Erro em contas:', accErr.message)
+    }
+
+    // 4. Sincronizar Cartões
+    const validCardIds = new Set<string>()
+    if (data.creditCards.length > 0) {
+      const cardsPayload = data.creditCards.map(c => {
+        const cardUuid = ensureValidUUID(c.id)
+        validCardIds.add(cardUuid)
+        return {
+          id: cardUuid,
+          user_id: userId,
+          name: c.name,
+          limit_amount: c.limit || 0,
+          closing_day: c.closingDay || 1,
+          due_day: c.dueDay || 10,
+          color: c.color || '#8B5CF6',
+          brand: c.brand || 'mastercard',
+          created_at: c.createdAt || new Date().toISOString(),
+        }
+      })
+      const { error: cardErr } = await supabase.from('credit_cards').upsert(cardsPayload as any)
+      if (cardErr) console.warn('[Supabase Sync] Erro em cartões:', cardErr.message)
+    }
+
+    // 5. Sincronizar Transações (Sanitizando FKs para evitar erro de violação)
     if (data.transactions.length > 0) {
-      const txPayload = data.transactions.map(tx => ({
-        id: ensureValidUUID(tx.id),
-        user_id: userId,
-        account_id: tx.accountId ? ensureValidUUID(tx.accountId) : null,
-        destination_account_id: tx.destinationAccountId ? ensureValidUUID(tx.destinationAccountId) : null,
-        credit_card_id: tx.creditCardId ? ensureValidUUID(tx.creditCardId) : null,
-        category_id: tx.categoryId ? ensureValidUUID(tx.categoryId) : null,
-        type: tx.type,
-        amount: tx.amount,
-        description: tx.description,
-        date: tx.date,
-        paid: tx.paid ?? true,
-        is_recurring: tx.isRecurring ?? false,
-        recurring_period: tx.recurringPeriod || null,
-        recurring_group_id: tx.recurringGroupId || null,
-        installment_current: tx.installmentCurrent || null,
-        installment_total: tx.installmentTotal || null,
-        installment_group_id: tx.installmentGroupId || null,
-        ignore_in_totals: tx.ignoreInTotals ?? false,
-        invoice_date: tx.invoiceDate || null,
-        is_favorite: tx.isFavorite ?? false,
-        tags: tx.tags || [],
-        notes: tx.notes || null,
-        created_at: tx.createdAt || new Date().toISOString(),
-      }))
-      await supabase.from('transactions').upsert(txPayload as any)
+      const txPayload = data.transactions.map(tx => {
+        const accId = tx.accountId ? ensureValidUUID(tx.accountId) : null
+        const destAccId = tx.destinationAccountId ? ensureValidUUID(tx.destinationAccountId) : null
+        const cardId = tx.creditCardId ? ensureValidUUID(tx.creditCardId) : null
+        const catId = tx.categoryId ? ensureValidUUID(tx.categoryId) : null
+
+        return {
+          id: ensureValidUUID(tx.id),
+          user_id: userId,
+          account_id: accId && validAccountIds.has(accId) ? accId : null,
+          destination_account_id: destAccId && validAccountIds.has(destAccId) ? destAccId : null,
+          credit_card_id: cardId && validCardIds.has(cardId) ? cardId : null,
+          category_id: catId && validCategoryIds.has(catId) ? catId : null,
+          type: tx.type,
+          amount: Number(tx.amount) || 0,
+          description: tx.description || 'Lançamento',
+          date: tx.date || new Date().toISOString().split('T')[0],
+          paid: tx.paid ?? true,
+          is_recurring: tx.isRecurring ?? false,
+          recurring_period: tx.recurringPeriod || null,
+          recurring_group_id: tx.recurringGroupId || null,
+          installment_current: tx.installmentCurrent || null,
+          installment_total: tx.installmentTotal || null,
+          installment_group_id: tx.installmentGroupId || null,
+          ignore_in_totals: tx.ignoreInTotals ?? false,
+          invoice_date: tx.invoiceDate || null,
+          is_favorite: tx.isFavorite ?? false,
+          tags: tx.tags || [],
+          notes: tx.notes || null,
+          created_at: tx.createdAt || new Date().toISOString(),
+        }
+      })
+      const { error: txErr } = await supabase.from('transactions').upsert(txPayload as any)
+      if (txErr) console.error('[Supabase Sync] Erro em transações:', txErr.message)
     }
 
-    // Sincronizar Metas
+    // 6. Sincronizar Metas
     if (data.goals.length > 0) {
       const goalsPayload = data.goals.map(g => ({
         id: ensureValidUUID(g.id),
         user_id: userId,
         name: g.name,
-        target_amount: g.targetAmount,
-        current_amount: g.currentAmount,
-        target_date: g.targetDate,
+        target_amount: g.targetAmount || 0,
+        current_amount: g.currentAmount || 0,
+        target_date: g.targetDate || new Date().toISOString().split('T')[0],
         category: g.category || null,
-        account_id: g.accountId ? ensureValidUUID(g.accountId) : null,
-        color: g.color,
-        icon: g.icon,
+        account_id: g.accountId && validAccountIds.has(ensureValidUUID(g.accountId)) ? ensureValidUUID(g.accountId) : null,
+        color: g.color || '#06B6D4',
+        icon: g.icon || 'Target',
         completed: g.completed ?? false,
         created_at: g.createdAt || new Date().toISOString(),
       }))
-      await supabase.from('goals').upsert(goalsPayload as any)
+      const { error: goalErr } = await supabase.from('goals').upsert(goalsPayload as any)
+      if (goalErr) console.warn('[Supabase Sync] Erro em metas:', goalErr.message)
     }
 
     return {
