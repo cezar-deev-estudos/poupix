@@ -1,6 +1,7 @@
 'use client';
 
 import { Transaction, Account } from '@/types/finance';
+import { deleteTransactionFromSupabase } from '@/lib/supabase/syncService';
 
 // Helper para cálculo robusto de datas mês a mês (respeitando o último dia do mês)
 export const getNextMonthDate = (baseDateStr: string, monthOffset: number): string => {
@@ -222,6 +223,9 @@ export const transactionManager: TransactionManagerActions = {
   deleteTransaction: (id, mode, transactions, setTransactions) => {
     const target = transactions.find(t => t.id === id);
     if (!target) return;
+
+    // Disparar exclusão no Supabase
+    deleteTransactionFromSupabase(id, target.recurringGroupId, target.installmentGroupId, mode);
 
     if (mode === 'single' || (!target.recurringGroupId && !target.installmentGroupId)) {
       setTransactions(prev => prev.filter(t => t.id !== id));

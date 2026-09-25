@@ -1,6 +1,7 @@
 'use client';
 
 import { Account, CreditCard, Category, Tag, Goal, OpenFinanceConnection, Transaction } from '@/types/finance';
+import { deleteEntityFromSupabase } from '@/lib/supabase/syncService';
 
 export interface EntityManagerActions {
   // Contas
@@ -49,6 +50,7 @@ export const entityManager: EntityManagerActions = {
     setAccounts(prev => prev.map(a => (a.id === id ? { ...a, ...updated } : a)));
   },
   deleteAccount: (id, setAccounts) => {
+    deleteEntityFromSupabase('accounts', id);
     setAccounts(prev => prev.filter(a => a.id !== id));
   },
 
@@ -60,6 +62,7 @@ export const entityManager: EntityManagerActions = {
     setCreditCards(prev => prev.map(c => (c.id === id ? { ...c, ...updated } : c)));
   },
   deleteCreditCard: (id, setCreditCards) => {
+    deleteEntityFromSupabase('credit_cards', id);
     setCreditCards(prev => prev.filter(c => c.id !== id));
   },
 
@@ -71,6 +74,7 @@ export const entityManager: EntityManagerActions = {
     setCategories(prev => prev.map(c => (c.id === id ? { ...c, ...updated } : c)));
   },
   deleteCategory: (id, setCategories) => {
+    deleteEntityFromSupabase('categories', id);
     setCategories(prev => prev.filter(c => c.id !== id));
   },
 
@@ -120,6 +124,7 @@ export const entityManager: EntityManagerActions = {
     );
   },
   deleteGoal: (id, setGoals) => {
+    deleteEntityFromSupabase('goals', id);
     setGoals(prev => prev.filter(g => g.id !== id));
   },
 };
