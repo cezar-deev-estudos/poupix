@@ -74,7 +74,11 @@ const STORAGE_KEYS = {
   THEME: 'mobills_theme_v1',
 };
 
+import { useAuth } from './AuthContext';
+
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, isDemoMode } = useAuth();
+
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
@@ -92,64 +96,76 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [readAlertIds, setReadAlertIds] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
 
+  // Prefix dinâmico de storage: isolado por UID do usuário autenticado ou demo
+  const userStoragePrefix = user ? `mobills_user_${user.id}_` : isDemoMode ? 'mobills_demo_' : 'mobills_';
+
   // Carregar dados salvos ou usar defaults
   useEffect(() => {
     try {
-      const savedUsers = localStorage.getItem(STORAGE_KEYS.USERS);
-      const savedCurUser = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-      const savedAccounts = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
-      const savedCards = localStorage.getItem(STORAGE_KEYS.CARDS);
-      const savedCategories = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
-      const savedTransactions = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-      const savedGoals = localStorage.getItem(STORAGE_KEYS.GOALS);
-      const savedReadAlerts = localStorage.getItem(STORAGE_KEYS.READ_ALERTS);
-      const savedOpenFinance = localStorage.getItem(STORAGE_KEYS.OPEN_FINANCE);
+      const savedAccounts = localStorage.getItem(`${userStoragePrefix}accounts`);
+      const savedCards = localStorage.getItem(`${userStoragePrefix}cards`);
+      const savedCategories = localStorage.getItem(`${userStoragePrefix}categories`);
+      const savedTransactions = localStorage.getItem(`${userStoragePrefix}transactions`);
+      const savedGoals = localStorage.getItem(`${userStoragePrefix}goals`);
+      const savedReadAlerts = localStorage.getItem(`${userStoragePrefix}read_alerts`);
+      const savedOpenFinance = localStorage.getItem(`${userStoragePrefix}open_finance`);
       const savedPrivacy = localStorage.getItem(STORAGE_KEYS.PRIVACY);
       const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME) as 'dark' | 'light' | null;
 
-      const initialUsers = require('@/data/initialData').INITIAL_USERS;
+      if (user) {
+        // Usuário autenticado
+        const authProfile: import('@/types/finance').UserProfile = {
+          id: user.id,
+          name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuário',
+          email: user.email || '',
+          role: 'admin',
+          currency: 'BRL',
+          createdAt: user.created_at || new Date().toISOString(),
+        };
 
-      setUsers(savedUsers ? JSON.parse(savedUsers) : initialUsers);
-      setCurrentUserId(savedCurUser || initialUsers[0]?.id || 'user-cezar');
-      setAccounts(savedAccounts ? JSON.parse(savedAccounts) : INITIAL_ACCOUNTS);
-      setCreditCards(savedCards ? JSON.parse(savedCards) : INITIAL_CREDIT_CARDS);
-      setCategories(savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES);
-      setTransactions(savedTransactions ? JSON.parse(savedTransactions) : INITIAL_TRANSACTIONS);
-      setGoals(savedGoals ? JSON.parse(savedGoals) : INITIAL_GOALS);
+        setUsers([authProfile]);
+        setCurrentUserId(user.id);
+        setAccounts(savedAccounts ? JSON.parse(savedAccounts) : []);
+        setCreditCards(savedCards ? JSON.parse(savedCards) : []);
+        setCategories(savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES);
+        setTransactions(savedTransactions ? JSON.parse(savedTransactions) : []);
+        setGoals(savedGoals ? JSON.parse(savedGoals) : []);
+        setOpenFinanceConnections(savedOpenFinance ? JSON.parse(savedOpenFinance) : []);
+      } else {
+        // Modo Demonstração ou Fallback
+        const initialUsers = require('@/data/initialData').INITIAL_USERS;
+        setUsers(initialUsers);
+        setCurrentUserId(initialUsers[0]?.id || 'user-cezar');
+        setAccounts(savedAccounts ? JSON.parse(savedAccounts) : INITIAL_ACCOUNTS);
+        setCreditCards(savedCards ? JSON.parse(savedCards) : INITIAL_CREDIT_CARDS);
+        setCategories(savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES);
+        setTransactions(savedTransactions ? JSON.parse(savedTransactions) : INITIAL_TRANSACTIONS);
+        setGoals(savedGoals ? JSON.parse(savedGoals) : INITIAL_GOALS);
+        setOpenFinanceConnections(savedOpenFinance ? JSON.parse(savedOpenFinance) : INITIAL_OPEN_FINANCE_CONNECTIONS);
+      }
+
       setReadAlertIds(savedReadAlerts ? JSON.parse(savedReadAlerts) : []);
-      setOpenFinanceConnections(savedOpenFinance ? JSON.parse(savedOpenFinance) : INITIAL_OPEN_FINANCE_CONNECTIONS);
       setIsPrivacyMode(savedPrivacy ? JSON.parse(savedPrivacy) : false);
       if (savedTheme) {
         setTheme(savedTheme);
       }
     } catch (e) {
-      console.error('Erro ao ler localStorage', e);
-      const initialUsers = require('@/data/initialData').INITIAL_USERS;
-      setUsers(initialUsers);
-      setCurrentUserId(initialUsers[0]?.id || 'user-cezar');
-      setAccounts(INITIAL_ACCOUNTS);
-      setCreditCards(INITIAL_CREDIT_CARDS);
-      setCategories(INITIAL_CATEGORIES);
-      setTransactions(INITIAL_TRANSACTIONS);
-      setGoals(INITIAL_GOALS);
-      setOpenFinanceConnections(INITIAL_OPEN_FINANCE_CONNECTIONS);
+      console.error('Erro ao inicializar contexto financeiro', e);
     } finally {
       setIsInitialized(true);
     }
-  }, []);
+  }, [user, isDemoMode, userStoragePrefix]);
 
   // Salvar alterações
   useEffect(() => {
     if (!isInitialized) return;
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, currentUserId);
-    localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
-    localStorage.setItem(STORAGE_KEYS.CARDS, JSON.stringify(creditCards));
-    localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
-    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
-    localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(goals));
-    localStorage.setItem(STORAGE_KEYS.READ_ALERTS, JSON.stringify(readAlertIds));
-    localStorage.setItem(STORAGE_KEYS.OPEN_FINANCE, JSON.stringify(openFinanceConnections));
+    localStorage.setItem(`${userStoragePrefix}accounts`, JSON.stringify(accounts));
+    localStorage.setItem(`${userStoragePrefix}cards`, JSON.stringify(creditCards));
+    localStorage.setItem(`${userStoragePrefix}categories`, JSON.stringify(categories));
+    localStorage.setItem(`${userStoragePrefix}transactions`, JSON.stringify(transactions));
+    localStorage.setItem(`${userStoragePrefix}goals`, JSON.stringify(goals));
+    localStorage.setItem(`${userStoragePrefix}read_alerts`, JSON.stringify(readAlertIds));
+    localStorage.setItem(`${userStoragePrefix}open_finance`, JSON.stringify(openFinanceConnections));
     localStorage.setItem(STORAGE_KEYS.PRIVACY, JSON.stringify(isPrivacyMode));
     localStorage.setItem(STORAGE_KEYS.THEME, theme);
 
@@ -160,7 +176,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       document.documentElement.classList.add('light');
       document.documentElement.classList.remove('dark');
     }
-  }, [users, currentUserId, accounts, creditCards, categories, transactions, goals, readAlertIds, openFinanceConnections, isPrivacyMode, theme, isInitialized]);
+  }, [accounts, creditCards, categories, transactions, goals, readAlertIds, openFinanceConnections, isPrivacyMode, theme, isInitialized, userStoragePrefix]);
 
   const currentUser = useMemo(() => {
     return users.find(u => u.id === currentUserId) || users[0] || {

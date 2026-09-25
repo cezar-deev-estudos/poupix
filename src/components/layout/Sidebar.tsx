@@ -16,10 +16,12 @@ import {
   Eye,
   EyeOff,
   Users,
-  UserCheck
+  UserCheck,
+  LogOut
 } from 'lucide-react';
 import { MonthSelector } from './MonthSelector';
 import { useFinance } from '@/context/FinanceContext';
+import { useAuth } from '@/context/AuthContext';
 
 export type ActiveTab = 'dashboard' | 'transactions' | 'cards' | 'accounts' | 'budgets' | 'goals' | 'projections' | 'openfinance' | 'reports' | 'users' | 'settings';
 
@@ -124,8 +126,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </nav>
         </div>
 
-        {/* Rodapé da Sidebar */}
-        <div className="pt-3 border-t border-slate-900 space-y-1 text-xs">
+        {/* Rodapé da Sidebar: Usuário Logado & Configurações */}
+        <div className="pt-3 border-t border-slate-900 space-y-2 text-xs">
+          {/* Badge de Status: Usuário Autenticado vs Modo Demonstração */}
+          <SidebarUserBadge />
+
           <button
             onClick={() => setActiveTab('settings')}
             className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl transition-colors ${
@@ -133,18 +138,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }`}
           >
             <span>⚙️ Configurações & Backup</span>
-          </button>
-
-          <button
-            onClick={() => {
-              if (confirm('Deseja restaurar os dados de exemplo padrão?')) {
-                resetToDefaults();
-              }
-            }}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-500 hover:text-slate-300 rounded-xl hover:bg-slate-900/50 transition-colors text-[11px]"
-          >
-            <RefreshCw className="w-3 h-3" />
-            <span>Restaurar Demo</span>
           </button>
         </div>
       </aside>
@@ -172,14 +165,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
           );
         })}
 
-        {/* Botão Flutuante Central de Lançamento */}
-        <button
-          onClick={onOpenNewTransaction}
-          className="w-12 h-12 -mt-6 bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/40 border-2 border-slate-950 cursor-pointer"
-        >
-          <Plus className="w-6 h-6 stroke-[3]" />
-        </button>
       </div>
     </>
   );
 };
+
+const SidebarUserBadge: React.FC = () => {
+  const { user, isDemoMode, signOut, exitDemoMode } = useAuth();
+  const { currentUser } = useFinance();
+
+  const handleLogout = async () => {
+    if (confirm('Deseja realmente sair da conta?')) {
+      if (isDemoMode) {
+        exitDemoMode();
+      } else {
+        await signOut();
+      }
+    }
+  };
+
+  return (
+    <div className="p-2.5 bg-slate-900/80 border border-slate-800 rounded-2xl space-y-1.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 overflow-hidden">
+          <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-[10px] font-bold text-emerald-400 flex-shrink-0">
+            {isDemoMode ? '🎭' : (user?.email?.[0] || currentUser.name[0]).toUpperCase()}
+          </div>
+          <div className="overflow-hidden">
+            <span className="text-[11px] font-bold text-white block truncate">
+              {isDemoMode ? 'Modo Demonstração' : (user?.user_metadata?.full_name || currentUser.name)}
+            </span>
+            <span className="text-[9px] text-slate-400 block truncate">
+              {isDemoMode ? 'Dados de exemplo' : (user?.email || currentUser.email)}
+            </span>
+          </div>
+        </div>
+
+        <button
+          onClick={handleLogout}
+          title="Sair / Trocar de Usuário"
+          className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+};
+

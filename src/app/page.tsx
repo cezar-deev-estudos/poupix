@@ -186,11 +186,38 @@ function DashboardContent() {
   );
 }
 
-export default function Home() {
+import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { AuthView } from '@/components/auth/AuthView';
+
+function AppGate() {
+  const { user, isDemoMode, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4">
+        <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs font-semibold text-slate-400">Iniciando Poupix PRO...</span>
+      </div>
+    );
+  }
+
+  // Se não estiver autenticado e não estiver em Modo Demonstração, renderizar tela de Login/Cadastro
+  if (!user && !isDemoMode) {
+    return <AuthView />;
+  }
+
   return (
     <FinanceProvider>
       <DashboardContent />
     </FinanceProvider>
+  );
+}
+
+export default function Home() {
+  return (
+    <AuthProvider>
+      <AppGate />
+    </AuthProvider>
   );
 }
 
