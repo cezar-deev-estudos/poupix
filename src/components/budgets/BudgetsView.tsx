@@ -22,14 +22,23 @@ import {
 } from 'lucide-react';
 
 const COLOR_PALETTE = [
-  '#EF4444', '#F97316', '#F59E0B', '#10B981', '#06B6D4',
-  '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#64748B'
+  '#EF4444', '#F43F5E', '#EC4899', '#D946EF', '#A855F7', '#8B5CF6',
+  '#6366F1', '#3B82F6', '#0EA5E9', '#06B6D4', '#14B8A6', '#10B981',
+  '#22C55E', '#84CC16', '#EAB308', '#F59E0B', '#F97316', '#EA580C',
+  '#78716C', '#64748B'
 ];
 
 const AVAILABLE_ICONS = [
-  'Tag', 'Utensils', 'Home', 'Car', 'Gamepad2', 'Heart',
-  'GraduationCap', 'ShoppingBag', 'Tv', 'DollarSign', 'TrendingUp',
-  'Briefcase', 'Coffee', 'Plane', 'Smartphone', 'Zap', 'Shield', 'Gift'
+  'Tag', 'Utensils', 'Pizza', 'Coffee', 'Beer', 'Apple',
+  'Home', 'Zap', 'Flame', 'Droplets', 'Wifi', 'Key',
+  'Car', 'Fuel', 'Bus', 'Bike', 'Train', 'Plane',
+  'Gamepad2', 'Tv', 'Music', 'Film', 'Camera', 'Ticket',
+  'ShoppingBag', 'ShoppingCart', 'Shirt', 'Gift', 'Package', 'Scissors',
+  'HeartPulse', 'Heart', 'Dumbbell', 'Pill', 'Stethoscope', 'Smile',
+  'GraduationCap', 'BookOpen', 'Briefcase', 'Laptop', 'Building', 'Award',
+  'DollarSign', 'CreditCard', 'Wallet', 'Banknote', 'Landmark', 'TrendingUp',
+  'PiggyBank', 'Coins', 'Receipt', 'Smartphone', 'Shield', 'Wrench',
+  'Sparkles', 'Baby', 'Dog', 'Cat', 'Flower2', 'MoreHorizontal'
 ];
 
 export const BudgetsView: React.FC = () => {
@@ -563,7 +572,7 @@ export const BudgetsView: React.FC = () => {
                     onChange={e => setParentId(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
                   >
-                    <option value="">Nenhuma (Categoria Principal)</option>
+                    <option value="">Nenhuma</option>
                     {eligibleParentCategories.map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
@@ -591,7 +600,7 @@ export const BudgetsView: React.FC = () => {
               {/* Seletor de Ícone */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">Ícone</label>
-                <div className="grid grid-cols-6 gap-2 max-h-28 overflow-y-auto p-2 bg-slate-950/60 rounded-xl border border-slate-800">
+                <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-36 overflow-y-auto p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
                   {AVAILABLE_ICONS.map(ic => {
                     const isSelected = icon === ic;
                     return (
