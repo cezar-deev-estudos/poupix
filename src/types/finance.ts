@@ -11,6 +11,7 @@ export interface Account {
   color: string;
   institution?: string;
   includeInTotal: boolean;
+  isArchived?: boolean;
   createdAt: string;
 }
 

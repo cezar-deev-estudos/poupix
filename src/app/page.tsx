@@ -13,6 +13,7 @@ import { MobileTransactionsView } from '@/components/transactions/MobileTransact
 import { NewTransactionModal } from '@/components/transactions/NewTransactionModal';
 import { CardsView } from '@/components/cards/CardsView';
 import { AccountsView } from '@/components/accounts/AccountsView';
+import { MobileAccountsView } from '@/components/accounts/MobileAccountsView';
 import { BudgetsView } from '@/components/budgets/BudgetsView';
 import { GoalsView } from '@/components/goals/GoalsView';
 import { TagsView } from '@/components/tags/TagsView';
@@ -168,7 +169,16 @@ function DashboardContent() {
         )}
 
         {activeTab === 'cards' && <CardsView />}
-        {activeTab === 'accounts' && <AccountsView />}
+        {activeTab === 'accounts' && (
+          <>
+            <div className="block md:hidden">
+              <MobileAccountsView onNavigateToTransactions={accId => handleNavigateTab('transactions', 'all')} />
+            </div>
+            <div className="hidden md:block">
+              <AccountsView onNavigateToTransactions={accId => handleNavigateTab('transactions', 'all')} />
+            </div>
+          </>
+        )}
         {activeTab === 'budgets' && <BudgetsView />}
         {activeTab === 'goals' && <GoalsView />}
         {activeTab === 'tags' && <TagsView />}
