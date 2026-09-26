@@ -21,6 +21,7 @@ import {
   X,
   CreditCard,
   Wallet,
+  Trash2,
 } from 'lucide-react';
 import { CategoryIcon } from '../ui/CategoryIcon';
 
@@ -37,6 +38,7 @@ export const MobileTransactionDetailDrawer: React.FC<MobileTransactionDetailDraw
   isOpen,
   onClose,
   onEdit,
+  onDelete,
 }) => {
   const { categories, accounts, creditCards, updateTransaction } = useFinance();
 
@@ -269,6 +271,23 @@ export const MobileTransactionDetailDrawer: React.FC<MobileTransactionDetailDraw
               />
             </button>
           </div>
+
+          {/* Botão de Excluir Lançamento */}
+          {onDelete && (
+            <div className="pt-2 border-t border-slate-600/50">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onDelete(transaction);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 active:bg-rose-500/20 border border-rose-500/30 rounded-2xl transition-all cursor-pointer shadow-sm"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Excluir {getTypeLabel().toLowerCase()}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Botão Inferior Grande de Edição */}
