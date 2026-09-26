@@ -6,6 +6,7 @@ import { Transaction } from '@/types/finance';
 import { MoneyInput } from './MoneyInput';
 import { QuickDateSelector } from './QuickDateSelector';
 import { TagsChipSelector } from './TagsChipSelector';
+import { DescriptionInputAutocomplete, SuggestionItem } from './DescriptionInputAutocomplete';
 import { CategorySelectorDropdown } from './CategorySelectorDropdown';
 import { CreditCardSelectorDropdown } from './CreditCardSelectorDropdown';
 import { FileText, Heart, Receipt, ChevronDown, Pin, RefreshCw } from 'lucide-react';
@@ -138,27 +139,19 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
           {/* Seletor Rápido de Data */}
           <QuickDateSelector value={date} onChange={setDate} variant="cyan" />
 
-          {/* Descrição + Favorito */}
-          <div className="flex items-center gap-2 border-b border-slate-800/80 pb-2">
-            <FileText className="w-4 h-4 text-slate-500 shrink-0" />
-            <input
-              type="text"
-              placeholder="Descrição"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              className="w-full bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => setIsFavorite(!isFavorite)}
-              className={`p-1 transition-colors cursor-pointer ${
-                isFavorite ? 'text-cyan-400' : 'text-slate-600 hover:text-slate-400'
-              }`}
-              title="Marcar como favorita"
-            >
-              <Heart className={`w-4 h-4 ${isFavorite ? 'fill-cyan-400' : ''}`} />
-            </button>
-          </div>
+          {/* Descrição com Autocomplete Inteligente (Preenche Categoria e Cartão) */}
+          <DescriptionInputAutocomplete
+            value={description}
+            onChange={setDescription}
+            onSelectSuggestion={(suggestion: SuggestionItem) => {
+              if (suggestion.categoryId) setCategoryId(suggestion.categoryId);
+              if (suggestion.creditCardId) setCreditCardId(suggestion.creditCardId);
+            }}
+            type="creditCard"
+            isFavorite={isFavorite}
+            onToggleFavorite={() => setIsFavorite(!isFavorite)}
+            variant="cyan"
+          />
 
           {/* Categoria com Dropdown Customizado */}
           <CategorySelectorDropdown

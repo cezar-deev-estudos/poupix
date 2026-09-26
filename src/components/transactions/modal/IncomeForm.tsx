@@ -6,6 +6,7 @@ import { Transaction } from '@/types/finance';
 import { MoneyInput } from './MoneyInput';
 import { QuickDateSelector } from './QuickDateSelector';
 import { TagsChipSelector } from './TagsChipSelector';
+import { DescriptionInputAutocomplete, SuggestionItem } from './DescriptionInputAutocomplete';
 import { CategorySelectorDropdown } from './CategorySelectorDropdown';
 import { AccountSelectorDropdown } from './AccountSelectorDropdown';
 import { FileText, Heart, ChevronDown, Pin, RefreshCw, Check } from 'lucide-react';
@@ -137,27 +138,19 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
           {/* Seletor Rápido de Data */}
           <QuickDateSelector value={date} onChange={setDate} variant="emerald" />
 
-          {/* Descrição + Favorito */}
-          <div className="flex items-center gap-2 border-b border-slate-800/80 pb-2">
-            <FileText className="w-4 h-4 text-slate-500 shrink-0" />
-            <input
-              type="text"
-              placeholder="Descrição"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              className="w-full bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => setIsFavorite(!isFavorite)}
-              className={`p-1 transition-colors cursor-pointer ${
-                isFavorite ? 'text-emerald-500' : 'text-slate-600 hover:text-slate-400'
-              }`}
-              title="Marcar como favorita"
-            >
-              <Heart className={`w-4 h-4 ${isFavorite ? 'fill-emerald-500' : ''}`} />
-            </button>
-          </div>
+          {/* Descrição com Autocomplete Inteligente (Preenche Categoria e Cor) */}
+          <DescriptionInputAutocomplete
+            value={description}
+            onChange={setDescription}
+            onSelectSuggestion={(suggestion: SuggestionItem) => {
+              if (suggestion.categoryId) setCategoryId(suggestion.categoryId);
+              if (suggestion.accountId) setAccountId(suggestion.accountId);
+            }}
+            type="income"
+            isFavorite={isFavorite}
+            onToggleFavorite={() => setIsFavorite(!isFavorite)}
+            variant="emerald"
+          />
 
           {/* Categoria com Dropdown Customizado */}
           <CategorySelectorDropdown
