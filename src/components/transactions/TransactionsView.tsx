@@ -161,15 +161,23 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         <div className="flex items-center gap-4">
           <h2 className="text-2xl font-black text-white tracking-tight">Transações</h2>
 
-          {/* Seletor Roxo de Tipo conforme Imagem 2 */}
+          {/* Seletor de Tipo com Cor Contextual */}
           <div className="relative">
             <button
               type="button"
               onClick={() => setTypeDropdownOpen(!typeDropdownOpen)}
-              className="flex items-center gap-2 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white px-4 py-2 rounded-2xl text-xs font-bold shadow-lg shadow-purple-500/20 transition-all cursor-pointer"
+              className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold shadow-lg transition-all cursor-pointer ${
+                activeTypeFilter === 'expense'
+                  ? 'bg-[#ef4444] hover:bg-[#dc2626] text-white shadow-rose-500/20'
+                  : activeTypeFilter === 'income'
+                  ? 'bg-[#22c55e] hover:bg-[#16a34a] text-white shadow-emerald-500/20'
+                  : activeTypeFilter === 'transfer'
+                  ? 'bg-[#3b82f6] hover:bg-[#2563eb] text-white shadow-blue-500/20'
+                  : 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white shadow-purple-500/20'
+              }`}
             >
+              <span className="text-[11px]">⌵</span>
               <span>{getTypeLabel()}</span>
-              <span className="text-[10px]">▾</span>
             </button>
 
             {typeDropdownOpen && (
@@ -298,22 +306,46 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             />
           </div>
 
-          {/* Botão Novo Lançamento */}
-          <button
-            type="button"
-            onClick={() => setIsNewTxModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-bold shadow-lg shadow-emerald-600/20 transition-all cursor-pointer ml-2"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Novo</span>
-          </button>
+          {/* Botão Contextual de Novo Lançamento */}
+          {activeTypeFilter === 'expense' ? (
+            <button
+              type="button"
+              onClick={() => setIsNewTxModalOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 bg-[#221c24] hover:bg-[#2e2330] border border-rose-500/40 text-rose-400 hover:text-rose-300 rounded-2xl text-xs font-bold transition-all cursor-pointer ml-2 shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>NOVA DESPESA</span>
+            </button>
+          ) : activeTypeFilter === 'income' ? (
+            <button
+              type="button"
+              onClick={() => setIsNewTxModalOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 bg-[#192420] hover:bg-[#203028] border border-emerald-500/40 text-emerald-400 hover:text-emerald-300 rounded-2xl text-xs font-bold transition-all cursor-pointer ml-2 shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>NOVA RECEITA</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsNewTxModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-bold shadow-lg shadow-emerald-600/20 transition-all cursor-pointer ml-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* 2. Cards de Resumo Superior (Saldo, Receitas, Despesas, Balanço) */}
+      {/* 2. Cards de Resumo Superior com Suporte a Despesas, Receitas e Todas */}
       <TransactionsHeaderCards
         activeTypeFilter={activeTypeFilter}
         onSelectTypeFilter={setActiveTypeFilter}
+        activeStatusFilter={advancedFilter.status}
+        onSelectStatusFilter={(status) =>
+          setAdvancedFilter((prev) => ({ ...prev, status }))
+        }
       />
 
       {/* 3. Seletor de Período Centralizado no Card da Tabela */}

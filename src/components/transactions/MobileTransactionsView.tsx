@@ -16,6 +16,9 @@ import {
   Filter,
   MoreVertical,
   Plus,
+  ArrowUp,
+  ArrowDown,
+  Scale,
 } from 'lucide-react';
 import { TransactionsFilterModal, AdvancedFilterState } from './TransactionsFilterModal';
 import { TransactionsOptionsMenu } from './TransactionsOptionsMenu';
@@ -111,6 +114,36 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
       setSelectedMonth(selectedMonth + 1);
     }
   };
+
+  // Cálculos de Despesas (pendentes, pagas e total)
+  const pendingExpense = useMemo(() => {
+    return filteredTransactions
+      .filter((t) => t.type === 'expense' && !t.paid)
+      .reduce((acc, t) => acc + t.amount, 0);
+  }, [filteredTransactions]);
+
+  const paidExpense = useMemo(() => {
+    return filteredTransactions
+      .filter((t) => t.type === 'expense' && t.paid)
+      .reduce((acc, t) => acc + t.amount, 0);
+  }, [filteredTransactions]);
+
+  const totalExpense = pendingExpense + paidExpense;
+
+  // Cálculos de Receitas (pendentes, recebidas e total)
+  const pendingIncome = useMemo(() => {
+    return filteredTransactions
+      .filter((t) => t.type === 'income' && !t.paid)
+      .reduce((acc, t) => acc + t.amount, 0);
+  }, [filteredTransactions]);
+
+  const paidIncome = useMemo(() => {
+    return filteredTransactions
+      .filter((t) => t.type === 'income' && t.paid)
+      .reduce((acc, t) => acc + t.amount, 0);
+  }, [filteredTransactions]);
+
+  const totalIncome = pendingIncome + paidIncome;
 
   // Filtragem Dinâmica
   const displayedTransactions = useMemo(() => {
@@ -351,42 +384,228 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
         </button>
       </div>
 
-      {/* 3. Card Compacto de Saldo Atual e Balanço Mensal */}
-      <div className="bg-[#242732] border border-slate-700/60 rounded-3xl p-4 shadow-xl flex items-center justify-between">
-        {/* Saldo Atual */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-2xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-slate-400">
-            <Briefcase className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-[11px] text-slate-400 block font-medium">Saldo atual</span>
-            <span
-              className={`text-sm font-bold block ${
-                summary.totalBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'
-              }`}
-            >
-              {displayVal(summary.totalBalance)}
-            </span>
-          </div>
-        </div>
+      {/* 3. Cards de Resumo Superior Mobile (Despesas, Receitas ou Saldo/Balanço) */}
+      {activeTypeFilter === 'expense' ? (
+        <div className="grid grid-cols-3 gap-2 animate-fadeIn">
+          {/* Despesas pendentes */}
+          <button
+            type="button"
+            onClick={() =>
+              setAdvancedFilter((prev) => ({
+                ...prev,
+                status: prev.status === 'pending' ? 'all' : 'pending',
+              }))
+            }
+            className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
+              advancedFilter.status === 'pending'
+                ? 'border-rose-500/70 bg-[#2b2229]'
+                : 'border-slate-700/60'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-7 h-7 rounded-full bg-[#ef4444] flex items-center justify-center text-white shrink-0 shadow-sm">
+                <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
+              </div>
+              <ChevronRight className="w-3 h-3 text-slate-500" />
+            </div>
+            <div className="mt-2 min-w-0">
+              <span className="text-[10px] text-slate-400 block truncate font-medium">
+                Despesas pendentes
+              </span>
+              <span className="text-xs font-bold text-white block truncate mt-0.5">
+                {displayVal(pendingExpense)}
+              </span>
+            </div>
+          </button>
 
-        {/* Balanço Mensal */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-2xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-slate-400">
-            <Briefcase className="w-4 h-4" />
+          {/* Despesas pagas */}
+          <button
+            type="button"
+            onClick={() =>
+              setAdvancedFilter((prev) => ({
+                ...prev,
+                status: prev.status === 'paid' ? 'all' : 'paid',
+              }))
+            }
+            className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
+              advancedFilter.status === 'paid'
+                ? 'border-rose-500/70 bg-[#2b2229]'
+                : 'border-slate-700/60'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-7 h-7 rounded-full bg-[#ef4444] flex items-center justify-center text-white shrink-0 shadow-sm">
+                <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" />
+              </div>
+              <ChevronRight className="w-3 h-3 text-slate-500" />
+            </div>
+            <div className="mt-2 min-w-0">
+              <span className="text-[10px] text-slate-400 block truncate font-medium">
+                Despesas pagas
+              </span>
+              <span className="text-xs font-bold text-white block truncate mt-0.5">
+                {displayVal(paidExpense)}
+              </span>
+            </div>
+          </button>
+
+          {/* Total Despesas */}
+          <button
+            type="button"
+            onClick={() =>
+              setAdvancedFilter((prev) => ({ ...prev, status: 'all' }))
+            }
+            className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
+              advancedFilter.status === 'all'
+                ? 'border-slate-700/60'
+                : 'border-slate-800'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-7 h-7 rounded-full bg-[#ef4444] flex items-center justify-center text-white shrink-0 shadow-sm">
+                <Scale className="w-3.5 h-3.5" />
+              </div>
+              <ChevronRight className="w-3 h-3 text-slate-500" />
+            </div>
+            <div className="mt-2 min-w-0">
+              <span className="text-[10px] text-slate-400 block truncate font-medium">
+                Total
+              </span>
+              <span className="text-xs font-bold text-white block truncate mt-0.5">
+                {displayVal(totalExpense)}
+              </span>
+            </div>
+          </button>
+        </div>
+      ) : activeTypeFilter === 'income' ? (
+        <div className="grid grid-cols-3 gap-2 animate-fadeIn">
+          {/* Receitas pendentes */}
+          <button
+            type="button"
+            onClick={() =>
+              setAdvancedFilter((prev) => ({
+                ...prev,
+                status: prev.status === 'pending' ? 'all' : 'pending',
+              }))
+            }
+            className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
+              advancedFilter.status === 'pending'
+                ? 'border-emerald-500/70 bg-[#1c2923]'
+                : 'border-slate-700/60'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-7 h-7 rounded-full bg-[#22c55e] flex items-center justify-center text-slate-950 font-bold shrink-0 shadow-sm">
+                <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
+              </div>
+              <ChevronRight className="w-3 h-3 text-slate-500" />
+            </div>
+            <div className="mt-2 min-w-0">
+              <span className="text-[10px] text-slate-400 block truncate font-medium">
+                Receitas pendentes
+              </span>
+              <span className="text-xs font-bold text-white block truncate mt-0.5">
+                {displayVal(pendingIncome)}
+              </span>
+            </div>
+          </button>
+
+          {/* Receitas recebidas */}
+          <button
+            type="button"
+            onClick={() =>
+              setAdvancedFilter((prev) => ({
+                ...prev,
+                status: prev.status === 'paid' ? 'all' : 'paid',
+              }))
+            }
+            className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
+              advancedFilter.status === 'paid'
+                ? 'border-emerald-500/70 bg-[#1c2923]'
+                : 'border-slate-700/60'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-7 h-7 rounded-full bg-[#22c55e] flex items-center justify-center text-slate-950 font-bold shrink-0 shadow-sm">
+                <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" />
+              </div>
+              <ChevronRight className="w-3 h-3 text-slate-500" />
+            </div>
+            <div className="mt-2 min-w-0">
+              <span className="text-[10px] text-slate-400 block truncate font-medium">
+                Receitas recebidas
+              </span>
+              <span className="text-xs font-bold text-white block truncate mt-0.5">
+                {displayVal(paidIncome)}
+              </span>
+            </div>
+          </button>
+
+          {/* Total Receitas */}
+          <button
+            type="button"
+            onClick={() =>
+              setAdvancedFilter((prev) => ({ ...prev, status: 'all' }))
+            }
+            className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
+              advancedFilter.status === 'all'
+                ? 'border-slate-700/60'
+                : 'border-slate-800'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-7 h-7 rounded-full bg-[#22c55e] flex items-center justify-center text-slate-950 font-bold shrink-0 shadow-sm">
+                <Scale className="w-3.5 h-3.5" />
+              </div>
+              <ChevronRight className="w-3 h-3 text-slate-500" />
+            </div>
+            <div className="mt-2 min-w-0">
+              <span className="text-[10px] text-slate-400 block truncate font-medium">
+                Total
+              </span>
+              <span className="text-xs font-bold text-white block truncate mt-0.5">
+                {displayVal(totalIncome)}
+              </span>
+            </div>
+          </button>
+        </div>
+      ) : (
+        <div className="bg-[#242732] border border-slate-700/60 rounded-3xl p-4 shadow-xl flex items-center justify-between animate-fadeIn">
+          {/* Saldo Atual */}
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-slate-400">
+              <Briefcase className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[11px] text-slate-400 block font-medium">Saldo atual</span>
+              <span
+                className={`text-sm font-bold block ${
+                  summary.totalBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                }`}
+              >
+                {displayVal(summary.totalBalance)}
+              </span>
+            </div>
           </div>
-          <div>
-            <span className="text-[11px] text-slate-400 block font-medium">Balanço mensal</span>
-            <span
-              className={`text-sm font-bold block ${
-                summary.monthlySavings >= 0 ? 'text-emerald-400' : 'text-rose-400'
-              }`}
-            >
-              {displayVal(summary.monthlySavings)}
-            </span>
+
+          {/* Balanço Mensal */}
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-slate-400">
+              <Briefcase className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[11px] text-slate-400 block font-medium">Balanço mensal</span>
+              <span
+                className={`text-sm font-bold block ${
+                  summary.monthlySavings >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                }`}
+              >
+                {displayVal(summary.monthlySavings)}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* 4. Lista de Transações Agrupadas por Data */}
       {groupedByDate.length === 0 ? (
