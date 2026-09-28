@@ -28,6 +28,12 @@ import { BankStatementImporterModal } from '@/components/importer/BankStatementI
 import { AlertsDrawer } from '@/components/alerts/AlertsDrawer';
 import { MobillsMobileHome } from '@/components/dashboard/MobillsMobileHome';
 import { CreditCardsDashboardCard } from '@/components/dashboard/CreditCardsDashboardCard';
+import { CategoryIncomeChart } from '@/components/dashboard/CategoryIncomeChart';
+import {
+  DashboardLayoutPreferences,
+  DEFAULT_DASHBOARD_LAYOUT,
+  DashboardCardId,
+} from '@/types/settings';
 import { Plus, ArrowRight, UploadCloud, Bell } from 'lucide-react';
 
 function DashboardContent() {
@@ -41,6 +47,24 @@ function DashboardContent() {
   const [isAlertsDrawerOpen, setIsAlertsDrawerOpen] = useState(false);
 
   const { unreadAlertsCount } = useFinance();
+
+  const [dashboardLayout, setDashboardLayout] = useState<DashboardLayoutPreferences>(DEFAULT_DASHBOARD_LAYOUT);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('mobills_dashboard_layout');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setDashboardLayout({
+          leftColumn: parsed.leftColumn || DEFAULT_DASHBOARD_LAYOUT.leftColumn,
+          rightColumn: parsed.rightColumn || DEFAULT_DASHBOARD_LAYOUT.rightColumn,
+          enabled: { ...DEFAULT_DASHBOARD_LAYOUT.enabled, ...(parsed.enabled || {}) },
+        });
+      }
+    } catch {
+      // fallback
+    }
+  }, [activeTab]);
 
   const handleOpenNewTransaction = (flow: TransactionFlowType = 'expense', defaultCardId?: string) => {
     setTxModalFlow(flow);
@@ -139,40 +163,113 @@ function DashboardContent() {
               />
             </div>
 
-            {/* Versão Desktop (Inalterada) */}
+            {/* Versão Desktop */}
             <div className="hidden md:block space-y-6">
               {/* Cards de Métricas Principais com Navegação Rápida */}
               <SummaryCards onNavigateTab={handleNavigateTab} />
 
-              {/* Gráficos e Cartões de Crédito em Grid */}
+              {/* Gráficos e Cards em Grid de 2 Colunas com Ordem Customizada */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                <CategoryExpenseChart />
-                <CreditCardsDashboardCard
-                  onNavigateTab={handleNavigateTab}
-                  onOpenNewTransaction={handleOpenNewTransaction}
-                />
-              </div>
-
-              {/* Evolução Mensal / Fluxo de Caixa */}
-              <CashflowHistoryChart />
-
-              {/* Últimos Lançamentos com Atalho */}
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-6 shadow-xl space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-white text-base">Últimas Transações do Mês</h3>
-                    <p className="text-xs text-slate-400">Atividades recentes registradas</p>
-                  </div>
-                  <button
-                    onClick={() => handleNavigateTab('transactions', 'all')}
-                    className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors cursor-pointer"
-                  >
-                    Ver todas
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
+                {/* Coluna Esquerda Customizada */}
+                <div className="space-y-6">
+                  {dashboardLayout.leftColumn
+                    .filter(id => Boolean(dashboardLayout.enabled[id]))
+                    .map(id => {
+                      if (id === 'categoryExpenseChart') return <CategoryExpenseChart key={id} />;
+                      if (id === 'categoryIncomeChart') return <CategoryIncomeChart key={id} />;
+                      if (id === 'creditCardInfo') {
+                        return (
+                          <CreditCardsDashboardCard
+                            key={id}
+                            onNavigateTab={handleNavigateTab}
+                            onOpenNewTransaction={handleOpenNewTransaction}
+                          />
+                        );
+                      }
+                      if (id === 'monthlyBalanceChart') return <CashflowHistoryChart key={id} />;
+                      if (id === 'recentTransactions') {
+                        return (
+                          <div key={id} className="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-6 shadow-xl space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="font-bold text-white text-base">Últimas Transações do Mês</h3>
+                                <p className="text-xs text-slate-400">Atividades recentes registradas</p>
+                              </div>
+                              <button
+                                onClick={() => handleNavigateTab('transactions', 'all')}
+                                className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors cursor-pointer"
+                              >
+                                Ver todas
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <TransactionList limit={5} />
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
                 </div>
 
-                <TransactionList limit={5} />
+                {/* Coluna Direita Customizada */}
+                <div className="space-y-6">
+                  {dashboardLayout.rightColumn
+                    .filter(id => Boolean(dashboardLayout.enabled[id]))
+                    .map(id => {
+                      if (id === 'categoryExpenseChart') return <CategoryExpenseChart key={id} />;
+                      if (id === 'categoryIncomeChart') return <CategoryIncomeChart key={id} />;
+                      if (id === 'creditCardInfo') {
+                        return (
+                          <CreditCardsDashboardCard
+                            key={id}
+                            onNavigateTab={handleNavigateTab}
+                            onOpenNewTransaction={handleOpenNewTransaction}
+                          />
+                        );
+                      }
+                      if (id === 'monthlyBalanceChart') return <CashflowHistoryChart key={id} />;
+                      if (id === 'recentTransactions') {
+                        return (
+                          <div key={id} className="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-6 shadow-xl space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="font-bold text-white text-base">Últimas Transações do Mês</h3>
+                                <p className="text-xs text-slate-400">Atividades recentes registradas</p>
+                              </div>
+                              <button
+                                onClick={() => handleNavigateTab('transactions', 'all')}
+                                className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors cursor-pointer"
+                              >
+                                Ver todas
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <TransactionList limit={5} />
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
+                </div>
+              </div>
+
+              {/* Botão Gerenciar Tela Inicial */}
+              <div className="pt-6 pb-2 flex flex-col items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => handleNavigateTab('settings')}
+                  className="flex flex-col items-center gap-2 group cursor-pointer text-slate-400 hover:text-white transition-colors"
+                >
+                  <div className="w-12 h-12 rounded-2xl border-2 border-slate-600 group-hover:border-purple-400 flex items-center justify-center transition-colors">
+                    <div className="w-6 h-6 border-2 border-current rounded-md relative flex items-center justify-center">
+                      <div className="w-1.5 h-3 bg-current rounded-sm absolute left-1" />
+                      <div className="w-1.5 h-1.5 bg-current rounded-sm absolute right-1 top-1" />
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-bold tracking-wider uppercase text-slate-400 group-hover:text-purple-400 transition-colors">
+                    GERENCIAR TELA INICIAL
+                  </span>
+                </button>
               </div>
             </div>
           </>

@@ -20,10 +20,10 @@ trigger: always_on
 
 ## 💡 Mindset & Regras de Comportamento e Commit
 
-1. **Protocolo de Validação de Escopo & Autorização Prévia (CRÍTICO/MANDATÓRIO)**:
+1. **Protocolo de Validação de Escopo & Autorização Prévia (REGRA DE OURO / MANDATÓRIO)**:
    - **NUNCA FAZER ALÉM DO QUE FOI SOLICITADO**.
    - O agente deve listar todos os arquivos que pretende modificar ANTES de iniciar e aguardar confirmação/autorização explícita do usuário.
-   - **NUNCA FAZER COMMITS OU PUSHES AUTOMÁTICOS** sem o usuário aprovar a implementação e autorizar expressamente o commit/deploy.
+   - **PROIBIDO FAZER COMMITS, PUSHES OU MERGES AUTOMÁTICOS** nas branches `develop` ou `main`. O assistente deve apenas implementar localmente, rodar testes/build e apresentar o resultado final. Qualquer commit ou push/deploy requer solicitação/autorização expressa e individual do usuário.
 
 2. **No Native Dialogs (MANDATÓRIO)**:
    - É terminantemente proibido o uso de `window.alert`, `window.confirm` ou `window.prompt`.

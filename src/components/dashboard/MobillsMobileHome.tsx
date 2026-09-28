@@ -576,18 +576,27 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           <p className="text-xs font-semibold text-slate-200 leading-relaxed">
             Ops! Você ainda não tem um planejamento definido para esse mês.
           </p>
-          <p className="text-[11px] text-slate-500">
-            Melhore seu controle financeiro agora definindo metas de gastos por categoria!
-          </p>
-
-          <button
-            type="button"
-            onClick={() => onNavigateTab('budgets')}
-            className="w-full py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
-          >
-            DEFINIR MEU PLANEJAMENTO
-          </button>
         </div>
+      </div>
+
+      {/* 7. GERENCIAR TELA INICIAL */}
+      <div className="pt-4 pb-6 flex flex-col items-center justify-center">
+        <button
+          type="button"
+          onClick={() => onNavigateTab('settings')}
+          className="flex flex-col items-center gap-2 group cursor-pointer text-slate-400 hover:text-white transition-colors"
+        >
+          <div className="w-12 h-12 rounded-2xl border-2 border-slate-600 group-hover:border-purple-400 flex items-center justify-center transition-colors">
+            {/* Ícone de gerenciar layout/cards */}
+            <div className="w-6 h-6 border-2 border-current rounded-md relative flex items-center justify-center">
+              <div className="w-1.5 h-3 bg-current rounded-sm absolute left-1" />
+              <div className="w-1.5 h-1.5 bg-current rounded-sm absolute right-1 top-1" />
+            </div>
+          </div>
+          <span className="text-[11px] font-bold tracking-wider uppercase text-slate-400 group-hover:text-purple-400 transition-colors">
+            GERENCIAR TELA INICIAL
+          </span>
+        </button>
       </div>
     </div>
   );

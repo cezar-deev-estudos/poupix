@@ -8,21 +8,18 @@ trigger: always_on
 
 ---
 
-## 🛑 PROTOCOLO DE COMMITS, IMPLEMENTAÇÃO E DEPLOY (ATUALIZADO)
+## 🛑 REGRA DE OURO: PROTOCOLO DE COMMITS, IMPLEMENTAÇÃO E DEPLOY (MANDATÓRIO)
 
-1. **AUTORIZAÇÃO CONTÍNUA DE IMPLEMENTAÇÃO**:
-   - Quando o usuário disser *"Aprovado a implementação"*, *"Siga em frente"*, *"Autorizado até o final"* ou similar, o assistente **ESTÁ AUTORIZADO A PROSSEGUIR ATÉ O FIM** do ciclo completo (código, testes, build, commit e push/deploy) sem ficar interrompendo para pedir autorizações intermediárias a cada micro-passo.
+1. **AUTORIZAÇÃO PRÉVIA DE ESCOPO**:
+   - O assistente deve listar todos os arquivos que pretende modificar ANTES de iniciar e aguardar confirmação explícita do usuário.
 
-2. **FLUXO PADRÃO AUTÔNOMO QUANDO AUTORIZADO**:
-   1. Implementar as mudanças no código de forma limpa e modular.
-   2. Rodar testes unitários (`npm run test`) e build (`npm run build`).
-   3. Realizar `git commit` com mensagem descritiva semântica.
-   4. Realizar `git push` nas branches `develop` e `main` para acionar a Vercel.
-   5. Atualizar a base de conhecimento no Obsidian (`knowledge_obsidian/poupix/`).
-   6. Apresentar o resumo final consolidado ao usuário.
+2. **PROIBIÇÃO ESTRITA DE COMMITS E PUSHES/DEPLOY AUTOMÁTICOS**:
+   - **NUNCA FAZER `git commit`, `git push` OU MERGE EM `main`/`develop` AUTOMATICAMENTE**.
+   - O assistente deve apenas implementar no código local, testar (`npm run test`) e validar o build (`npm run build`).
+   - Apresentar o resultado final ao usuário e **AGUARDAR AUTORIZAÇÃO EXPRESSA E INDIVIDUAL** caso o usuário queira que seja feito o commit ou o deploy.
 
 3. **No Native Dialogs**:
-   - Nunca usar `alert()` ou `confirm()`.
+   - Nunca usar `window.alert()`, `window.confirm()` ou `window.prompt()`. Usar modais customizados do app.
 
 4. **Sincronização Obsidian**:
    - Manter a base de conhecimento `knowledge_obsidian/poupix/` sempre atualizada.

@@ -83,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             </div>
 
-            {/* Controles Topo: Privacidade e Tema */}
+            {/* Controles Topo: Modo Privacidade */}
             <div className="flex items-center gap-1.5">
               <button
                 onClick={togglePrivacyMode}
@@ -91,14 +91,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
               >
                 {isPrivacyMode ? <EyeOff className="w-3.5 h-3.5 text-emerald-400" /> : <Eye className="w-3.5 h-3.5" />}
-              </button>
-
-              <button
-                onClick={toggleTheme}
-                title={theme === 'dark' ? 'Mudar para Modo Claro' : 'Mudar para Modo Escuro'}
-                className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-              >
-                {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-indigo-400" />}
               </button>
             </div>
           </div>
