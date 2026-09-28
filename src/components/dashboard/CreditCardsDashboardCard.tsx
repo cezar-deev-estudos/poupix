@@ -25,57 +25,45 @@ export const CreditCardsDashboardCard: React.FC<CreditCardsDashboardCardProps> =
   onOpenNewTransaction,
 }) => {
   const { creditCards, transactions, selectedMonth, selectedYear, isPrivacyMode } = useFinance();
-  const [invoiceFilterTab, setInvoiceFilterTab] = useState<'open' | 'closed'>('open');
+  const [invoiceTab, setInvoiceTab] = useState<'current_month' | 'next_month'>('current_month');
 
   const activeCards = useMemo(() => {
     return creditCards.filter(c => !c.isArchived);
   }, [creditCards]);
 
-  // Determinar status de fatura do cartão para o mês selecionado
-  const getCardInvoiceStatus = (card: CreditCard): 'open' | 'closed' | 'overdue' | 'paid' => {
-    const periodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
-    if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey]) {
-      const manual = card.manualInvoiceStatus[periodKey];
-      if (manual === 'open') return 'open';
-      if (manual === 'paid') return 'paid';
+  // Determinar o mês/ano alvo para os cálculos baseado na aba ativa
+  const targetMonth = useMemo(() => {
+    if (invoiceTab === 'next_month') {
+      return (selectedMonth + 1) % 12;
     }
-    const today = new Date();
-    const dueDate = new Date(selectedYear, selectedMonth, card.dueDay);
-    if (today > dueDate) return 'overdue';
-    const closingDate = new Date(selectedYear, selectedMonth, card.closingDay);
-    if (today > closingDate) return 'closed';
-    return 'open';
-  };
+    return selectedMonth;
+  }, [invoiceTab, selectedMonth]);
 
-  // Filtrar cartões por fatura aberta ou fechada
-  const filteredCards = useMemo(() => {
-    return activeCards.filter(card => {
-      const status = getCardInvoiceStatus(card);
-      if (invoiceFilterTab === 'open') {
-        return status === 'open';
-      }
-      return status === 'closed' || status === 'overdue' || status === 'paid';
-    });
-  }, [activeCards, invoiceFilterTab, selectedMonth, selectedYear]);
+  const targetYear = useMemo(() => {
+    if (invoiceTab === 'next_month' && selectedMonth === 11) {
+      return selectedYear + 1;
+    }
+    return selectedYear;
+  }, [invoiceTab, selectedMonth, selectedYear]);
 
   // Cálculo de valor da fatura de cada cartão no período selecionado
   const cardExpensesMap = useMemo(() => {
     const map: Record<string, number> = {};
     activeCards.forEach(c => {
       const expenses = transactions
-        .filter(t => isTransactionInInvoicePeriod(t, c, selectedYear, selectedMonth))
+        .filter(t => isTransactionInInvoicePeriod(t, c, targetYear, targetMonth))
         .reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0);
       map[c.id] = Math.max(0, expenses);
     });
     return map;
-  }, [activeCards, transactions, selectedMonth, selectedYear]);
+  }, [activeCards, transactions, targetMonth, targetYear]);
 
-  // Soma total das faturas filtradas
+  // Soma total das faturas
   const totalAmount = useMemo(() => {
-    return filteredCards.reduce((sum, card) => {
+    return activeCards.reduce((sum, card) => {
       return sum + (cardExpensesMap[card.id] || 0);
     }, 0);
-  }, [filteredCards, cardExpensesMap]);
+  }, [activeCards, cardExpensesMap]);
 
   const displayVal = (amount: number) => {
     if (isPrivacyMode) return 'R$ ••••••';
@@ -97,40 +85,40 @@ export const CreditCardsDashboardCard: React.FC<CreditCardsDashboardCardProps> =
           </button>
         </div>
 
-        {/* Alternador de Abas: Faturas abertas | Faturas fechadas */}
+        {/* Alternador de Abas: Fatura Mês Atual | Fatura Próximo Mês */}
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setInvoiceFilterTab('open')}
+            onClick={() => setInvoiceTab('current_month')}
             className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-              invoiceFilterTab === 'open'
+              invoiceTab === 'current_month'
                 ? 'bg-teal-500 text-slate-950 font-bold shadow-md shadow-teal-500/20'
                 : 'text-slate-400 hover:text-white bg-slate-900/60'
             }`}
           >
-            Faturas abertas
+            Fatura Mês Atual
           </button>
           <button
             type="button"
-            onClick={() => setInvoiceFilterTab('closed')}
+            onClick={() => setInvoiceTab('next_month')}
             className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-              invoiceFilterTab === 'closed'
+              invoiceTab === 'next_month'
                 ? 'bg-teal-500 text-slate-950 font-bold shadow-md shadow-teal-500/20'
                 : 'text-slate-400 hover:text-white bg-slate-900/60'
             }`}
           >
-            Faturas fechadas
+            Fatura Próximo Mês
           </button>
         </div>
 
         {/* Lista de Cartões */}
         <div className="space-y-5 pt-1">
-          {filteredCards.length === 0 ? (
+          {activeCards.length === 0 ? (
             <div className="py-8 text-center text-xs text-slate-500">
-              Nenhum cartão com faturas {invoiceFilterTab === 'open' ? 'abertas' : 'fechadas'} neste período.
+              Nenhum cartão cadastrado.
             </div>
           ) : (
-            filteredCards.map(card => {
+            activeCards.map(card => {
               const invoiceAmount = cardExpensesMap[card.id] || 0;
               const availableLimit = Math.max(0, card.limit - invoiceAmount);
               const limitUsedPercent = Math.min(100, (invoiceAmount / (card.limit || 1)) * 100);
@@ -166,7 +154,7 @@ export const CreditCardsDashboardCard: React.FC<CreditCardsDashboardCardProps> =
                   {/* Linha 2: Fecha em [data] e Valor */}
                   <div className="text-xs space-y-0.5">
                     <div className="text-slate-400">
-                      Fecha em {card.closingDay} de {MONTH_NAMES[selectedMonth]} de {selectedYear}
+                      Fecha em {card.closingDay} de {MONTH_NAMES[targetMonth]} de {targetYear}
                     </div>
                     <div className="font-bold text-rose-500 text-sm tracking-tight">
                       {displayVal(invoiceAmount)}
