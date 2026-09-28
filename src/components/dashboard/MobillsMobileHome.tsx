@@ -23,6 +23,7 @@ import { ActiveTab } from '../layout/Sidebar';
 import { TransactionFlowType } from '../transactions/modal/TransactionModal';
 import { MonthDropdownModal } from '../layout/MonthDropdownModal';
 import { useAuth } from '@/context/AuthContext';
+import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -74,16 +75,12 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
     return selectedYear;
   }, [cardInvoiceTab, selectedMonth, selectedYear]);
 
-  // Cálculo das despesas de cada cartão no período selecionado
+  // Cálculo das despesas de cada cartão no período selecionado (baseado no vencimento da fatura)
   const cardExpensesMap = useMemo(() => {
     const map: Record<string, number> = {};
     creditCards.forEach(c => {
       const expenses = transactions
-        .filter(t => {
-          if (t.creditCardId !== c.id) return false;
-          const tDate = new Date(t.date);
-          return tDate.getMonth() === targetCardMonth && tDate.getFullYear() === targetCardYear;
-        })
+        .filter(t => isTransactionInInvoicePeriod(t, c, targetCardYear, targetCardMonth))
         .reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0);
       map[c.id] = Math.max(0, expenses);
     });

@@ -10,6 +10,7 @@ import { CreditCardModal } from './CreditCardModal';
 import { ArchivedCardsModal } from './ArchivedCardsModal';
 import { AdvancePaymentModal } from './AdvancePaymentModal';
 import { NewTransactionModal } from '../transactions/NewTransactionModal';
+import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
 import { Plus, MoreVertical, ThumbsUp, CreditCard as CardIcon, DollarSign } from 'lucide-react';
 
 const MONTH_NAMES = [
@@ -83,16 +84,12 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
   // Chave do período alvo (ex: "2026-09")
   const targetPeriodKey = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
 
-  // Cálculo de Despesas por Cartão no Mês Alvo
+  // Cálculo de Despesas por Cartão no Mês Alvo (baseado no vencimento da fatura)
   const cardExpensesMap = useMemo(() => {
     const map: Record<string, number> = {};
     activeCards.forEach(c => {
       const expenses = transactions
-        .filter(t => {
-          if (t.creditCardId !== c.id) return false;
-          const tDate = new Date(t.date);
-          return tDate.getMonth() === targetMonth && tDate.getFullYear() === targetYear;
-        })
+        .filter(t => isTransactionInInvoicePeriod(t, c, targetYear, targetMonth))
         .reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0);
       map[c.id] = Math.max(0, expenses);
     });

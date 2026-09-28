@@ -27,6 +27,7 @@ import {
   Unlock,
 } from 'lucide-react';
 import { AdvancePaymentModal } from './AdvancePaymentModal';
+import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
 
 interface CardInvoiceDetailViewProps {
   card: CreditCard;
@@ -98,13 +99,10 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
   // Chave do período da fatura (ex: "2026-09")
   const periodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
 
-  // Transações do Cartão para o Mês Selecionado
+  // Transações do Cartão para o Mês Selecionado (baseado na data de vencimento da fatura)
   const invoiceTransactions = useMemo(() => {
     return transactions.filter(tx => {
-      if (tx.creditCardId !== card.id) return false;
-      const txDate = new Date(tx.date);
-      const isSamePeriod = txDate.getMonth() === selectedMonth && txDate.getFullYear() === selectedYear;
-      if (!isSamePeriod) return false;
+      if (!isTransactionInInvoicePeriod(tx, card, selectedYear, selectedMonth)) return false;
 
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase();
@@ -112,7 +110,7 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
       }
       return true;
     });
-  }, [transactions, card.id, selectedMonth, selectedYear, searchTerm]);
+  }, [transactions, card, selectedMonth, selectedYear, searchTerm]);
 
   // Total da Fatura
   const invoiceTotal = useMemo(() => {
@@ -211,20 +209,18 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
 
         {/* Botões do Topo Direito: + , Busca, Menu ⋮ */}
         <div className="flex items-center gap-2.5">
-          {/* Botão + (Desabilitado ou Bloqueado visualmente se fatura fechada) */}
+          {/* Botão + (Reabre e lança se fechada) */}
           {isClosedOrPaid ? (
             <button
               onClick={() => {
-                if (window.confirm('Esta fatura está fechada/paga. Deseja reabrir a fatura para lançar novas despesas?')) {
-                  onToggleInvoiceStatus(card, periodKey);
-                  onOpenNewExpense(card.id);
-                }
+                onToggleInvoiceStatus(card, periodKey);
+                onOpenNewExpense(card.id);
               }}
               className="p-2.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 rounded-2xl transition-all cursor-pointer shadow-sm flex items-center gap-1 text-xs font-semibold"
               title="Fatura Fechada - Clique para Reabrir e Lançar"
             >
               <Lock className="w-4 h-4" />
-              <span className="hidden sm:inline">Reabrir Fatura</span>
+              <span className="hidden sm:inline">Reabrir e Lançar</span>
             </button>
           ) : (
             <button

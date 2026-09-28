@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { CardActionDrawer } from './CardActionDrawer';
 import { AdvancePaymentModal } from './AdvancePaymentModal';
+import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
 
 interface MobileCardInvoiceDetailProps {
   card: CreditCard;
@@ -80,13 +81,10 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
   // Período
   const periodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
 
-  // Transações do cartão para o mês
+  // Transações do cartão para o mês (baseado na data de vencimento da fatura)
   const invoiceTransactions = useMemo(() => {
     return transactions.filter(tx => {
-      if (tx.creditCardId !== card.id) return false;
-      const txDate = new Date(tx.date);
-      const isSamePeriod = txDate.getMonth() === selectedMonth && txDate.getFullYear() === selectedYear;
-      if (!isSamePeriod) return false;
+      if (!isTransactionInInvoicePeriod(tx, card, selectedYear, selectedMonth)) return false;
 
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase();
@@ -94,7 +92,7 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
       }
       return true;
     });
-  }, [transactions, card.id, selectedMonth, selectedYear, searchTerm]);
+  }, [transactions, card, selectedMonth, selectedYear, searchTerm]);
 
   // Total da fatura
   const invoiceTotal = useMemo(() => {
