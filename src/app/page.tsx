@@ -27,6 +27,7 @@ import { TransactionModal, TransactionFlowType } from '@/components/transactions
 import { BankStatementImporterModal } from '@/components/importer/BankStatementImporterModal';
 import { AlertsDrawer } from '@/components/alerts/AlertsDrawer';
 import { MobillsMobileHome } from '@/components/dashboard/MobillsMobileHome';
+import { CreditCardsDashboardCard } from '@/components/dashboard/CreditCardsDashboardCard';
 import { Plus, ArrowRight, UploadCloud, Bell } from 'lucide-react';
 
 function DashboardContent() {
@@ -35,13 +36,15 @@ function DashboardContent() {
   const [selectedDetailCardId, setSelectedDetailCardId] = useState<string | null>(null);
   const [isNewTxModalOpen, setIsNewTxModalOpen] = useState(false);
   const [txModalFlow, setTxModalFlow] = useState<TransactionFlowType>('expense');
+  const [txModalCreditCardId, setTxModalCreditCardId] = useState<string | null>(null);
   const [isImporterOpen, setIsImporterOpen] = useState(false);
   const [isAlertsDrawerOpen, setIsAlertsDrawerOpen] = useState(false);
 
   const { unreadAlertsCount } = useFinance();
 
-  const handleOpenNewTransaction = (flow: TransactionFlowType = 'expense') => {
+  const handleOpenNewTransaction = (flow: TransactionFlowType = 'expense', defaultCardId?: string) => {
     setTxModalFlow(flow);
+    setTxModalCreditCardId(defaultCardId || null);
     setIsNewTxModalOpen(true);
   };
 
@@ -141,11 +144,17 @@ function DashboardContent() {
               {/* Cards de Métricas Principais com Navegação Rápida */}
               <SummaryCards onNavigateTab={handleNavigateTab} />
 
-              {/* Gráficos em Duas Colunas */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Gráficos e Cartões de Crédito em Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                 <CategoryExpenseChart />
-                <CashflowHistoryChart />
+                <CreditCardsDashboardCard
+                  onNavigateTab={handleNavigateTab}
+                  onOpenNewTransaction={handleOpenNewTransaction}
+                />
               </div>
+
+              {/* Evolução Mensal / Fluxo de Caixa */}
+              <CashflowHistoryChart />
 
               {/* Últimos Lançamentos com Atalho */}
               <div className="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-6 shadow-xl space-y-4">
@@ -219,8 +228,12 @@ function DashboardContent() {
       {/* Modais e Drawers Globais */}
       <TransactionModal
         isOpen={isNewTxModalOpen}
-        onClose={() => setIsNewTxModalOpen(false)}
+        onClose={() => {
+          setIsNewTxModalOpen(false);
+          setTxModalCreditCardId(null);
+        }}
         flowType={txModalFlow}
+        defaultCreditCardId={txModalCreditCardId}
       />
 
       <BankStatementImporterModal
