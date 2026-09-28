@@ -208,7 +208,23 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     openFinanceConnections?: OpenFinanceConnection[];
   }) => {
     if (cloudData.accounts && cloudData.accounts.length > 0) setAccounts(cloudData.accounts);
-    if (cloudData.creditCards && cloudData.creditCards.length > 0) setCreditCards(cloudData.creditCards);
+    if (cloudData.creditCards && cloudData.creditCards.length > 0) {
+      setCreditCards(prevLocalCards => {
+        const localStatusMap = new Map<string, Record<string, 'open' | 'closed' | 'paid'>>();
+        prevLocalCards.forEach(c => {
+          if (c.manualInvoiceStatus) {
+            localStatusMap.set(c.id, c.manualInvoiceStatus);
+          }
+        });
+        return cloudData.creditCards!.map(cloudCard => {
+          const preservedStatus = cloudCard.manualInvoiceStatus || localStatusMap.get(cloudCard.id);
+          return {
+            ...cloudCard,
+            manualInvoiceStatus: preservedStatus,
+          };
+        });
+      });
+    }
     if (cloudData.categories && cloudData.categories.length > 0) setCategories(cloudData.categories);
     if (cloudData.tags && cloudData.tags.length > 0) setTags(cloudData.tags);
     if (cloudData.transactions && cloudData.transactions.length > 0) setTransactions(cloudData.transactions);

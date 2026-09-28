@@ -17,6 +17,7 @@ interface TransactionModalProps {
   onClose: () => void;
   flowType?: TransactionFlowType;
   transactionToEdit?: Transaction | null;
+  defaultCreditCardId?: string | null;
 }
 
 export const TransactionModal: React.FC<TransactionModalProps> = ({
@@ -24,6 +25,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   onClose,
   flowType = 'expense',
   transactionToEdit = null,
+  defaultCreditCardId = null,
 }) => {
   const { addTransaction, updateTransaction } = useFinance();
 
@@ -254,6 +256,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           {activeFlow === 'creditCard' && (
             <CreditCardExpenseForm
               initialData={transactionToEdit}
+              defaultCreditCardId={defaultCreditCardId}
               onSave={handleSave}
               onCancel={onClose}
               onToggleDetails={setIsExpanded}

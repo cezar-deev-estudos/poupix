@@ -10,6 +10,7 @@ interface NewTransactionModalProps {
   defaultType?: TransactionType;
   flowType?: TransactionFlowType;
   transactionToEdit?: Transaction | null;
+  defaultCreditCardId?: string | null;
 }
 
 export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
@@ -18,6 +19,7 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
   defaultType = 'expense',
   flowType,
   transactionToEdit = null,
+  defaultCreditCardId = null,
 }) => {
   const getFlowType = (): TransactionFlowType => {
     if (flowType) return flowType;
@@ -36,6 +38,7 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({
       onClose={onClose}
       flowType={getFlowType()}
       transactionToEdit={transactionToEdit}
+      defaultCreditCardId={defaultCreditCardId}
     />
   );
 };

@@ -206,18 +206,7 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
 
   const handleOpenAddExpense = (card: CreditCard) => {
     setTxModalCreditCardId(card.id);
-    setTransactionToEdit({
-      id: '',
-      description: '',
-      amount: 0,
-      type: 'expense',
-      categoryId: '',
-      accountId: '',
-      creditCardId: card.id,
-      date: new Date().toISOString().split('T')[0],
-      paid: false,
-      createdAt: '',
-    });
+    setTransactionToEdit(null);
     setIsTxModalOpen(true);
   };
 
@@ -252,7 +241,9 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
               setTransactionToEdit(null);
             }}
             defaultType="expense"
+            flowType="creditCard"
             transactionToEdit={transactionToEdit}
+            defaultCreditCardId={txModalCreditCardId || currentSelected.id}
           />
         )}
       </>
@@ -482,6 +473,7 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
           defaultType="expense"
           flowType="creditCard"
           transactionToEdit={transactionToEdit}
+          defaultCreditCardId={txModalCreditCardId}
         />
       )}
     </div>

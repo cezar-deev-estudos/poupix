@@ -13,6 +13,7 @@ import { FileText, Heart, Receipt, ChevronDown, Pin, RefreshCw } from 'lucide-re
 
 interface CreditCardExpenseFormProps {
   initialData?: Transaction | null;
+  defaultCreditCardId?: string | null;
   onSave: (data: Omit<Transaction, 'id' | 'createdAt'>, createAnother?: boolean) => void;
   onCancel: () => void;
   onToggleDetails?: (isExpanded: boolean) => void;
@@ -20,6 +21,7 @@ interface CreditCardExpenseFormProps {
 
 export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
   initialData,
+  defaultCreditCardId,
   onSave,
   onCancel,
   onToggleDetails,
@@ -28,14 +30,14 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
 
   const expenseCategories = categories.filter(c => c.type === 'expense');
   const defaultCatId = expenseCategories[0]?.id || '';
-  const defaultCardId = creditCards[0]?.id || '';
+  const initialSelectedCardId = initialData?.creditCardId || defaultCreditCardId || creditCards[0]?.id || '';
 
   const [amount, setAmount] = useState(initialData?.amount ? initialData.amount.toString() : '');
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState(initialData?.description || '');
   const [isFavorite, setIsFavorite] = useState(initialData?.isFavorite ?? false);
   const [categoryId, setCategoryId] = useState(initialData?.categoryId || defaultCatId);
-  const [creditCardId, setCreditCardId] = useState(initialData?.creditCardId || defaultCardId);
+  const [creditCardId, setCreditCardId] = useState(initialSelectedCardId);
   const [ignoreInTotals, setIgnoreInTotals] = useState(initialData?.ignoreInTotals ?? false);
 
   // Coluna "Mais detalhes"
@@ -127,8 +129,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
     );
 
     if (createAnother) {
-      setAmount('');
-      setDescription('');
+      // Mantém os dados preenchidos na tela conforme solicitado pelo usuário
       setShowValidation(false);
     }
   };
@@ -325,8 +326,13 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
       <div className="w-full flex items-center justify-end gap-3 pt-6 mt-6 border-t border-slate-800">
         <button
           type="button"
+          disabled={!isFormValid}
           onClick={() => handleSubmit(true)}
-          className="text-xs font-bold text-slate-400 hover:text-white px-3 py-2 transition-colors cursor-pointer"
+          className={`text-xs font-bold px-3 py-2 transition-colors rounded-xl ${
+            isFormValid
+              ? 'text-slate-300 hover:text-white hover:bg-slate-800/80 cursor-pointer'
+              : 'text-slate-600 cursor-not-allowed'
+          }`}
         >
           SALVAR E CRIAR NOVA
         </button>
@@ -334,9 +340,9 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
         <button
           type="submit"
           disabled={!isFormValid}
-          className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${
             isFormValid
-              ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/25 font-bold'
+              ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/25 cursor-pointer font-bold'
               : 'bg-slate-800 text-slate-500 cursor-not-allowed'
           }`}
         >

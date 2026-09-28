@@ -243,7 +243,9 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
               setTransactionToEdit(null);
             }}
             defaultType="expense"
+            flowType="creditCard"
             transactionToEdit={transactionToEdit}
+            defaultCreditCardId={txModalCreditCardId || currentSelected.id}
           />
         )}
       </>
@@ -603,7 +605,9 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
             setTransactionToEdit(null);
           }}
           defaultType="expense"
+          flowType="creditCard"
           transactionToEdit={transactionToEdit}
+          defaultCreditCardId={txModalCreditCardId}
         />
       )}
     </div>
