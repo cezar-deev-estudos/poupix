@@ -24,6 +24,8 @@ export interface CreditCard {
   closingDay: number;
   dueDay: number;
   currentInvoiceTotal?: number;
+  isArchived?: boolean;
+  manualInvoiceStatus?: Record<string, 'open' | 'closed' | 'paid'>; // Ex: { "2026-09": "open" }
   createdAt: string;
 }
 

@@ -52,19 +52,38 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
 
   const invoiceOptions = useMemo(() => {
     if (!selectedCard) return [];
-    const options = [];
+    const options: { label: string; value: string }[] = [];
     const currentDate = new Date(date);
     const dueDay = selectedCard.dueDay || 10;
     const closingDay = selectedCard.closingDay || 3;
 
-    const purchaseDay = currentDate.getDate();
-    let startMonthOffset = purchaseDay >= closingDay ? 1 : 0;
+    // Verificar os últimos 2 meses anteriores e os próximos 4 meses
+    // Se a fatura anterior/atual estiver marcada como reaberta ('open') no manualInvoiceStatus, ela é permitida
+    const seenValues = new Set<string>();
 
-    for (let i = 0; i < 4; i++) {
-      const invDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + startMonthOffset + i, dueDay);
-      const formatted = invDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+    for (let offset = -2; offset <= 4; offset++) {
+      const invDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, dueDay);
       const isoValue = invDate.toISOString().split('T')[0];
-      options.push({ label: formatted, value: isoValue });
+      const periodKey = `${invDate.getFullYear()}-${String(invDate.getMonth() + 1).padStart(2, '0')}`;
+      
+      const manualStatus = selectedCard.manualInvoiceStatus?.[periodKey];
+      const today = new Date();
+      const closingDate = new Date(invDate.getFullYear(), invDate.getMonth(), closingDay);
+      
+      // Permitir se:
+      // 1. Foi explicitamente reaberta (manualStatus === 'open')
+      // 2. Não fechou ainda (today <= closingDate)
+      // 3. É a fatura padrão calculada para a data da compra (offset >= 0)
+      const isReopened = manualStatus === 'open';
+      const isFutureOrCurrentOpen = today <= closingDate || offset >= 0;
+      
+      if (isReopened || isFutureOrCurrentOpen) {
+        if (!seenValues.has(isoValue)) {
+          seenValues.add(isoValue);
+          const formatted = invDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+          options.push({ label: formatted, value: isoValue });
+        }
+      }
     }
     return options;
   }, [selectedCard, date]);

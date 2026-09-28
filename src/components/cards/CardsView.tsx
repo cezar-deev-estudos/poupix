@@ -1,246 +1,488 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency } from '@/lib/utils';
-import { CreditCard as CreditCardType } from '@/types/finance';
-import { CreditCard as CardIcon, Plus, Calendar, Shield, Trash2 } from 'lucide-react';
+import { CreditCard, Transaction } from '@/types/finance';
+import { CreditCardCard } from './CreditCardCard';
+import { CardInvoiceDetailView } from './CardInvoiceDetailView';
+import { CreditCardModal } from './CreditCardModal';
+import { ArchivedCardsModal } from './ArchivedCardsModal';
+import { AdvancePaymentModal } from './AdvancePaymentModal';
+import { NewTransactionModal } from '../transactions/NewTransactionModal';
+import { Plus, MoreVertical, ThumbsUp, CreditCard as CardIcon, DollarSign } from 'lucide-react';
 
-export const CardsView: React.FC = () => {
-  const { creditCards, filteredTransactions, addCreditCard, deleteCreditCard } = useFinance();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [brand, setBrand] = useState<CreditCardType['brand']>('mastercard');
-  const [limit, setLimit] = useState('');
-  const [closingDay, setClosingDay] = useState(20);
-  const [dueDay, setDueDay] = useState(27);
-  const [color, setColor] = useState('#820AD1');
+const MONTH_NAMES = [
+  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+];
 
-  const handleAddCard = (e: React.FormEvent) => {
-    e.preventDefault();
-    const numLimit = parseFloat(limit.replace(',', '.'));
-    if (isNaN(numLimit) || numLimit <= 0) return;
+interface CardsViewProps {
+  onNavigateToTransactions?: () => void;
+  initialCardId?: string | null;
+}
 
-    addCreditCard({
-      name,
-      brand,
-      limit: numLimit,
-      closingDay: Number(closingDay),
-      dueDay: Number(dueDay),
-      color,
+export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, initialCardId }) => {
+  const {
+    creditCards,
+    transactions,
+    selectedMonth,
+    selectedYear,
+    addCreditCard,
+    updateCreditCard,
+    deleteCreditCard,
+  } = useFinance();
+
+  // Filtro de Aba Superior: Fatura Mês Atual vs Fatura Próximo Mês
+  const [invoiceTab, setInvoiceTab] = useState<'current_month' | 'next_month'>('current_month');
+
+  // Seleção de Cartão para Visualização Detalhada da Fatura
+  const [selectedCardForDetail, setSelectedCardForDetail] = useState<CreditCard | null>(() => {
+    if (initialCardId) {
+      return creditCards.find(c => c.id === initialCardId) || null;
+    }
+    return null;
+  });
+
+  // Estados de Modais
+  const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+  const [cardToEdit, setCardToEdit] = useState<CreditCard | null>(null);
+  const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
+  const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
+  const [advancePaymentCard, setAdvancePaymentCard] = useState<CreditCard | null>(null);
+
+  // Modal de Transação
+  const [isTxModalOpen, setIsTxModalOpen] = useState(false);
+  const [txModalCreditCardId, setTxModalCreditCardId] = useState<string | null>(null);
+  const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
+
+  // Cartões Ativos vs Arquivados
+  const activeCards = useMemo(() => {
+    return creditCards.filter(c => !c.isArchived);
+  }, [creditCards]);
+
+  const archivedCards = useMemo(() => {
+    return creditCards.filter(c => !!c.isArchived);
+  }, [creditCards]);
+
+  // Determinar o mês alvo para os cálculos baseado na aba ativa
+  const targetMonth = useMemo(() => {
+    if (invoiceTab === 'next_month') {
+      return (selectedMonth + 1) % 12;
+    }
+    return selectedMonth;
+  }, [invoiceTab, selectedMonth]);
+
+  const targetYear = useMemo(() => {
+    if (invoiceTab === 'next_month' && selectedMonth === 11) {
+      return selectedYear + 1;
+    }
+    return selectedYear;
+  }, [invoiceTab, selectedMonth, selectedYear]);
+
+  // Chave do período alvo (ex: "2026-09")
+  const targetPeriodKey = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
+
+  // Cálculo de Despesas por Cartão no Mês Alvo
+  const cardExpensesMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    activeCards.forEach(c => {
+      const expenses = transactions
+        .filter(t => {
+          if (t.creditCardId !== c.id) return false;
+          const tDate = new Date(t.date);
+          return tDate.getMonth() === targetMonth && tDate.getFullYear() === targetYear;
+        })
+        .reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0);
+      map[c.id] = Math.max(0, expenses);
+    });
+    return map;
+  }, [activeCards, transactions, targetMonth, targetYear]);
+
+  // Cálculos de Resumo da Direita
+  const totalLimitAvailable = useMemo(() => {
+    return activeCards.reduce((sum, c) => {
+      const spent = cardExpensesMap[c.id] || 0;
+      return sum + Math.max(0, c.limit - spent);
+    }, 0);
+  }, [activeCards, cardExpensesMap]);
+
+  const totalInvoicesAmount = useMemo(() => {
+    return Object.values(cardExpensesMap).reduce((sum, v) => sum + v, 0);
+  }, [cardExpensesMap]);
+
+  // Melhor cartão para comprar hoje (aquele cujo fechamento está mais distante a partir de hoje)
+  const bestCardToBuyToday = useMemo(() => {
+    if (activeCards.length === 0) return null;
+    const currentDay = new Date().getDate();
+
+    let bestCard = activeCards[0];
+    let maxDaysUntilClosing = -1;
+
+    activeCards.forEach(card => {
+      let days = card.closingDay - currentDay;
+      if (days <= 0) days += 30; // fecha no próximo ciclo
+      if (days > maxDaysUntilClosing) {
+        maxDaysUntilClosing = days;
+        bestCard = card;
+      }
     });
 
-    setName('');
-    setLimit('');
-    setIsModalOpen(false);
+    return bestCard;
+  }, [activeCards]);
+
+  // Formatação de data de fechamento ou vencimento
+  const getClosingOrDueDateFormatted = (card: CreditCard) => {
+    const status = getCardInvoiceStatus(card);
+    if (status === 'overdue') {
+      return `${card.dueDay} de ${MONTH_NAMES[targetMonth]} de ${targetYear}`;
+    }
+    if (status === 'closed') {
+      return `${card.dueDay} de ${MONTH_NAMES[targetMonth]} de ${targetYear}`;
+    }
+    return `${card.closingDay} de ${MONTH_NAMES[targetMonth]} de ${targetYear}`;
   };
+
+  // Status da fatura de cada cartão (Aberta, Fechada, Vencida, Paga)
+  const getCardInvoiceStatus = (card: CreditCard): 'open' | 'closed' | 'overdue' | 'paid' => {
+    if (card.manualInvoiceStatus && card.manualInvoiceStatus[targetPeriodKey]) {
+      const manual = card.manualInvoiceStatus[targetPeriodKey];
+      if (manual === 'open') return 'open';
+      if (manual === 'paid') return 'paid';
+    }
+    const today = new Date();
+    const dueDate = new Date(targetYear, targetMonth, card.dueDay);
+    if (today > dueDate) return 'overdue';
+    const closingDate = new Date(targetYear, targetMonth, card.closingDay);
+    if (today > closingDate) return 'closed';
+    return 'open';
+  };
+
+  // Alternar Status da Fatura (Reabrir se Fechada/Vencida/Paga, ou Fechar se Aberta)
+  const handleToggleInvoiceStatus = (card: CreditCard, period: string = targetPeriodKey) => {
+    const currentStatus = getCardInvoiceStatus(card);
+    const newStatus: 'open' | 'closed' = (currentStatus === 'closed' || currentStatus === 'overdue' || currentStatus === 'paid') ? 'open' : 'closed';
+
+    const updatedManual = {
+      ...(card.manualInvoiceStatus || {}),
+      [period]: newStatus,
+    };
+
+    updateCreditCard(card.id, {
+      manualInvoiceStatus: updatedManual,
+    });
+  };
+
+  // Pagar Fatura
+  const handlePayInvoice = (card: CreditCard, period: string = targetPeriodKey) => {
+    const updatedManual = {
+      ...(card.manualInvoiceStatus || {}),
+      [period]: 'paid' as const,
+    };
+    updateCreditCard(card.id, {
+      manualInvoiceStatus: updatedManual,
+    });
+  };
+
+  // Handlers
+  const handleSaveCard = (data: Omit<CreditCard, 'id' | 'createdAt'>, editId?: string) => {
+    if (editId) {
+      updateCreditCard(editId, data);
+    } else {
+      addCreditCard(data);
+    }
+  };
+
+  const handleArchiveCard = (card: CreditCard) => {
+    updateCreditCard(card.id, { isArchived: true });
+    if (selectedCardForDetail?.id === card.id) {
+      setSelectedCardForDetail(null);
+    }
+  };
+
+  const handleUnarchiveCard = (cardId: string) => {
+    updateCreditCard(cardId, { isArchived: false });
+  };
+
+  const handleOpenAddExpense = (card: CreditCard) => {
+    setTxModalCreditCardId(card.id);
+    setTransactionToEdit({
+      id: '',
+      description: '',
+      amount: 0,
+      type: 'expense',
+      categoryId: '',
+      accountId: '',
+      creditCardId: card.id,
+      date: new Date().toISOString().split('T')[0],
+      paid: false,
+      createdAt: '',
+    });
+    setIsTxModalOpen(true);
+  };
+
+  // Se um cartão estiver selecionado, exibe a tela detalhada da fatura
+  if (selectedCardForDetail) {
+    const currentSelected = activeCards.find(c => c.id === selectedCardForDetail.id) || selectedCardForDetail;
+    return (
+      <>
+        <CardInvoiceDetailView
+          card={currentSelected}
+          allCards={activeCards}
+          onBack={() => setSelectedCardForDetail(null)}
+          onSelectAnotherCard={card => setSelectedCardForDetail(card)}
+          onOpenNewExpense={cardId => {
+            setTxModalCreditCardId(cardId);
+            setTransactionToEdit(null);
+            setIsTxModalOpen(true);
+          }}
+          onEditTransaction={tx => {
+            setTransactionToEdit(tx);
+            setIsTxModalOpen(true);
+          }}
+          onToggleInvoiceStatus={(c, pKey) => handleToggleInvoiceStatus(c, pKey)}
+        />
+
+        {isTxModalOpen && (
+          <NewTransactionModal
+            isOpen={isTxModalOpen}
+            onClose={() => {
+              setIsTxModalOpen(false);
+              setTxModalCreditCardId(null);
+              setTransactionToEdit(null);
+            }}
+            defaultType="expense"
+            transactionToEdit={transactionToEdit}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Top Header Desktop */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white">Meus Cartões de Crédito</h2>
-          <p className="text-xs text-slate-400">Controle limites, datas de fechamento e faturas mensais.</p>
+          <h1 className="text-2xl font-black text-white tracking-tight">Cartões de crédito</h1>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-2xl text-xs font-semibold shadow-lg shadow-violet-600/20 transition-all cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Cartão
-        </button>
-      </div>
 
-      {/* Grid de Cartões Estilo Físico 3D */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {creditCards.map(card => {
-          // Calcular fatura atual baseada nas transações deste mês
-          const cardExpenses = filteredTransactions
-            .filter(t => t.creditCardId === card.id && t.type === 'expense')
-            .reduce((sum, t) => sum + t.amount, 0);
-
-          const availableLimit = Math.max(0, card.limit - cardExpenses);
-          const limitUsedPercent = Math.min(100, ((cardExpenses / card.limit) * 100)).toFixed(0);
-
-          return (
-            <div
-              key={card.id}
-              className="relative overflow-hidden rounded-3xl p-6 shadow-2xl flex flex-col justify-between h-56 text-white border border-white/10 group transition-all hover:scale-[1.02]"
-              style={{
-                background: `linear-gradient(135deg, ${card.color}dd 0%, #090d16 100%)`,
-              }}
+        <div className="flex items-center gap-3">
+          {/* Alternador Toggle: Fatura Mês Atual | Fatura Próximo Mês */}
+          <div className="flex items-center bg-slate-900 border border-slate-800 p-1 rounded-2xl text-xs">
+            <button
+              onClick={() => setInvoiceTab('current_month')}
+              className={`px-4 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
+                invoiceTab === 'current_month'
+                  ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
             >
-              {/* Efeito Glass reflexivo */}
-              <div className="absolute top-0 right-0 w-44 h-44 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+              Fatura Mês Atual
+            </button>
+            <button
+              onClick={() => setInvoiceTab('next_month')}
+              className={`px-4 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
+                invoiceTab === 'next_month'
+                  ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Fatura Próximo Mês
+            </button>
+          </div>
 
-              {/* Header do Cartão */}
-              <div className="flex items-center justify-between relative z-10">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center">
-                    <CardIcon className="w-4 h-4 text-white" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-sm block leading-tight">{card.name}</span>
-                    <span className="text-[10px] text-white/70 uppercase tracking-widest">{card.brand}</span>
-                  </div>
-                </div>
+          {/* Botão + (Novo Cartão) */}
+          <button
+            onClick={() => {
+              setCardToEdit(null);
+              setIsCardModalOpen(true);
+            }}
+            className="p-2.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-2xl transition-all cursor-pointer shadow-sm"
+            title="Adicionar Novo Cartão"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
 
+          {/* Menu Dropdown de Opções ⋮ */}
+          <div className="relative">
+            <button
+              onClick={() => setIsHeaderMenuOpen(!isHeaderMenuOpen)}
+              className="p-2.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-2xl transition-all cursor-pointer shadow-sm"
+              title="Mais opções"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+
+            {isHeaderMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-52 bg-[#202024] border border-slate-700/80 rounded-2xl shadow-2xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100 text-xs">
                 <button
                   onClick={() => {
-                    if (confirm(`Excluir cartão ${card.name}?`)) {
-                      deleteCreditCard(card.id);
-                    }
+                    setIsHeaderMenuOpen(false);
+                    setIsArchivedModalOpen(true);
                   }}
-                  className="p-1.5 rounded-lg bg-black/20 hover:bg-rose-500/80 text-white/70 hover:text-white transition-all opacity-0 group-hover:opacity-100"
-                  title="Excluir Cartão"
+                  className="w-full px-4 py-2.5 text-slate-200 hover:bg-slate-800 hover:text-white text-left transition-colors cursor-pointer"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Fatura Atual e Limite */}
-              <div className="relative z-10 my-auto">
-                <div className="text-[11px] text-white/70 font-medium">Fatura do Mês</div>
-                <div className="text-2xl font-black tracking-tight">{formatCurrency(cardExpenses)}</div>
-                
-                {/* Barra de Progresso do Limite */}
-                <div className="mt-2.5">
-                  <div className="flex items-center justify-between text-[10px] text-white/80 mb-1">
-                    <span>Disponível: {formatCurrency(availableLimit)}</span>
-                    <span>{limitUsedPercent}% usado</span>
-                  </div>
-                  <div className="w-full bg-black/40 h-2 rounded-full overflow-hidden p-0.5 border border-white/10">
-                    <div
-                      className="bg-emerald-400 h-full rounded-full transition-all"
-                      style={{ width: `${limitUsedPercent}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer do Cartão (Datas) */}
-              <div className="flex items-center justify-between text-[11px] text-white/80 border-t border-white/10 pt-2 relative z-10">
-                <div className="flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-white/60" />
-                  <span>Fecha dia <strong>{card.closingDay}</strong></span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Shield className="w-3 h-3 text-white/60" />
-                  <span>Vence dia <strong>{card.dueDay}</strong></span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Modal de Novo Cartão */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl text-sm">
-            <h3 className="text-lg font-bold text-white mb-4">Adicionar Novo Cartão</h3>
-            <form onSubmit={handleAddCard} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Nome do Cartão</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Nubank Ultravioleta, C6 Black"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Bandeira</label>
-                  <select
-                    value={brand}
-                    onChange={e => setBrand(e.target.value as any)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3 py-2 text-white"
-                  >
-                    <option value="mastercard">Mastercard</option>
-                    <option value="visa">Visa</option>
-                    <option value="elo">Elo</option>
-                    <option value="amex">Amex</option>
-                    <option value="other">Outra</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Limite Total (R$)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="5000.00"
-                    value={limit}
-                    onChange={e => setLimit(e.target.value)}
-                    required
-                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3 py-2 text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Dia Fechamento</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={31}
-                    value={closingDay}
-                    onChange={e => setClosingDay(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3 py-2 text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Dia Vencimento</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={31}
-                    value={dueDay}
-                    onChange={e => setDueDay(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3 py-2 text-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Cor do Cartão</label>
-                <div className="flex gap-2">
-                  {['#820AD1', '#111827', '#FF7A00', '#2563EB', '#059669', '#DC2626'].map(c => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setColor(c)}
-                      className={`w-8 h-8 rounded-full border-2 transition-all ${
-                        color === c ? 'border-white scale-110' : 'border-transparent'
-                      }`}
-                      style={{ backgroundColor: c }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl"
-                >
-                  Cancelar
+                  Cartões Arquivados ({archivedCards.length})
                 </button>
                 <button
-                  type="submit"
-                  className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-bold rounded-xl"
+                  onClick={() => {
+                    setIsHeaderMenuOpen(false);
+                    onNavigateToTransactions?.();
+                  }}
+                  className="w-full px-4 py-2.5 text-slate-200 hover:bg-slate-800 hover:text-white text-left transition-colors cursor-pointer border-t border-slate-700/50"
                 >
-                  Salvar
+                  Tipo de visualização
                 </button>
               </div>
-            </form>
+            )}
           </div>
         </div>
+      </div>
+
+      {/* Grid Principal em 2 Colunas */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Coluna Esquerda: Grade de Cartões (8 colunas) */}
+        <div className="lg:col-span-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Card "+ Novo cartão de crédito" */}
+            <div
+              onClick={() => {
+                setCardToEdit(null);
+                setIsCardModalOpen(true);
+              }}
+              className="bg-[#18181b]/50 border-2 border-dashed border-slate-800/90 hover:border-teal-500/60 rounded-3xl p-6 flex flex-col items-center justify-center min-h-[220px] gap-3 cursor-pointer group transition-all"
+            >
+              <div className="w-12 h-12 rounded-full border border-teal-500/40 bg-teal-600/10 group-hover:bg-teal-600/20 flex items-center justify-center text-teal-400 group-hover:scale-110 transition-all shadow-lg shadow-teal-600/10">
+                <Plus className="w-6 h-6" />
+              </div>
+              <span className="text-sm font-semibold text-slate-300 group-hover:text-white transition-colors">
+                Novo cartão de crédito
+              </span>
+            </div>
+
+            {/* Lista de Cartões */}
+            {activeCards.map(card => {
+              const status = getCardInvoiceStatus(card);
+              const today = new Date();
+              const isOverdue = today > new Date(targetYear, targetMonth, card.dueDay);
+              const isClosed = today > new Date(targetYear, targetMonth, card.closingDay);
+
+              return (
+                <CreditCardCard
+                  key={card.id}
+                  card={card}
+                  invoiceAmount={cardExpensesMap[card.id] || 0}
+                  invoiceStatus={status}
+                  closingOrDueDateFormatted={getClosingOrDueDateFormatted(card)}
+                  isOverdue={isOverdue}
+                  isClosed={isClosed}
+                  onSelectCard={c => setSelectedCardForDetail(c)}
+                  onEdit={c => {
+                    setCardToEdit(c);
+                    setIsCardModalOpen(true);
+                  }}
+                  onArchive={handleArchiveCard}
+                  onAddExpense={handleOpenAddExpense}
+                  onPayInvoice={c => handlePayInvoice(c)}
+                  onViewHistory={c => setSelectedCardForDetail(c)}
+                  onViewFixedExpenses={c => setSelectedCardForDetail(c)}
+                  onViewExpenseChart={c => setSelectedCardForDetail(c)}
+                  onToggleInvoiceStatus={c => handleToggleInvoiceStatus(c)}
+                  onAdvancePayment={c => setAdvancePaymentCard(c)}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Coluna Direita: Cards de Resumo dos Cartões (4 colunas) */}
+        <div className="lg:col-span-4 space-y-4">
+          {/* Card 1: Melhor cartão para comprar hoje */}
+          <div className="bg-[#18181b]/90 border border-slate-800/90 rounded-3xl p-5 shadow-xl flex items-center justify-between">
+            <div className="min-w-0 pr-2">
+              <span className="text-xs text-slate-400 font-medium block">
+                O melhor cartão para comprar hoje é
+              </span>
+              <div className="text-base font-bold tracking-tight text-white mt-1.5 truncate">
+                {bestCardToBuyToday ? bestCardToBuyToday.name : 'Nenhum cartão cadastrado'}
+              </div>
+            </div>
+            <div className="w-11 h-11 rounded-full bg-teal-500 flex items-center justify-center text-slate-950 shadow-lg shadow-teal-500/30 shrink-0">
+              <ThumbsUp className="w-5 h-5 font-black" />
+            </div>
+          </div>
+
+          {/* Card 2: Limite Disponível */}
+          <div className="bg-[#18181b]/90 border border-slate-800/90 rounded-3xl p-5 shadow-xl flex items-center justify-between">
+            <div>
+              <span className="text-xs text-slate-400 font-medium">Limite Disponível</span>
+              <div className="text-xl font-bold tracking-tight text-white mt-1.5">
+                {formatCurrency(totalLimitAvailable)}
+              </div>
+            </div>
+            <div className="w-11 h-11 rounded-full bg-teal-500 flex items-center justify-center text-slate-950 shadow-lg shadow-teal-500/30">
+              <CardIcon className="w-5 h-5 font-black" />
+            </div>
+          </div>
+
+          {/* Card 3: Valor total */}
+          <div className="bg-[#18181b]/90 border border-slate-800/90 rounded-3xl p-5 shadow-xl flex items-center justify-between">
+            <div>
+              <span className="text-xs text-slate-400 font-medium">Valor total</span>
+              <div className="text-xl font-bold tracking-tight text-white mt-1.5">
+                {formatCurrency(totalInvoicesAmount)}
+              </div>
+            </div>
+            <div className="w-11 h-11 rounded-full bg-teal-500 flex items-center justify-center text-slate-950 shadow-lg shadow-teal-500/30">
+              <DollarSign className="w-5 h-5 font-black" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Modais de Suporte */}
+      <CreditCardModal
+        isOpen={isCardModalOpen}
+        onClose={() => {
+          setIsCardModalOpen(false);
+          setCardToEdit(null);
+        }}
+        onSave={handleSaveCard}
+        cardToEdit={cardToEdit}
+      />
+
+      <ArchivedCardsModal
+        isOpen={isArchivedModalOpen}
+        onClose={() => setIsArchivedModalOpen(false)}
+        archivedCards={archivedCards}
+        onUnarchive={handleUnarchiveCard}
+        onDelete={deleteCreditCard}
+      />
+
+      <AdvancePaymentModal
+        isOpen={!!advancePaymentCard}
+        onClose={() => setAdvancePaymentCard(null)}
+        card={advancePaymentCard}
+        onConfirm={() => {
+          if (advancePaymentCard) {
+            handleOpenAddExpense(advancePaymentCard);
+          }
+        }}
+      />
+
+      {isTxModalOpen && (
+        <NewTransactionModal
+          isOpen={isTxModalOpen}
+          onClose={() => {
+            setIsTxModalOpen(false);
+            setTxModalCreditCardId(null);
+            setTransactionToEdit(null);
+          }}
+          defaultType="expense"
+          flowType="creditCard"
+          transactionToEdit={transactionToEdit}
+        />
       )}
     </div>
   );

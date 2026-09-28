@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FinanceProvider, useFinance } from '@/context/FinanceContext';
 import { Sidebar, ActiveTab } from '@/components/layout/Sidebar';
 import { MonthSelector } from '@/components/layout/MonthSelector';
@@ -12,6 +12,7 @@ import { TransactionsView } from '@/components/transactions/TransactionsView';
 import { MobileTransactionsView } from '@/components/transactions/MobileTransactionsView';
 import { NewTransactionModal } from '@/components/transactions/NewTransactionModal';
 import { CardsView } from '@/components/cards/CardsView';
+import { MobileCardsView } from '@/components/cards/MobileCardsView';
 import { AccountsView } from '@/components/accounts/AccountsView';
 import { MobileAccountsView } from '@/components/accounts/MobileAccountsView';
 import { BudgetsView } from '@/components/budgets/BudgetsView';
@@ -31,6 +32,7 @@ import { Plus, ArrowRight, UploadCloud, Bell } from 'lucide-react';
 function DashboardContent() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [selectedTxFilter, setSelectedTxFilter] = useState<'all' | 'income' | 'expense' | 'transfer'>('all');
+  const [selectedDetailCardId, setSelectedDetailCardId] = useState<string | null>(null);
   const [isNewTxModalOpen, setIsNewTxModalOpen] = useState(false);
   const [txModalFlow, setTxModalFlow] = useState<TransactionFlowType>('expense');
   const [isImporterOpen, setIsImporterOpen] = useState(false);
@@ -43,11 +45,20 @@ function DashboardContent() {
     setIsNewTxModalOpen(true);
   };
 
-  const handleNavigateTab = (tab: ActiveTab, filterType?: 'all' | 'income' | 'expense' | 'transfer') => {
+  const handleNavigateTab = (
+    tab: ActiveTab,
+    filterType?: 'all' | 'income' | 'expense' | 'transfer',
+    cardId?: string
+  ) => {
     if (filterType) {
       setSelectedTxFilter(filterType);
     } else if (tab === 'transactions') {
       setSelectedTxFilter('all');
+    }
+    if (cardId) {
+      setSelectedDetailCardId(cardId);
+    } else if (tab !== 'cards') {
+      setSelectedDetailCardId(null);
     }
     setActiveTab(tab);
   };
@@ -64,9 +75,9 @@ function DashboardContent() {
 
       {/* Área Principal de Conteúdo */}
       <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8 space-y-6">
-        {/* Top Header com Seletor de Período & Ações Globais */}
-        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-900">
-          <div className="hidden md:block">
+        {/* Top Header com Seletor de Período & Ações Globais (Apenas no Desktop) */}
+        <header className="hidden md:flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-900">
+          <div>
             <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
               {activeTab === 'dashboard' && 'Visão Geral'}
               {activeTab === 'transactions' && 'Extrato de Transações'}
@@ -121,6 +132,7 @@ function DashboardContent() {
               <MobillsMobileHome
                 onNavigateTab={handleNavigateTab}
                 onOpenNewTransaction={handleOpenNewTransaction}
+                onOpenAlerts={() => setIsAlertsDrawerOpen(true)}
               />
             </div>
 
@@ -168,7 +180,22 @@ function DashboardContent() {
           </>
         )}
 
-        {activeTab === 'cards' && <CardsView />}
+        {activeTab === 'cards' && (
+          <>
+            <div className="block md:hidden">
+              <MobileCardsView
+                initialCardId={selectedDetailCardId}
+                onNavigateToTransactions={() => handleNavigateTab('transactions', 'all')}
+              />
+            </div>
+            <div className="hidden md:block">
+              <CardsView
+                initialCardId={selectedDetailCardId}
+                onNavigateToTransactions={() => handleNavigateTab('transactions', 'all')}
+              />
+            </div>
+          </>
+        )}
         {activeTab === 'accounts' && (
           <>
             <div className="block md:hidden">
@@ -217,9 +244,14 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { AuthView } from '@/components/auth/AuthView';
 
 function AppGate() {
+  const [isMounted, setIsMounted] = useState(false);
   const { user, isDemoMode, loading } = useAuth();
 
-  if (loading) {
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted || loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4">
         <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />

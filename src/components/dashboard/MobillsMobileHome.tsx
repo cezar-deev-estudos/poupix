@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency } from '@/lib/utils';
 import {
@@ -10,34 +10,90 @@ import {
   ArrowDown,
   Plus,
   ChevronRight,
+  ChevronDown,
   FileText,
   CreditCard as CreditCardIcon,
   Wallet,
   PieChart,
+  Bell,
+  User,
+  Crown,
 } from 'lucide-react';
 import { ActiveTab } from '../layout/Sidebar';
 import { TransactionFlowType } from '../transactions/modal/TransactionModal';
+import { MonthDropdownModal } from '../layout/MonthDropdownModal';
+import { useAuth } from '@/context/AuthContext';
+
+const MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
 
 interface MobillsMobileHomeProps {
-  onNavigateTab: (tab: ActiveTab, filterType?: 'all' | 'income' | 'expense' | 'transfer') => void;
+  onNavigateTab: (tab: ActiveTab, filterType?: 'all' | 'income' | 'expense' | 'transfer', cardId?: string) => void;
   onOpenNewTransaction: (flowType?: TransactionFlowType) => void;
+  onOpenAlerts?: () => void;
 }
 
 export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
   onNavigateTab,
   onOpenNewTransaction,
+  onOpenAlerts,
 }) => {
   const {
     summary,
     accounts,
     creditCards,
     categories,
+    transactions,
     filteredTransactions,
+    selectedMonth,
+    selectedYear,
     isPrivacyMode,
     togglePrivacyMode,
+    unreadAlertsCount,
+    currentUser,
   } = useFinance();
+  const { user, isDemoMode } = useAuth();
 
-  const [cardInvoiceTab, setCardInvoiceTab] = useState<'open' | 'closed'>('open');
+  const [cardInvoiceTab, setCardInvoiceTab] = useState<'current_month' | 'next_month'>('current_month');
+  const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
+
+  // Mês alvo para as faturas
+  const targetCardMonth = useMemo(() => {
+    if (cardInvoiceTab === 'next_month') {
+      return (selectedMonth + 1) % 12;
+    }
+    return selectedMonth;
+  }, [cardInvoiceTab, selectedMonth]);
+
+  const targetCardYear = useMemo(() => {
+    if (cardInvoiceTab === 'next_month' && selectedMonth === 11) {
+      return selectedYear + 1;
+    }
+    return selectedYear;
+  }, [cardInvoiceTab, selectedMonth, selectedYear]);
+
+  // Cálculo das despesas de cada cartão no período selecionado
+  const cardExpensesMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    creditCards.forEach(c => {
+      const expenses = transactions
+        .filter(t => {
+          if (t.creditCardId !== c.id) return false;
+          const tDate = new Date(t.date);
+          return tDate.getMonth() === targetCardMonth && tDate.getFullYear() === targetCardYear;
+        })
+        .reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0);
+      map[c.id] = Math.max(0, expenses);
+    });
+    return map;
+  }, [creditCards, transactions, targetCardMonth, targetCardYear]);
+
+  // Total consolidado de faturas do período
+  const totalCardInvoices = useMemo(() => {
+    return Object.values(cardExpensesMap).reduce((sum, v) => sum + v, 0);
+  }, [cardExpensesMap]);
 
   const displayVal = (val: number) => {
     if (isPrivacyMode) return 'R$ ••••••';
@@ -144,9 +200,51 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
 
   return (
     <div className="space-y-5 pb-24 animate-fadeIn">
-      {/* 1. HERO CARD: SALDO EM CONTAS */}
+      {/* 1. HERO CARD: TOPO MOBILLS + SALDO EM CONTAS */}
       <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-5 shadow-xl space-y-4">
-        <div className="text-center space-y-1">
+        {/* Top Header do Card: Avatar Usuário | Mês Dropdown | Ícone Notificações / Alertas */}
+        <div className="flex items-center justify-between gap-2">
+          {/* Avatar Usuário com Badge VIP / Perfil */}
+          <button
+            type="button"
+            onClick={() => onNavigateTab('users')}
+            className="relative p-0.5 rounded-full hover:opacity-90 active:scale-95 transition-all cursor-pointer"
+            title="Meu Perfil"
+          >
+            <div className="w-10 h-10 rounded-full border-2 border-slate-600/80 bg-slate-800/90 flex items-center justify-center text-slate-300 shadow-inner">
+              <User className="w-5 h-5" />
+            </div>
+            <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400 border-2 border-[#1c202a] flex items-center justify-center text-slate-950 shadow-sm">
+              <Crown className="w-2.5 h-2.5 fill-slate-950" />
+            </div>
+          </button>
+
+          {/* Seletor Central de Mês (Setembro ∨) */}
+          <button
+            type="button"
+            onClick={() => setIsMonthModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl hover:bg-slate-800/60 active:scale-95 transition-all text-white font-bold text-base cursor-pointer"
+          >
+            <span>{MONTH_NAMES[selectedMonth]}</span>
+            <ChevronDown className="w-4 h-4 text-slate-400 stroke-[2.5]" />
+          </button>
+
+          {/* Botão de Alertas / Notificações (Sininho em Roxo) */}
+          <button
+            type="button"
+            onClick={() => onOpenAlerts?.()}
+            className="relative w-10 h-10 rounded-full bg-[#9333EA] hover:bg-[#A855F7] active:scale-95 text-white flex items-center justify-center shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
+            title="Notificações e Alertas"
+          >
+            <Bell className="w-5 h-5" />
+            {unreadAlertsCount > 0 && (
+              <span className="absolute top-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-[#1c202a] rounded-full" />
+            )}
+          </button>
+        </div>
+
+        {/* Saldo Central */}
+        <div className="text-center space-y-1 pt-1">
           <span 
             onClick={() => onNavigateTab('accounts')}
             className="text-xs font-semibold text-slate-400 block cursor-pointer hover:text-slate-200 transition-colors"
@@ -155,7 +253,7 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           </span>
           <div 
             onClick={() => onNavigateTab('accounts')}
-            className="text-xl font-bold text-white tracking-tight cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-transform"
+            className="text-2xl font-bold text-white tracking-tight cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-transform"
           >
             {displayVal(summary.totalBalance)}
           </div>
@@ -206,6 +304,12 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Modal de Seleção de Mês */}
+      <MonthDropdownModal
+        isOpen={isMonthModalOpen}
+        onClose={() => setIsMonthModalOpen(false)}
+      />
 
       {/* 2. CARD: BALANÇO MENSAL */}
       <div className="space-y-2">
@@ -333,29 +437,29 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
         </div>
 
         <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-5 shadow-xl space-y-4">
-          {/* Tabs Faturas Abertas / Fechadas */}
+          {/* Tabs Fatura Mês Atual / Fatura Próximo Mês */}
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setCardInvoiceTab('open')}
-              className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
-                cardInvoiceTab === 'open'
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+              onClick={() => setCardInvoiceTab('current_month')}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
+                cardInvoiceTab === 'current_month'
+                  ? 'bg-teal-500 text-slate-950 font-bold shadow-sm shadow-teal-500/20'
                   : 'bg-slate-800/60 text-slate-400 hover:text-white'
               }`}
             >
-              Faturas abertas
+              Fatura Mês Atual
             </button>
             <button
               type="button"
-              onClick={() => setCardInvoiceTab('closed')}
-              className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
-                cardInvoiceTab === 'closed'
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+              onClick={() => setCardInvoiceTab('next_month')}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
+                cardInvoiceTab === 'next_month'
+                  ? 'bg-teal-500 text-slate-950 font-bold shadow-sm shadow-teal-500/20'
                   : 'bg-slate-800/60 text-slate-400 hover:text-white'
               }`}
             >
-              Faturas fechadas
+              Fatura Próximo Mês
             </button>
           </div>
 
@@ -365,16 +469,18 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
               <p className="text-xs text-slate-500">Nenhum cartão cadastrado.</p>
             ) : (
               creditCards.map(card => {
-                const cardTotal = filteredTransactions
-                  .filter(t => t.creditCardId === card.id)
-                  .reduce((sum, t) => sum + t.amount, 0);
+                const cardTotal = cardExpensesMap[card.id] || 0;
 
                 return (
-                  <div key={card.id} className="flex items-center justify-between gap-3">
+                  <div
+                    key={card.id}
+                    onClick={() => onNavigateTab('cards', undefined, card.id)}
+                    className="flex items-center justify-between gap-3 p-2.5 -mx-2 rounded-2xl hover:bg-slate-800/40 active:bg-slate-800/60 transition-colors cursor-pointer group"
+                  >
                     <div className="flex items-center gap-3 min-w-0">
                       {renderCardBrand(card.brand)}
                       <div className="min-w-0">
-                        <span className="text-xs font-semibold text-white block truncate">
+                        <span className="text-xs font-semibold text-white block truncate group-hover:text-teal-300 transition-colors">
                           {card.name}
                         </span>
                         <span className="text-xs font-bold text-rose-400 block">
@@ -388,7 +494,10 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
 
                     <button
                       type="button"
-                      onClick={() => onOpenNewTransaction('creditCard')}
+                      onClick={e => {
+                        e.stopPropagation();
+                        onOpenNewTransaction('creditCard');
+                      }}
                       className="w-7 h-7 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 hover:bg-emerald-500/30 transition-colors cursor-pointer shrink-0"
                       title="Nova despesa no cartão"
                     >
@@ -403,7 +512,7 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           {/* Rodapé Total de Faturas */}
           <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs font-bold">
             <span className="text-slate-400">Total</span>
-            <span className="text-white">{displayVal(summary.creditCardTotalInvoice)}</span>
+            <span className="text-white">{displayVal(totalCardInvoices)}</span>
           </div>
         </div>
       </div>
