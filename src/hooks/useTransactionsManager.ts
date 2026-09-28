@@ -2,6 +2,7 @@
 
 import { Transaction, Account } from '@/types/finance';
 import { deleteTransactionFromSupabase } from '@/lib/supabase/syncService';
+import { getNextInvoiceDate } from '@/lib/invoiceHelpers';
 
 // Helper para cálculo robusto de datas mês a mês (respeitando o último dia do mês)
 export const getNextMonthDate = (baseDateStr: string, monthOffset: number): string => {
@@ -49,11 +50,16 @@ export const transactionManager: TransactionManagerActions = {
 
       for (let i = 1; i <= tx.installmentTotal; i++) {
         const parcelDate = getNextMonthDate(tx.date, i - 1);
+        const parcelInvoiceDate = tx.creditCardId && tx.invoiceDate
+          ? getNextInvoiceDate(tx.invoiceDate, i - 1)
+          : tx.invoiceDate;
+
         parcelTransactions.push({
           ...tx,
           id: crypto.randomUUID(),
           description: `${tx.description} (${i}/${tx.installmentTotal})`,
           date: parcelDate,
+          invoiceDate: parcelInvoiceDate,
           installmentCurrent: i,
           installmentTotal: tx.installmentTotal,
           installmentGroupId: groupId,
@@ -88,10 +94,15 @@ export const transactionManager: TransactionManagerActions = {
 
       for (let i = 0; i < 12; i++) {
         const recDate = getNextMonthDate(tx.date, i);
+        const recInvoiceDate = tx.creditCardId && tx.invoiceDate
+          ? getNextInvoiceDate(tx.invoiceDate, i)
+          : tx.invoiceDate;
+
         recurringTransactions.push({
           ...tx,
           id: crypto.randomUUID(),
           date: recDate,
+          invoiceDate: recInvoiceDate,
           isRecurring: true,
           recurringPeriod: 'monthly',
           recurringGroupId,

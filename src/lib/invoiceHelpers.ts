@@ -44,6 +44,22 @@ export function getTransactionInvoicePeriod(
 }
 
 /**
+ * Calcula a data de vencimento da fatura com um deslocamento de meses (offset).
+ * Se baseInvoiceDate for fornecido (YYYY-MM-DD), avança `monthOffset` meses mantendo o dia de vencimento.
+ */
+export function getNextInvoiceDate(baseInvoiceDate: string, monthOffset: number, fallbackDueDay: number = 10): string {
+  if (!baseInvoiceDate) return '';
+  const [baseYear, baseMonth, baseDay] = baseInvoiceDate.split('-').map(Number);
+  const totalMonths = (baseMonth - 1) + monthOffset;
+  const targetYear = baseYear + Math.floor(totalMonths / 12);
+  const targetMonth = ((totalMonths % 12) + 12) % 12 + 1;
+  const targetDueDay = baseDay || fallbackDueDay;
+  const maxDays = new Date(targetYear, targetMonth, 0).getDate();
+  const day = Math.min(targetDueDay, maxDays);
+  return `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/**
  * Verifica se uma transação pertence ao período de fatura especificado (ano e mês 0-indexed).
  */
 export function isTransactionInInvoicePeriod(
