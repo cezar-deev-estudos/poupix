@@ -326,12 +326,12 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
               <span
                 className={`font-semibold ${
                   invoiceStatus === 'open'
-                    ? 'text-emerald-400'
+                    ? 'text-amber-400'
                     : invoiceStatus === 'paid'
                     ? 'text-teal-300'
                     : invoiceStatus === 'overdue'
                     ? 'text-rose-400 font-bold'
-                    : 'text-amber-400'
+                    : 'text-slate-300'
                 }`}
               >
                 {invoiceStatus === 'open'
@@ -402,12 +402,22 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
               <div className="space-y-2.5">
                 {group.transactions.map(tx => {
                   const cat = categories.find(c => c.id === tx.categoryId);
+                  const parentCat = cat?.parentId ? categories.find(c => c.id === cat.parentId) : null;
+                  const categoryDisplayName = parentCat ? `${parentCat.name} / ${cat?.name}` : cat?.name || 'Geral';
 
                   return (
                     <div
                       key={tx.id}
-                      onClick={() => onEditTransaction(tx)}
-                      className="bg-[#1c1c20]/90 border border-slate-800/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 active:scale-[0.99] transition-transform cursor-pointer"
+                      onClick={() => {
+                        if (invoiceStatus === 'open') {
+                          onEditTransaction(tx);
+                        }
+                      }}
+                      className={`bg-[#1c1c20]/90 border border-slate-800/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 transition-transform ${
+                        invoiceStatus === 'open'
+                          ? 'active:scale-[0.99] cursor-pointer hover:border-slate-700'
+                          : 'cursor-default opacity-90'
+                      }`}
                     >
                       {/* Ícone Categoria + Descrição */}
                       <div className="flex items-center gap-3 min-w-0">
@@ -423,7 +433,7 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
                             {tx.description}
                           </h4>
                           <span className="text-xs text-slate-400 block truncate">
-                            {cat?.name || 'Geral'}
+                            {categoryDisplayName}
                           </span>
                           {tx.notes && (
                             <div className="flex items-center gap-1 text-[11px] text-slate-400 pt-0.5">

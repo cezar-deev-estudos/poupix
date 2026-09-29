@@ -28,6 +28,7 @@ import { useAuth } from './AuthContext';
 import { useFinanceCloudSync } from '@/hooks/useFinanceCloudSync';
 import { transactionManager } from '@/hooks/useTransactionsManager';
 import { entityManager } from '@/hooks/useEntityManager';
+import { normalizeTransactionsInvoiceDates } from '@/lib/invoiceHelpers';
 
 interface FinanceContextType {
   users: UserProfile[];
@@ -132,23 +133,31 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           currency: 'BRL',
           createdAt: user.created_at || new Date().toISOString(),
         };
+        const loadedCards: CreditCard[] = savedCards ? JSON.parse(savedCards) : [];
+        const rawTxs: Transaction[] = savedTransactions ? JSON.parse(savedTransactions) : [];
+        const normalizedTxs = normalizeTransactionsInvoiceDates(rawTxs, loadedCards);
+
         setUsers([authProfile]);
         setCurrentUserId(user.id);
         setAccounts(savedAccounts ? JSON.parse(savedAccounts) : []);
-        setCreditCards(savedCards ? JSON.parse(savedCards) : []);
+        setCreditCards(loadedCards);
         setCategories(savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES);
         setTags(savedTags ? JSON.parse(savedTags) : INITIAL_TAGS);
-        setTransactions(savedTransactions ? JSON.parse(savedTransactions) : []);
+        setTransactions(normalizedTxs);
         setGoals(savedGoals ? JSON.parse(savedGoals) : []);
         setOpenFinanceConnections(savedOpenFinance ? JSON.parse(savedOpenFinance) : []);
       } else {
+        const loadedCards: CreditCard[] = savedCards ? JSON.parse(savedCards) : INITIAL_CREDIT_CARDS;
+        const rawTxs: Transaction[] = savedTransactions ? JSON.parse(savedTransactions) : INITIAL_TRANSACTIONS;
+        const normalizedTxs = normalizeTransactionsInvoiceDates(rawTxs, loadedCards);
+
         setUsers(INITIAL_USERS);
         setCurrentUserId(INITIAL_USERS[0]?.id || 'user-cezar');
         setAccounts(savedAccounts ? JSON.parse(savedAccounts) : INITIAL_ACCOUNTS);
-        setCreditCards(savedCards ? JSON.parse(savedCards) : INITIAL_CREDIT_CARDS);
+        setCreditCards(loadedCards);
         setCategories(savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES);
         setTags(savedTags ? JSON.parse(savedTags) : INITIAL_TAGS);
-        setTransactions(savedTransactions ? JSON.parse(savedTransactions) : INITIAL_TRANSACTIONS);
+        setTransactions(normalizedTxs);
         setGoals(savedGoals ? JSON.parse(savedGoals) : INITIAL_GOALS);
         setOpenFinanceConnections(savedOpenFinance ? JSON.parse(savedOpenFinance) : INITIAL_OPEN_FINANCE_CONNECTIONS);
       }
@@ -207,6 +216,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     goals?: Goal[];
     openFinanceConnections?: OpenFinanceConnection[];
   }) => {
+    let currentCards = creditCards;
     if (cloudData.accounts && cloudData.accounts.length > 0) setAccounts(cloudData.accounts);
     if (cloudData.creditCards && cloudData.creditCards.length > 0) {
       setCreditCards(prevLocalCards => {
@@ -216,21 +226,26 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             localStatusMap.set(c.id, c.manualInvoiceStatus);
           }
         });
-        return cloudData.creditCards!.map(cloudCard => {
+        const mergedCards = cloudData.creditCards!.map(cloudCard => {
           const preservedStatus = cloudCard.manualInvoiceStatus || localStatusMap.get(cloudCard.id);
           return {
             ...cloudCard,
             manualInvoiceStatus: preservedStatus,
           };
         });
+        currentCards = mergedCards;
+        return mergedCards;
       });
     }
     if (cloudData.categories && cloudData.categories.length > 0) setCategories(cloudData.categories);
     if (cloudData.tags && cloudData.tags.length > 0) setTags(cloudData.tags);
-    if (cloudData.transactions && cloudData.transactions.length > 0) setTransactions(cloudData.transactions);
+    if (cloudData.transactions && cloudData.transactions.length > 0) {
+      const normalizedCloudTxs = normalizeTransactionsInvoiceDates(cloudData.transactions, currentCards);
+      setTransactions(normalizedCloudTxs);
+    }
     if (cloudData.goals && cloudData.goals.length > 0) setGoals(cloudData.goals);
     if (cloudData.openFinanceConnections && cloudData.openFinanceConnections.length > 0) setOpenFinanceConnections(cloudData.openFinanceConnections);
-  }, []);
+  }, [creditCards]);
 
   // 4. Hook de Sincronização em Nuvem (Debounced & Auto-Fetch)
   useFinanceCloudSync({

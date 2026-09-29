@@ -50,6 +50,8 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
     filteredTransactions,
     selectedMonth,
     selectedYear,
+    setSelectedMonth,
+    setSelectedYear,
     isPrivacyMode,
     togglePrivacyMode,
     unreadAlertsCount,
@@ -468,18 +470,64 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
               creditCards.map(card => {
                 const cardTotal = cardExpensesMap[card.id] || 0;
 
+                // Cálculo de Status do Cartão / Fatura
+                const periodKey = `${targetCardYear}-${String(targetCardMonth + 1).padStart(2, '0')}`;
+                const manualStatus = card.manualInvoiceStatus?.[periodKey];
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const dueDate = new Date(targetCardYear, targetCardMonth, card.dueDay);
+                dueDate.setHours(0, 0, 0, 0);
+                const closingDate = new Date(targetCardYear, targetCardMonth, card.closingDay);
+                closingDate.setHours(0, 0, 0, 0);
+
+                let invoiceStatus: 'open' | 'closed' | 'overdue' | 'paid' = 'open';
+                if (manualStatus === 'paid') {
+                  invoiceStatus = 'paid';
+                } else if (manualStatus === 'open') {
+                  invoiceStatus = 'open';
+                } else if (today > dueDate) {
+                  invoiceStatus = 'overdue';
+                } else if (today > closingDate || manualStatus === 'closed') {
+                  invoiceStatus = 'closed';
+                }
+
                 return (
                   <div
                     key={card.id}
-                    onClick={() => onNavigateTab('cards', undefined, card.id)}
+                    onClick={() => {
+                      setSelectedMonth(targetCardMonth);
+                      setSelectedYear(targetCardYear);
+                      onNavigateTab('cards', undefined, card.id);
+                    }}
                     className="flex items-center justify-between gap-3 p-2.5 -mx-2 rounded-2xl hover:bg-slate-800/40 active:bg-slate-800/60 transition-colors cursor-pointer group"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       {renderCardBrand(card.brand)}
                       <div className="min-w-0">
-                        <span className="text-xs font-semibold text-white block truncate group-hover:text-teal-300 transition-colors">
-                          {card.name}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-white block truncate group-hover:text-teal-300 transition-colors">
+                            {card.name}
+                          </span>
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0 ${
+                              invoiceStatus === 'open'
+                                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                : invoiceStatus === 'paid'
+                                ? 'bg-teal-500/15 text-teal-300 border border-teal-500/30'
+                                : invoiceStatus === 'overdue'
+                                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 font-bold'
+                                : 'bg-slate-500/20 text-slate-300 border border-slate-500/30'
+                            }`}
+                          >
+                            {invoiceStatus === 'open'
+                              ? 'Aberta'
+                              : invoiceStatus === 'paid'
+                              ? 'Paga'
+                              : invoiceStatus === 'overdue'
+                              ? 'Vencida'
+                              : 'Fechada'}
+                          </span>
+                        </div>
                         <span className="text-xs font-bold text-rose-400 block">
                           {displayVal(cardTotal)}
                         </span>

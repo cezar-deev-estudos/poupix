@@ -7,12 +7,13 @@ import { MoneyInput } from './MoneyInput';
 import { QuickDateSelector } from './QuickDateSelector';
 import { TagsChipSelector } from './TagsChipSelector';
 import { AccountSelectorDropdown } from './AccountSelectorDropdown';
-import { Pin } from 'lucide-react';
+import { Pin, Trash2 } from 'lucide-react';
 
 interface TransferFormProps {
   initialData?: Transaction | null;
   onSave: (data: Omit<Transaction, 'id' | 'createdAt'>, createAnother?: boolean) => void;
   onCancel: () => void;
+  onDelete?: () => void;
   onToggleDetails?: (isExpanded: boolean) => void;
 }
 
@@ -20,6 +21,7 @@ export const TransferForm: React.FC<TransferFormProps> = ({
   initialData,
   onSave,
   onCancel,
+  onDelete,
   onToggleDetails,
 }) => {
   const { accounts } = useFinance();
@@ -106,6 +108,7 @@ export const TransferForm: React.FC<TransferFormProps> = ({
             onChange={setAmount}
             variant="blue"
             showError={showValidation}
+            autoOpenKeypadOnMobile={!initialData}
           />
 
           {/* Seletor Rápido de Data */}
@@ -184,26 +187,41 @@ export const TransferForm: React.FC<TransferFormProps> = ({
       </div>
 
       {/* Ações do Rodapé na Base */}
-      <div className="w-full flex items-center justify-end gap-3 pt-6 mt-6 border-t border-slate-800">
-        <button
-          type="button"
-          onClick={() => handleSubmit(true)}
-          className="text-xs font-bold text-slate-400 hover:text-white px-3 py-2 transition-colors cursor-pointer"
-        >
-          SALVAR E CRIAR NOVA
-        </button>
+      <div className="w-full flex items-center justify-between gap-3 pt-6 mt-6 border-t border-slate-800">
+        <div>
+          {initialData && onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              title="Excluir esta transferência"
+              className="p-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all cursor-pointer flex items-center justify-center group"
+            >
+              <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            </button>
+          )}
+        </div>
 
-        <button
-          type="submit"
-          disabled={!isFormValid}
-          className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            isFormValid
-              ? 'bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/25 font-bold'
-              : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-          }`}
-        >
-          SALVAR
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => handleSubmit(true)}
+            className="text-xs font-bold text-slate-400 hover:text-white px-3 py-2 transition-colors cursor-pointer"
+          >
+            SALVAR E CRIAR NOVA
+          </button>
+
+          <button
+            type="submit"
+            disabled={!isFormValid}
+            className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              isFormValid
+                ? 'bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/25 font-bold'
+                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+            }`}
+          >
+            SALVAR
+          </button>
+        </div>
       </div>
     </form>
   );

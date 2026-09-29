@@ -37,6 +37,7 @@ interface CardInvoiceDetailViewProps {
   onOpenNewExpense: (cardId: string) => void;
   onEditTransaction: (tx: Transaction) => void;
   onToggleInvoiceStatus: (card: CreditCard, periodKey: string) => void;
+  onPayInvoice?: (card: CreditCard, periodKey: string) => void;
 }
 
 const MONTH_NAMES = [
@@ -62,6 +63,7 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
   onOpenNewExpense,
   onEditTransaction,
   onToggleInvoiceStatus,
+  onPayInvoice,
 }) => {
   const {
     transactions,
@@ -131,6 +133,16 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
     return today <= closingDate ? 'open' : 'closed';
   }, [card.manualInvoiceStatus, periodKey, selectedYear, selectedMonth, card.closingDay]);
 
+  // Cálculo de Vencimento
+  const isOverdue = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dueDate = new Date(selectedYear, selectedMonth, card.dueDay);
+    dueDate.setHours(0, 0, 0, 0);
+    return today > dueDate;
+  }, [selectedYear, selectedMonth, card.dueDay]);
+
+  const isOpen = invoiceStatus === 'open';
   const isClosedOrPaid = invoiceStatus === 'closed' || invoiceStatus === 'paid';
 
   // Navegação de Período
@@ -281,15 +293,37 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
                   )}
                 </button>
 
-                <button
-                  onClick={() => {
-                    setIsOptionsMenuOpen(false);
-                    setIsAdvancePaymentOpen(true);
-                  }}
-                  className="w-full px-4 py-2 text-slate-200 hover:bg-slate-800 text-left transition-colors cursor-pointer border-t border-slate-700/50 mt-1 pt-1.5"
-                >
-                  Pagar adiantado
-                </button>
+                {/* Se não estiver paga */}
+                {invoiceStatus !== 'paid' && (
+                  <>
+                    {isOverdue || !isOpen ? (
+                      <button
+                        onClick={() => {
+                          setIsOptionsMenuOpen(false);
+                          if (onPayInvoice) {
+                            onPayInvoice(card, periodKey);
+                          } else {
+                            onToggleInvoiceStatus(card, periodKey);
+                          }
+                        }}
+                        className="w-full px-4 py-2 text-teal-300 font-semibold hover:bg-teal-500/20 text-left transition-colors cursor-pointer border-t border-slate-700/50 mt-1 pt-1.5 flex items-center gap-2"
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-teal-400" />
+                        <span>Pagar fatura</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setIsOptionsMenuOpen(false);
+                          setIsAdvancePaymentOpen(true);
+                        }}
+                        className="w-full px-4 py-2 text-slate-200 hover:bg-slate-800 text-left transition-colors cursor-pointer border-t border-slate-700/50 mt-1 pt-1.5"
+                      >
+                        Pagar adiantado
+                      </button>
+                    )}
+                  </>
+                )}
                 <button
                   onClick={() => setIsOptionsMenuOpen(false)}
                   className="w-full px-4 py-2 text-slate-200 hover:bg-slate-800 text-left transition-colors cursor-pointer"
@@ -403,19 +437,21 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
                   <th className="py-2.5 px-3">Descrição</th>
                   <th className="py-2.5 px-3">Categoria</th>
                   <th className="py-2.5 px-3">Valor</th>
-                  <th className="py-2.5 px-3 text-right">Ações</th>
+                  {isOpen && <th className="py-2.5 px-3 text-right">Ações</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
                 {invoiceTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-500">
+                    <td colSpan={isOpen ? 6 : 5} className="py-12 text-center text-slate-500">
                       Nenhuma transação lançada nesta fatura.
                     </td>
                   </tr>
                 ) : (
                   invoiceTransactions.map(tx => {
                     const cat = categories.find(c => c.id === tx.categoryId);
+                    const parentCat = cat?.parentId ? categories.find(c => c.id === cat.parentId) : null;
+                    const categoryDisplayName = parentCat ? `${parentCat.name} / ${cat?.name}` : cat?.name || 'Geral';
                     const isExpense = tx.type === 'expense';
 
                     return (
@@ -463,7 +499,7 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
                               className="w-1.5 h-1.5 rounded-full"
                               style={{ backgroundColor: cat?.color || '#94a3b8' }}
                             />
-                            {cat?.name || 'Geral'}
+                            {categoryDisplayName}
                           </span>
                         </td>
 
@@ -478,29 +514,31 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
                           </span>
                         </td>
 
-                        {/* Ações */}
-                        <td className="py-3 px-3 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100">
-                            <button
-                              onClick={() => onEditTransaction(tx)}
-                              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                              title="Editar"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`Excluir "${tx.description}"?`)) {
-                                  deleteTransaction(tx.id);
-                                }
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                              title="Excluir"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
+                        {/* Ações (Apenas se a fatura estiver aberta) */}
+                        {isOpen && (
+                          <td className="py-3 px-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100">
+                              <button
+                                onClick={() => onEditTransaction(tx)}
+                                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                title="Editar"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Excluir "${tx.description}"?`)) {
+                                    deleteTransaction(tx.id);
+                                  }
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                title="Excluir"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     );
                   })
@@ -531,7 +569,7 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
               <span className="text-xs text-slate-400 font-medium">Status</span>
               <div className="text-base font-bold tracking-tight text-white mt-1.5 flex items-center gap-1.5">
                 {invoiceStatus === 'open' ? (
-                  <span className="text-emerald-400 flex items-center gap-1">
+                  <span className="text-amber-400 flex items-center gap-1">
                     <Unlock className="w-4 h-4" /> Fatura aberta
                   </span>
                 ) : invoiceStatus === 'paid' ? (
@@ -539,7 +577,7 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
                     <CheckCircle2 className="w-4 h-4" /> Fatura paga
                   </span>
                 ) : (
-                  <span className="text-amber-400 flex items-center gap-1">
+                  <span className="text-slate-300 flex items-center gap-1">
                     <Lock className="w-4 h-4" /> Fatura fechada
                   </span>
                 )}

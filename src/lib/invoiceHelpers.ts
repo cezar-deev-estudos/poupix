@@ -2,45 +2,67 @@ import { CreditCard, Transaction } from '@/types/finance';
 
 /**
  * Retorna o período de vencimento da fatura (ano e mês, onde mês é 0-indexed) de uma transação de cartão.
- * Se a transação possui `invoiceDate` (YYYY-MM-DD), utiliza-a como prioridade máxima.
- * Caso contrário, infere a data de vencimento da fatura com base na data da transação e datas de fechamento/vencimento do cartão.
+ * Mapeia diretamente o ano/mês da transação (ou do invoiceDate) para a fatura correspondente.
  */
 export function getTransactionInvoicePeriod(
   tx: Transaction,
   card?: CreditCard
 ): { year: number; month: number; periodKey: string; invoiceDueDateStr: string } {
-  if (tx.invoiceDate) {
-    const parts = tx.invoiceDate.split('-');
-    if (parts.length === 3) {
-      const year = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1; // 0-indexed
-      const periodKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-      return { year, month, periodKey, invoiceDueDateStr: tx.invoiceDate };
-    }
-  }
-
-  // Fallback: calcular com base no closingDay e dueDay do cartão
-  const txDate = new Date(tx.date);
-  const closingDay = card?.closingDay || 3;
   const dueDay = card?.dueDay || 10;
 
-  let invoiceMonth = txDate.getMonth();
-  let invoiceYear = txDate.getFullYear();
-
-  // Se a data da compra for após o dia de fechamento, a fatura vence no mês seguinte
-  if (txDate.getDate() > closingDay) {
-    invoiceMonth += 1;
-    if (invoiceMonth > 11) {
-      invoiceMonth = 0;
-      invoiceYear += 1;
+  // Se a transação possui invoiceDate explícito (escolhido no formulário), usa ele
+  if (tx.invoiceDate) {
+    const invParts = tx.invoiceDate.split('-');
+    if (invParts.length === 3) {
+      const y = parseInt(invParts[0], 10);
+      const m = parseInt(invParts[1], 10) - 1; // 0-indexed
+      if (!isNaN(y) && !isNaN(m)) {
+        const periodKey = `${y}-${String(m + 1).padStart(2, '0')}`;
+        return { year: y, month: m, periodKey, invoiceDueDateStr: tx.invoiceDate };
+      }
     }
   }
 
-  const periodKey = `${invoiceYear}-${String(invoiceMonth + 1).padStart(2, '0')}`;
-  const invDueDate = new Date(invoiceYear, invoiceMonth, dueDay);
-  const invoiceDueDateStr = invDueDate.toISOString().split('T')[0];
+  // Caso contrário, extrai ano e mês da data da transação (YYYY-MM-DD)
+  const txParts = (tx.date || '').split('-');
+  let txYear = new Date().getFullYear();
+  let txMonth = new Date().getMonth(); // 0-indexed
 
-  return { year: invoiceYear, month: invoiceMonth, periodKey, invoiceDueDateStr };
+  if (txParts.length === 3) {
+    const y = parseInt(txParts[0], 10);
+    const m = parseInt(txParts[1], 10) - 1; // 0-indexed
+    if (!isNaN(y) && !isNaN(m)) {
+      txYear = y;
+      txMonth = m;
+    }
+  }
+
+  const periodKey = `${txYear}-${String(txMonth + 1).padStart(2, '0')}`;
+  const invoiceDueDateStr = `${txYear}-${String(txMonth + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+
+  return { year: txYear, month: txMonth, periodKey, invoiceDueDateStr };
+}
+
+/**
+ * Normaliza e preenche o campo invoiceDate de transações que ainda não o possuem.
+ */
+export function normalizeTransactionsInvoiceDates(
+  transactions: Transaction[],
+  creditCards: CreditCard[]
+): Transaction[] {
+  const cardMap = new Map<string, CreditCard>();
+  creditCards.forEach(c => cardMap.set(c.id, c));
+
+  return transactions.map(tx => {
+    if (!tx.creditCardId) return tx;
+    if (tx.invoiceDate) return tx; // Respeita o invoiceDate já salvo
+    const card = cardMap.get(tx.creditCardId);
+    const { invoiceDueDateStr } = getTransactionInvoicePeriod(tx, card);
+    return {
+      ...tx,
+      invoiceDate: invoiceDueDateStr,
+    };
+  });
 }
 
 /**

@@ -194,7 +194,13 @@ export const transactionManager: TransactionManagerActions = {
         setTransactions(prev =>
           prev.map(t =>
             t.recurringGroupId === target.recurringGroupId && t.date >= target.date
-              ? { ...t, ...updated, id: t.id, date: t.id === target.id ? (updated.date || t.date) : t.date }
+              ? {
+                  ...t,
+                  ...updated,
+                  id: t.id,
+                  date: t.id === target.id ? (updated.date || t.date) : t.date,
+                  invoiceDate: t.id === target.id ? (updated.invoiceDate || t.invoiceDate) : t.invoiceDate,
+                }
               : t
           )
         );
@@ -202,7 +208,15 @@ export const transactionManager: TransactionManagerActions = {
         setTransactions(prev =>
           prev.map(t =>
             t.installmentGroupId === target.installmentGroupId && (t.installmentCurrent || 0) >= (target.installmentCurrent || 0)
-              ? { ...t, ...updated, id: t.id, date: t.id === target.id ? (updated.date || t.date) : t.date, installmentCurrent: t.installmentCurrent, installmentTotal: t.installmentTotal }
+              ? {
+                  ...t,
+                  ...updated,
+                  id: t.id,
+                  date: t.id === target.id ? (updated.date || t.date) : t.date,
+                  invoiceDate: t.id === target.id ? (updated.invoiceDate || t.invoiceDate) : t.invoiceDate,
+                  installmentCurrent: t.installmentCurrent,
+                  installmentTotal: t.installmentTotal,
+                }
               : t
           )
         );
@@ -215,7 +229,13 @@ export const transactionManager: TransactionManagerActions = {
         setTransactions(prev =>
           prev.map(t =>
             t.recurringGroupId === target.recurringGroupId
-              ? { ...t, ...updated, id: t.id, date: t.id === target.id ? (updated.date || t.date) : t.date }
+              ? {
+                  ...t,
+                  ...updated,
+                  id: t.id,
+                  date: t.id === target.id ? (updated.date || t.date) : t.date,
+                  invoiceDate: t.id === target.id ? (updated.invoiceDate || t.invoiceDate) : t.invoiceDate,
+                }
               : t
           )
         );
@@ -223,7 +243,15 @@ export const transactionManager: TransactionManagerActions = {
         setTransactions(prev =>
           prev.map(t =>
             t.installmentGroupId === target.installmentGroupId
-              ? { ...t, ...updated, id: t.id, date: t.id === target.id ? (updated.date || t.date) : t.date, installmentCurrent: t.installmentCurrent, installmentTotal: t.installmentTotal }
+              ? {
+                  ...t,
+                  ...updated,
+                  id: t.id,
+                  date: t.id === target.id ? (updated.date || t.date) : t.date,
+                  invoiceDate: t.id === target.id ? (updated.invoiceDate || t.invoiceDate) : t.invoiceDate,
+                  installmentCurrent: t.installmentCurrent,
+                  installmentTotal: t.installmentTotal,
+                }
               : t
           )
         );

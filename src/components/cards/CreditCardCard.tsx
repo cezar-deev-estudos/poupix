@@ -209,12 +209,12 @@ export const CreditCardCard: React.FC<CreditCardCardProps> = ({
             <span
               className={`inline-flex items-center gap-1 font-bold text-xs ${
                 invoiceStatus === 'open'
-                  ? 'text-emerald-400'
+                  ? 'text-amber-400'
                   : invoiceStatus === 'paid'
                   ? 'text-teal-300'
                   : invoiceStatus === 'overdue'
-                  ? 'text-amber-500 font-bold'
-                  : 'text-amber-400'
+                  ? 'text-rose-500 font-bold'
+                  : 'text-slate-300'
               }`}
             >
               {invoiceStatus === 'open' ? (

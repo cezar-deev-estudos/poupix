@@ -9,12 +9,13 @@ import { TagsChipSelector } from './TagsChipSelector';
 import { DescriptionInputAutocomplete, SuggestionItem } from './DescriptionInputAutocomplete';
 import { CategorySelectorDropdown } from './CategorySelectorDropdown';
 import { AccountSelectorDropdown } from './AccountSelectorDropdown';
-import { FileText, Heart, ChevronDown, Pin, RefreshCw, Check } from 'lucide-react';
+import { FileText, Heart, ChevronDown, Pin, RefreshCw, Check, Trash2 } from 'lucide-react';
 
 interface ExpenseFormProps {
   initialData?: Transaction | null;
   onSave: (data: Omit<Transaction, 'id' | 'createdAt'>, createAnother?: boolean) => void;
   onCancel: () => void;
+  onDelete?: () => void;
   onToggleDetails?: (isExpanded: boolean) => void;
 }
 
@@ -22,6 +23,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   initialData,
   onSave,
   onCancel,
+  onDelete,
   onToggleDetails,
 }) => {
   const { categories, accounts } = useFinance();
@@ -112,6 +114,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
             onChange={setAmount}
             variant="rose"
             showError={showValidation}
+            autoOpenKeypadOnMobile={!initialData}
           />
 
           {/* Switch Foi Paga */}
@@ -290,26 +293,41 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       </div>
 
       {/* Ações do Rodapé na Base */}
-      <div className="w-full flex items-center justify-end gap-3 pt-6 mt-6 border-t border-slate-800">
-        <button
-          type="button"
-          onClick={() => handleSubmit(true)}
-          className="text-xs font-bold text-slate-400 hover:text-white px-3 py-2 transition-colors cursor-pointer"
-        >
-          SALVAR E CRIAR NOVA
-        </button>
+      <div className="w-full flex items-center justify-between gap-3 pt-6 mt-6 border-t border-slate-800">
+        <div>
+          {initialData && onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              title="Excluir este lançamento"
+              className="p-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all cursor-pointer flex items-center justify-center group"
+            >
+              <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            </button>
+          )}
+        </div>
 
-        <button
-          type="submit"
-          disabled={!isFormValid}
-          className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            isFormValid
-              ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-500/25'
-              : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-          }`}
-        >
-          SALVAR
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => handleSubmit(true)}
+            className="text-xs font-bold text-slate-400 hover:text-white px-3 py-2 transition-colors cursor-pointer"
+          >
+            SALVAR E CRIAR NOVA
+          </button>
+
+          <button
+            type="submit"
+            disabled={!isFormValid}
+            className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              isFormValid
+                ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-500/25'
+                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+            }`}
+          >
+            SALVAR
+          </button>
+        </div>
       </div>
     </form>
   );

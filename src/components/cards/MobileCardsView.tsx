@@ -65,6 +65,13 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
     return null;
   });
 
+  React.useEffect(() => {
+    if (initialCardId) {
+      const target = creditCards.find(c => c.id === initialCardId);
+      if (target) setSelectedCardForDetail(target);
+    }
+  }, [initialCardId, creditCards]);
+
   // Estados de Drawers e Modais
   const [isArchivedDrawerOpen, setIsArchivedDrawerOpen] = useState(false);
   const [isDefaultCardDrawerOpen, setIsDefaultCardDrawerOpen] = useState(false);
@@ -451,10 +458,10 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
                     <span
                       className={`inline-flex items-center gap-1 font-semibold text-[11px] ${
                         invoiceStatus === 'open'
-                          ? 'text-emerald-400'
+                          ? 'text-amber-400'
                           : invoiceStatus === 'paid'
                           ? 'text-teal-300'
-                          : 'text-amber-400'
+                          : 'text-slate-300'
                       }`}
                     >
                       {invoiceStatus === 'open' ? (

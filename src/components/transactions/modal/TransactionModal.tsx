@@ -8,6 +8,7 @@ import { IncomeForm } from './IncomeForm';
 import { CreditCardExpenseForm } from './CreditCardExpenseForm';
 import { TransferForm } from './TransferForm';
 import { TransactionScopeModal } from '../TransactionScopeModal';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { X, TrendingDown, TrendingUp, CreditCard, ArrowRightLeft, CheckCircle2 } from 'lucide-react';
 
 export type TransactionFlowType = 'expense' | 'income' | 'creditCard' | 'transfer';
@@ -27,7 +28,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   transactionToEdit = null,
   defaultCreditCardId = null,
 }) => {
-  const { addTransaction, updateTransaction } = useFinance();
+  const { addTransaction, updateTransaction, deleteTransaction } = useFinance();
 
   // Determinar fluxo inicial caso seja edição
   const getInitialFlow = (): TransactionFlowType => {
@@ -53,6 +54,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [pendingUpdateData, setPendingUpdateData] = useState<Omit<Transaction, 'id' | 'createdAt'> | null>(null);
   const [scopeMode, setScopeMode] = useState<'single' | 'following' | 'all'>('single');
   const [showScopeModal, setShowScopeModal] = useState(false);
+  const [showDeleteScopeModal, setShowDeleteScopeModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
 
   const isRecurringOrInstallment = !!(
     transactionToEdit?.recurringGroupId ||
@@ -60,6 +63,32 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     transactionToEdit?.installmentGroupId ||
     (transactionToEdit?.installmentTotal && transactionToEdit.installmentTotal > 1)
   );
+
+  const handleDeleteClick = () => {
+    if (!transactionToEdit) return;
+    if (isRecurringOrInstallment) {
+      setScopeMode('single');
+      setShowDeleteScopeModal(true);
+    } else {
+      setShowDeleteConfirmModal(true);
+    }
+  };
+
+  const handleConfirmSingleDelete = () => {
+    if (transactionToEdit) {
+      deleteTransaction(transactionToEdit.id, 'single');
+      setShowDeleteConfirmModal(false);
+      onClose();
+    }
+  };
+
+  const handleConfirmScopeDelete = () => {
+    if (transactionToEdit) {
+      deleteTransaction(transactionToEdit.id, scopeMode);
+      setShowDeleteScopeModal(false);
+      onClose();
+    }
+  };
 
   const handleSave = (data: Omit<Transaction, 'id' | 'createdAt'>, createAnother: boolean = false) => {
     if (transactionToEdit) {
@@ -240,6 +269,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               initialData={transactionToEdit}
               onSave={handleSave}
               onCancel={onClose}
+              onDelete={handleDeleteClick}
               onToggleDetails={setIsExpanded}
             />
           )}
@@ -249,6 +279,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               initialData={transactionToEdit}
               onSave={handleSave}
               onCancel={onClose}
+              onDelete={handleDeleteClick}
               onToggleDetails={setIsExpanded}
             />
           )}
@@ -259,6 +290,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               defaultCreditCardId={defaultCreditCardId}
               onSave={handleSave}
               onCancel={onClose}
+              onDelete={handleDeleteClick}
               onToggleDetails={setIsExpanded}
             />
           )}
@@ -268,6 +300,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               initialData={transactionToEdit}
               onSave={handleSave}
               onCancel={onClose}
+              onDelete={handleDeleteClick}
               onToggleDetails={setIsExpanded}
             />
           )}
@@ -287,6 +320,33 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             setShowScopeModal(false);
             setPendingUpdateData(null);
           }}
+        />
+      )}
+
+      {/* Modal de Escopo para Exclusão de Recorrentes / Parcelados */}
+      {showDeleteScopeModal && (
+        <TransactionScopeModal
+          isOpen={showDeleteScopeModal}
+          actionType="delete"
+          transaction={transactionToEdit}
+          selectedMode={scopeMode}
+          onSelectMode={setScopeMode}
+          onConfirm={handleConfirmScopeDelete}
+          onCancel={() => setShowDeleteScopeModal(false)}
+        />
+      )}
+
+      {/* Modal de Confirmação para Lançamento Único */}
+      {showDeleteConfirmModal && (
+        <ConfirmModal
+          isOpen={showDeleteConfirmModal}
+          title="Excluir Lançamento"
+          message={`Tem certeza que deseja excluir "${transactionToEdit?.description || 'este lançamento'}"? Esta ação não poderá ser desfeita.`}
+          confirmLabel="Excluir"
+          cancelLabel="Cancelar"
+          variant="danger"
+          onConfirm={handleConfirmSingleDelete}
+          onCancel={() => setShowDeleteConfirmModal(false)}
         />
       )}
     </div>

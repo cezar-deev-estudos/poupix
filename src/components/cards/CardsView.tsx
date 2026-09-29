@@ -45,6 +45,13 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
     return null;
   });
 
+  React.useEffect(() => {
+    if (initialCardId) {
+      const target = creditCards.find(c => c.id === initialCardId);
+      if (target) setSelectedCardForDetail(target);
+    }
+  }, [initialCardId, creditCards]);
+
   // Estados de Modais
   const [isCardModalOpen, setIsCardModalOpen] = useState(false);
   const [cardToEdit, setCardToEdit] = useState<CreditCard | null>(null);
@@ -227,6 +234,7 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
             setIsTxModalOpen(true);
           }}
           onToggleInvoiceStatus={(c, pKey) => handleToggleInvoiceStatus(c, pKey)}
+          onPayInvoice={(c, pKey) => handlePayInvoice(c, pKey)}
         />
 
         {isTxModalOpen && (
