@@ -15,6 +15,7 @@ import {
   Unlock,
   CheckCircle2,
   Check,
+  CreditCard as CardIcon,
 } from 'lucide-react';
 
 interface CreditCardCardProps {
@@ -138,7 +139,7 @@ export const CreditCardCard: React.FC<CreditCardCardProps> = ({
                 }}
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-slate-200 hover:bg-slate-800/80 hover:text-white text-left transition-colors cursor-pointer border-t border-slate-700/50 mt-1 pt-1.5"
               >
-                <CardBrandLogo brand={card.brand} name={card.name} size="sm" />
+                <CardIcon className="w-3.5 h-3.5 text-slate-400" />
                 <span>Pagar adiantado</span>
               </button>
 
@@ -285,7 +286,7 @@ export const CreditCardCard: React.FC<CreditCardCardProps> = ({
         ) : isClosedOrOverdue ? (
           <button
             onClick={() => onPayInvoice(card)}
-            className="text-xs font-bold text-teal-400 hover:text-teal-300 transition-colors uppercase tracking-wider py-1 cursor-pointer flex items-center gap-1.5"
+            className="text-xs font-bold text-white hover:text-slate-200 transition-colors uppercase tracking-wider py-1 cursor-pointer flex items-center gap-1.5"
           >
             PAGAR FATURA
           </button>

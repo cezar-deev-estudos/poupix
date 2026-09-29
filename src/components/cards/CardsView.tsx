@@ -44,6 +44,7 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
     }
     return null;
   });
+  const [detailFilterType, setDetailFilterType] = useState<'all' | 'fixed'>('all');
 
   React.useEffect(() => {
     if (initialCardId) {
@@ -138,27 +139,32 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
   // Formatação de data de fechamento ou vencimento
   const getClosingOrDueDateFormatted = (card: CreditCard) => {
     const status = getCardInvoiceStatus(card);
-    if (status === 'overdue') {
-      return `${card.dueDay} de ${MONTH_NAMES[targetMonth]} de ${targetYear}`;
-    }
-    if (status === 'closed') {
+    if (status === 'overdue' || status === 'closed' || status === 'paid') {
       return `${card.dueDay} de ${MONTH_NAMES[targetMonth]} de ${targetYear}`;
     }
     return `${card.closingDay} de ${MONTH_NAMES[targetMonth]} de ${targetYear}`;
   };
 
   // Status da fatura de cada cartão (Aberta, Fechada, Vencida, Paga)
+  // Regra: se hoje > data de fechamento, a fatura fecha automaticamente (mesmo que estivesse aberta temporariamente).
   const getCardInvoiceStatus = (card: CreditCard): 'open' | 'closed' | 'overdue' | 'paid' => {
-    if (card.manualInvoiceStatus && card.manualInvoiceStatus[targetPeriodKey]) {
-      const manual = card.manualInvoiceStatus[targetPeriodKey];
-      if (manual === 'open') return 'open';
-      if (manual === 'paid') return 'paid';
+    if (card.manualInvoiceStatus && card.manualInvoiceStatus[targetPeriodKey] === 'paid') {
+      return 'paid';
     }
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const dueDate = new Date(targetYear, targetMonth, card.dueDay);
+    dueDate.setHours(0, 0, 0, 0);
     if (today > dueDate) return 'overdue';
+
     const closingDate = new Date(targetYear, targetMonth, card.closingDay);
+    closingDate.setHours(0, 0, 0, 0);
     if (today > closingDate) return 'closed';
+
+    if (card.manualInvoiceStatus && card.manualInvoiceStatus[targetPeriodKey] === 'closed') {
+      return 'closed';
+    }
+
     return 'open';
   };
 
@@ -222,7 +228,11 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
         <CardInvoiceDetailView
           card={currentSelected}
           allCards={activeCards}
-          onBack={() => setSelectedCardForDetail(null)}
+          initialFilterType={detailFilterType}
+          onBack={() => {
+            setSelectedCardForDetail(null);
+            setDetailFilterType('all');
+          }}
           onSelectAnotherCard={card => setSelectedCardForDetail(card)}
           onOpenNewExpense={cardId => {
             setTxModalCreditCardId(cardId);
@@ -360,9 +370,8 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
             {/* Lista de Cartões */}
             {activeCards.map(card => {
               const status = getCardInvoiceStatus(card);
-              const today = new Date();
-              const isOverdue = today > new Date(targetYear, targetMonth, card.dueDay);
-              const isClosed = today > new Date(targetYear, targetMonth, card.closingDay);
+              const isOverdue = status === 'overdue';
+              const isClosed = status === 'closed' || status === 'overdue' || status === 'paid';
 
               return (
                 <CreditCardCard
@@ -381,9 +390,18 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
                   onArchive={handleArchiveCard}
                   onAddExpense={handleOpenAddExpense}
                   onPayInvoice={c => handlePayInvoice(c)}
-                  onViewHistory={c => setSelectedCardForDetail(c)}
-                  onViewFixedExpenses={c => setSelectedCardForDetail(c)}
-                  onViewExpenseChart={c => setSelectedCardForDetail(c)}
+                  onViewHistory={c => {
+                    setDetailFilterType('all');
+                    setSelectedCardForDetail(c);
+                  }}
+                  onViewFixedExpenses={c => {
+                    setDetailFilterType('fixed');
+                    setSelectedCardForDetail(c);
+                  }}
+                  onViewExpenseChart={c => {
+                    setDetailFilterType('all');
+                    setSelectedCardForDetail(c);
+                  }}
                   onToggleInvoiceStatus={c => handleToggleInvoiceStatus(c)}
                   onAdvancePayment={c => setAdvancePaymentCard(c)}
                 />

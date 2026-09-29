@@ -26,20 +26,25 @@ Os status são calculados dinamicamente com base nas datas e suportam override m
 | **Fechada** | **Cinza Suave** (`text-slate-300`, `bg-slate-500/20`, `border-slate-500/30`) | A data atual ultrapassou o `closingDate`, mas ainda está antes do vencimento. |
 | **Paga** | **Verde Ciano / Teal** (`text-teal-300`, `bg-teal-500/15`, `border-teal-500/30`) | Fatura marcada como paga manualmente pelo usuário. |
 
-### 3. Proteção & Bloqueio de Edição em Faturas Fechadas/Pagas
+### 3. Fechamento Automático & Abertura Momentânea
+- **Fechamento Automático**: A fatura fecha automaticamente sempre que a data atual for maior que a data de fechamento (`closingDay`).
+- **Abertura Temporária**: A fatura pode ser reaberta manualmente para inclusão ou edição de itens no momento; ao sair da tela, se a data atual já tiver ultrapassado o fechamento, ela retorna automaticamente ao status de fechada.
+- **Data de Vencimento nas Transações**: Qualquer despesa de cartão pode ter sua data de compra (`tx.date`) em um dia arbitrário, mas para efeito de competência e pagamento o sistema utiliza sempre o vencimento (`invoiceDate`).
+- **Parcelamentos e Fixas**: Transações parceladas e fixas iniciam sua 1ª parcela no vencimento selecionado e distribuem as parcelas seguintes nos meses subsequentes conforme as datas de vencimento de cada mês.
+
+### 4. Proteção & Bloqueio de Edição em Faturas Fechadas/Pagas
 - Quando uma fatura está **Fechada** ou **Paga**:
-  - **Desktop (`CardInvoiceDetailView.tsx`)**: A coluna *"Ações"* e os botões de edição e exclusão de itens ficam completamente ocultos.
+  - **Desktop (`CardInvoiceDetailView.tsx`)**: A coluna *"Ações"* e os botões de edição e exclusão de itens ficam ocultos.
   - **Mobile (`MobileCardInvoiceDetail.tsx`)**: O clique sobre o item para abrir o modal de edição é desabilitado.
   - O botão `(+)` no topo muda para um botão de destaque *"Reabrir e Lançar"*.
-- **Reabertura**: Ao clicar em *"Reabrir fatura"*, o status volta para `open`, restaurando imediatamente os botões de edição e exclusão tanto no Mobile quanto no Desktop.
 
-### 4. Menu de Opções ⋮ da Fatura
+### 5. Menu de Opções ⋮ da Fatura
 - **Pagar Fatura vs Pagar Adiantado**:
   - Se a fatura estiver **Vencida** ou **Fechada** (e não paga): O menu exibe a opção **"Pagar fatura"** em destaque com ícone de confirmação ciano.
   - Se a fatura estiver **Aberta** e dentro do prazo: O menu exibe **"Pagar adiantado"**, abrindo o modal de antecipação.
   - Se a fatura já estiver **Paga**: As opções de pagamento são ocultadas.
 
-### 5. Navegação & Abas no Dashboard
+### 6. Navegação & Abas no Dashboard
 - Nos cards de resumo do Dashboard (Mobile e Desktop), há o seletor em pílula:
   - **Fatura Mês Atual**: Exibe o total e limite utilizado referente ao mês selecionado no filtro global.
   - **Fatura Próximo Mês**: Avança a projeção para o mês seguinte (`selectedMonth + 1`).

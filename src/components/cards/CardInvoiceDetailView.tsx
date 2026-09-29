@@ -32,6 +32,7 @@ import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
 interface CardInvoiceDetailViewProps {
   card: CreditCard;
   allCards: CreditCard[];
+  initialFilterType?: 'all' | 'fixed';
   onBack: () => void;
   onSelectAnotherCard: (card: CreditCard) => void;
   onOpenNewExpense: (cardId: string) => void;
@@ -58,6 +59,7 @@ const MONTH_NAMES = [
 export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
   card,
   allCards,
+  initialFilterType = 'all',
   onBack,
   onSelectAnotherCard,
   onOpenNewExpense,
@@ -76,11 +78,16 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
   } = useFinance();
 
   // Estados de dropdown e busca
+  const [filterType, setFilterType] = useState<'all' | 'fixed'>(initialFilterType);
   const [isCardDropdownOpen, setIsCardDropdownOpen] = useState(false);
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false);
   const [isAdvancePaymentOpen, setIsAdvancePaymentOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false);
+
+  useEffect(() => {
+    setFilterType(initialFilterType);
+  }, [initialFilterType]);
 
   const cardDropdownRef = useRef<HTMLDivElement>(null);
   const optionsMenuRef = useRef<HTMLDivElement>(null);
@@ -106,13 +113,17 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
     return transactions.filter(tx => {
       if (!isTransactionInInvoicePeriod(tx, card, selectedYear, selectedMonth)) return false;
 
+      if (filterType === 'fixed' && !tx.isRecurring) {
+        return false;
+      }
+
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase();
         return tx.description.toLowerCase().includes(query);
       }
       return true;
     });
-  }, [transactions, card, selectedMonth, selectedYear, searchTerm]);
+  }, [transactions, card, selectedMonth, selectedYear, filterType, searchTerm]);
 
   // Total da Fatura
   const invoiceTotal = useMemo(() => {
@@ -123,14 +134,22 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
     }, 0);
   }, [invoiceTransactions]);
 
-  // Cálculo de Status da Fatura (Aberto / Fechado / Pago com suporte a override manual)
+  // Cálculo de Status da Fatura (Aberto / Fechado / Pago)
+  // Regra: se hoje > data de fechamento, a fatura fecha automaticamente
   const invoiceStatus = useMemo((): 'open' | 'closed' | 'paid' => {
-    if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey]) {
-      return card.manualInvoiceStatus[periodKey];
+    if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey] === 'paid') {
+      return 'paid';
     }
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const closingDate = new Date(selectedYear, selectedMonth, card.closingDay);
-    return today <= closingDate ? 'open' : 'closed';
+    closingDate.setHours(0, 0, 0, 0);
+    if (today > closingDate) return 'closed';
+
+    if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey] === 'closed') {
+      return 'closed';
+    }
+    return 'open';
   }, [card.manualInvoiceStatus, periodKey, selectedYear, selectedMonth, card.closingDay]);
 
   // Cálculo de Vencimento
@@ -349,10 +368,18 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
                   Histórico de faturas
                 </button>
                 <button
-                  onClick={() => setIsOptionsMenuOpen(false)}
-                  className="w-full px-4 py-2 text-slate-200 hover:bg-slate-800 text-left transition-colors cursor-pointer"
+                  onClick={() => {
+                    setFilterType('fixed');
+                    setIsOptionsMenuOpen(false);
+                  }}
+                  className={`w-full px-4 py-2 text-left transition-colors cursor-pointer flex items-center justify-between ${
+                    filterType === 'fixed'
+                      ? 'bg-teal-500/15 text-teal-400 font-bold'
+                      : 'text-slate-200 hover:bg-slate-800'
+                  }`}
                 >
-                  Despesas fixas
+                  <span>Despesas fixas</span>
+                  {filterType === 'fixed' && <CheckCircle2 className="w-4 h-4 text-teal-400" />}
                 </button>
                 <button
                   onClick={() => setIsOptionsMenuOpen(false)}
@@ -367,10 +394,18 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
                   Gráfico despesas
                 </button>
                 <button
-                  onClick={() => setIsOptionsMenuOpen(false)}
-                  className="w-full px-4 py-2 text-slate-200 hover:bg-slate-800 text-left transition-colors cursor-pointer"
+                  onClick={() => {
+                    setFilterType('all');
+                    setIsOptionsMenuOpen(false);
+                  }}
+                  className={`w-full px-4 py-2 text-left transition-colors cursor-pointer flex items-center justify-between border-t border-slate-700/50 mt-1 pt-1.5 ${
+                    filterType === 'all'
+                      ? 'text-teal-400 font-bold'
+                      : 'text-slate-200 hover:bg-slate-800'
+                  }`}
                 >
-                  Visão geral
+                  <span>Todas as despesas</span>
+                  {filterType === 'all' && <CheckCircle2 className="w-4 h-4 text-teal-400" />}
                 </button>
                 <button
                   onClick={() => setIsOptionsMenuOpen(false)}
@@ -409,22 +444,41 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
         {/* Coluna Esquerda: Extrato da Fatura (8 colunas) */}
         <div className="lg:col-span-8 bg-[#18181b]/90 border border-slate-800/90 rounded-3xl p-5 shadow-xl space-y-4">
           {/* Seletor de Mês/Ano com Borda Ciano */}
-          <div className="flex items-center justify-center gap-4 py-1">
-            <button
-              onClick={handlePrevMonth}
-              className="p-1 text-teal-400 hover:text-teal-300 transition-colors cursor-pointer"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <div className="px-5 py-1.5 border border-teal-500/50 rounded-2xl bg-teal-950/20 text-teal-300 font-semibold text-xs select-none">
-              {MONTH_NAMES[selectedMonth]} {selectedYear}
+          <div className="flex items-center justify-between gap-4 py-1">
+            <div className="flex items-center gap-2">
+              {filterType === 'fixed' && (
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-teal-500/15 border border-teal-500/30 rounded-xl text-xs text-teal-300">
+                  <Layers className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Despesas fixas</span>
+                  <button
+                    onClick={() => setFilterType('all')}
+                    className="ml-1 text-slate-400 hover:text-white cursor-pointer text-xs"
+                    title="Limpar filtro e ver todas"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
             </div>
-            <button
-              onClick={handleNextMonth}
-              className="p-1 text-teal-400 hover:text-teal-300 transition-colors cursor-pointer"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
+
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handlePrevMonth}
+                className="p-1 text-teal-400 hover:text-teal-300 transition-colors cursor-pointer"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <div className="px-5 py-1.5 border border-teal-500/50 rounded-2xl bg-teal-950/20 text-teal-300 font-semibold text-xs select-none">
+                {MONTH_NAMES[selectedMonth]} {selectedYear}
+              </div>
+              <button
+                onClick={handleNextMonth}
+                className="p-1 text-teal-400 hover:text-teal-300 transition-colors cursor-pointer"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="w-8" />
           </div>
 
           {/* Tabela de Lançamentos da Fatura */}

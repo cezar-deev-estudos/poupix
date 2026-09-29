@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { CreditCard, Transaction } from '@/types/finance';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency } from '@/lib/utils';
@@ -29,6 +29,7 @@ import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
 interface MobileCardInvoiceDetailProps {
   card: CreditCard;
   allCards: CreditCard[];
+  initialFilterType?: 'all' | 'fixed';
   onBack: () => void;
   onSelectAnotherCard: (card: CreditCard) => void;
   onOpenNewExpense: (cardId: string) => void;
@@ -56,6 +57,7 @@ const WEEK_DAYS = ['dom.', 'seg.', 'ter.', 'qua.', 'qui.', 'sex.', 'sáb.'];
 export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = ({
   card,
   allCards,
+  initialFilterType = 'all',
   onBack,
   onSelectAnotherCard,
   onOpenNewExpense,
@@ -72,11 +74,16 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
     updateCreditCard,
   } = useFinance();
 
+  const [filterType, setFilterType] = useState<'all' | 'fixed'>(initialFilterType);
   const [isCardDropdownOpen, setIsCardDropdownOpen] = useState(false);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isActionDrawerOpen, setIsActionDrawerOpen] = useState(false);
   const [isAdvancePaymentOpen, setIsAdvancePaymentOpen] = useState(false);
+
+  useEffect(() => {
+    setFilterType(initialFilterType);
+  }, [initialFilterType]);
 
   // Período
   const periodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
@@ -86,13 +93,17 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
     return transactions.filter(tx => {
       if (!isTransactionInInvoicePeriod(tx, card, selectedYear, selectedMonth)) return false;
 
+      if (filterType === 'fixed' && !tx.isRecurring) {
+        return false;
+      }
+
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase();
         return tx.description.toLowerCase().includes(query);
       }
       return true;
     });
-  }, [transactions, card, selectedMonth, selectedYear, searchTerm]);
+  }, [transactions, card, selectedMonth, selectedYear, filterType, searchTerm]);
 
   // Total da fatura
   const invoiceTotal = useMemo(() => {
@@ -105,22 +116,26 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
 
   // Datas de fechamento e vencimento
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const closingDate = new Date(selectedYear, selectedMonth, card.closingDay);
+  closingDate.setHours(0, 0, 0, 0);
   const dueDate = new Date(selectedYear, selectedMonth, card.dueDay);
+  dueDate.setHours(0, 0, 0, 0);
 
   const isClosed = today > closingDate;
   const isOverdue = today > dueDate;
 
   // Status calculado da fatura
+  // Regra: se hoje > data de fechamento, a fatura fecha automaticamente
   const invoiceStatus = useMemo((): 'open' | 'closed' | 'overdue' | 'paid' => {
-    if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey]) {
-      const manual = card.manualInvoiceStatus[periodKey];
-      if (manual === 'open') return 'open';
-      if (manual === 'paid') return 'paid';
-      if (manual === 'closed') return isOverdue ? 'overdue' : 'closed';
+    if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey] === 'paid') {
+      return 'paid';
     }
     if (isOverdue) return 'overdue';
     if (isClosed) return 'closed';
+    if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey] === 'closed') {
+      return 'closed';
+    }
     return 'open';
   }, [card.manualInvoiceStatus, periodKey, isOverdue, isClosed]);
 
@@ -268,9 +283,22 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <span className="text-sm font-medium tracking-tight">
-          {MONTH_NAMES[selectedMonth]}
-        </span>
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-sm font-medium tracking-tight">
+            {MONTH_NAMES[selectedMonth]}
+          </span>
+          {filterType === 'fixed' && (
+            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-teal-500/20 border border-teal-500/40 rounded-full text-[10px] text-teal-300 font-medium">
+              <span>Despesas fixas</span>
+              <button
+                onClick={() => setFilterType('all')}
+                className="ml-1 text-slate-400 hover:text-white cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+          )}
+        </div>
         <button
           onClick={handleNextMonth}
           className="p-1 hover:text-white transition-colors cursor-pointer"

@@ -64,6 +64,7 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
     }
     return null;
   });
+  const [detailFilterType, setDetailFilterType] = useState<'all' | 'fixed'>('all');
 
   React.useEffect(() => {
     if (initialCardId) {
@@ -166,19 +167,35 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
     return bestCard;
   }, [activeCards]);
 
-  // Formatação de data de fechamento por cartão
-  const getClosingDateFormatted = (card: CreditCard) => {
+  // Formatação de data de fechamento ou vencimento por cartão
+  const getClosingOrDueDateFormatted = (card: CreditCard) => {
+    const status = getCardInvoiceStatus(card);
+    if (status === 'overdue' || status === 'closed' || status === 'paid') {
+      return `${card.dueDay} de ${MONTH_NAMES[targetMonth]} de ${targetYear}`;
+    }
     return `${card.closingDay} de ${MONTH_NAMES[targetMonth]} de ${targetYear}`;
   };
 
   // Status de Fatura de cada Cartão
-  const getCardInvoiceStatus = (card: CreditCard): 'open' | 'closed' | 'paid' => {
-    if (card.manualInvoiceStatus && card.manualInvoiceStatus[targetPeriodKey]) {
-      return card.manualInvoiceStatus[targetPeriodKey];
+  const getCardInvoiceStatus = (card: CreditCard): 'open' | 'closed' | 'overdue' | 'paid' => {
+    if (card.manualInvoiceStatus && card.manualInvoiceStatus[targetPeriodKey] === 'paid') {
+      return 'paid';
     }
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dueDate = new Date(targetYear, targetMonth, card.dueDay);
+    dueDate.setHours(0, 0, 0, 0);
+    if (today > dueDate) return 'overdue';
+
     const closingDate = new Date(targetYear, targetMonth, card.closingDay);
-    return today <= closingDate ? 'open' : 'closed';
+    closingDate.setHours(0, 0, 0, 0);
+    if (today > closingDate) return 'closed';
+
+    if (card.manualInvoiceStatus && card.manualInvoiceStatus[targetPeriodKey] === 'closed') {
+      return 'closed';
+    }
+
+    return 'open';
   };
 
   // Alternar Status da Fatura (Reabrir / Fechar)
@@ -224,7 +241,11 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
         <MobileCardInvoiceDetail
           card={currentSelected}
           allCards={activeCards}
-          onBack={() => setSelectedCardForDetail(null)}
+          initialFilterType={detailFilterType}
+          onBack={() => {
+            setSelectedCardForDetail(null);
+            setDetailFilterType('all');
+          }}
           onSelectAnotherCard={c => setSelectedCardForDetail(c)}
           onOpenNewExpense={cardId => {
             setTxModalCreditCardId(cardId);
@@ -452,7 +473,7 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
                   </button>
                 </div>
 
-                {/* Linha 2: Status da Fatura + Valor Parcial + Data Fechamento */}
+                {/* Linha 2: Status da Fatura + Valor Parcial + Data Fechamento/Vencimento */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
                     <span
@@ -461,6 +482,8 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
                           ? 'text-amber-400'
                           : invoiceStatus === 'paid'
                           ? 'text-teal-300'
+                          : invoiceStatus === 'overdue'
+                          ? 'text-rose-400 font-bold'
                           : 'text-slate-300'
                       }`}
                     >
@@ -470,6 +493,8 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
                         </>
                       ) : invoiceStatus === 'paid' ? (
                         'Fatura paga'
+                      ) : invoiceStatus === 'overdue' ? (
+                        'Fatura vencida'
                       ) : (
                         <>
                           <Lock className="w-3 h-3" /> Fatura fechada
@@ -479,15 +504,19 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400">Valor parcial</span>
+                    <span className="text-slate-400">
+                      {isClosedOrPaid ? 'Valor total' : 'Valor parcial'}
+                    </span>
                     <span className="font-bold text-rose-500">
                       {formatCurrency(invoiceAmount)}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-slate-400">
-                    <span>Fecha em</span>
-                    <span className="text-slate-200 font-medium">{getClosingDateFormatted(card)}</span>
+                    <span>
+                      {invoiceStatus === 'overdue' ? 'Venceu em' : isClosedOrPaid ? 'Vence em' : 'Fecha em'}
+                    </span>
+                    <span className="text-slate-200 font-medium">{getClosingOrDueDateFormatted(card)}</span>
                   </div>
                 </div>
 
@@ -572,7 +601,10 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
           setCardToEdit(c);
           setIsCardModalOpen(true);
         }}
-        onViewInvoiceDetails={c => setSelectedCardForDetail(c)}
+        onViewInvoiceDetails={(c, filterType) => {
+          setDetailFilterType(filterType || 'all');
+          setSelectedCardForDetail(c);
+        }}
         onArchive={handleArchiveCard}
         onAdvancePayment={c => setAdvancePaymentCard(c)}
       />

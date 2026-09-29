@@ -23,7 +23,7 @@ interface CardActionDrawerProps {
   invoiceStatus: 'open' | 'closed' | 'overdue' | 'paid';
   onToggleInvoiceStatus: (card: CreditCard) => void;
   onEdit: (card: CreditCard) => void;
-  onViewInvoiceDetails: (card: CreditCard) => void;
+  onViewInvoiceDetails: (card: CreditCard, filterType?: 'all' | 'fixed') => void;
   onArchive: (card: CreditCard) => void;
   onAdvancePayment?: (card: CreditCard) => void;
 }
@@ -113,7 +113,7 @@ export const CardActionDrawer: React.FC<CardActionDrawerProps> = ({
 
           <button
             onClick={() => {
-              onViewInvoiceDetails(card);
+              onViewInvoiceDetails(card, 'fixed');
               onClose();
             }}
             className="w-full px-4 py-3 flex items-center gap-3.5 text-left text-slate-200 hover:bg-slate-800/80 rounded-xl transition-colors cursor-pointer"
