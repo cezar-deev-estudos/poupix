@@ -1,6 +1,50 @@
 import { CreditCard, Transaction } from '@/types/finance';
 
 /**
+ * Calcula a data de vencimento padrão da fatura com base na data da compra e no dia de fechamento do cartão.
+ */
+export function calculateDefaultInvoiceDueDate(
+  txDate: string,
+  card?: CreditCard
+): { year: number; month: number; periodKey: string; invoiceDueDateStr: string } {
+  const dueDay = card?.dueDay || 10;
+  const closingDay = card?.closingDay || 3;
+
+  const txParts = (txDate || '').split('-');
+  let txYear = new Date().getFullYear();
+  let txMonth = new Date().getMonth(); // 0-indexed
+  let txDay = new Date().getDate();
+
+  if (txParts.length === 3) {
+    const y = parseInt(txParts[0], 10);
+    const m = parseInt(txParts[1], 10) - 1; // 0-indexed
+    const d = parseInt(txParts[2], 10);
+    if (!isNaN(y) && !isNaN(m)) {
+      txYear = y;
+      txMonth = m;
+      if (!isNaN(d)) txDay = d;
+    }
+  }
+
+  let invoiceYear = txYear;
+  let invoiceMonth = txMonth;
+
+  // Se o dia da compra ultrapassou o dia de fechamento, a fatura de vencimento cai no mês seguinte
+  if (txDay > closingDay) {
+    invoiceMonth += 1;
+    if (invoiceMonth > 11) {
+      invoiceMonth = 0;
+      invoiceYear += 1;
+    }
+  }
+
+  const periodKey = `${invoiceYear}-${String(invoiceMonth + 1).padStart(2, '0')}`;
+  const invoiceDueDateStr = `${invoiceYear}-${String(invoiceMonth + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+
+  return { year: invoiceYear, month: invoiceMonth, periodKey, invoiceDueDateStr };
+}
+
+/**
  * Retorna o período de vencimento da fatura (ano e mês, onde mês é 0-indexed) de uma transação de cartão.
  * Mapeia diretamente o ano/mês da transação (ou do invoiceDate) para a fatura correspondente.
  */
@@ -8,8 +52,6 @@ export function getTransactionInvoicePeriod(
   tx: Transaction,
   card?: CreditCard
 ): { year: number; month: number; periodKey: string; invoiceDueDateStr: string } {
-  const dueDay = card?.dueDay || 10;
-
   // Se a transação possui invoiceDate explícito (escolhido no formulário), usa ele
   if (tx.invoiceDate) {
     const invParts = tx.invoiceDate.split('-');
@@ -23,24 +65,8 @@ export function getTransactionInvoicePeriod(
     }
   }
 
-  // Caso contrário, extrai ano e mês da data da transação (YYYY-MM-DD)
-  const txParts = (tx.date || '').split('-');
-  let txYear = new Date().getFullYear();
-  let txMonth = new Date().getMonth(); // 0-indexed
-
-  if (txParts.length === 3) {
-    const y = parseInt(txParts[0], 10);
-    const m = parseInt(txParts[1], 10) - 1; // 0-indexed
-    if (!isNaN(y) && !isNaN(m)) {
-      txYear = y;
-      txMonth = m;
-    }
-  }
-
-  const periodKey = `${txYear}-${String(txMonth + 1).padStart(2, '0')}`;
-  const invoiceDueDateStr = `${txYear}-${String(txMonth + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
-
-  return { year: txYear, month: txMonth, periodKey, invoiceDueDateStr };
+  // Caso contrário, calcula a fatura padrão com base no fechamento do cartão
+  return calculateDefaultInvoiceDueDate(tx.date, card);
 }
 
 /**

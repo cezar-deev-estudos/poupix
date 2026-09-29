@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { Transaction } from '@/types/finance';
+import { calculateDefaultInvoiceDueDate } from '@/lib/invoiceHelpers';
 import { MoneyInput } from './MoneyInput';
 import { QuickDateSelector } from './QuickDateSelector';
 import { TagsChipSelector } from './TagsChipSelector';
@@ -54,30 +55,31 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
 
   const selectedCard = creditCards.find(c => c.id === creditCardId) || creditCards[0];
 
+  const defaultInvoice = useMemo(() => {
+    return calculateDefaultInvoiceDueDate(date, selectedCard);
+  }, [date, selectedCard]);
+
   const invoiceOptions = useMemo(() => {
     if (!selectedCard) return [];
     const options: { label: string; value: string }[] = [];
-    const currentDate = new Date(date);
     const dueDay = selectedCard.dueDay || 10;
     const closingDay = selectedCard.closingDay || 3;
 
-    // Verificar os últimos 2 meses anteriores e os próximos 4 meses
-    // Se a fatura anterior/atual estiver marcada como reaberta ('open') no manualInvoiceStatus, ela é permitida
+    // Data base da compra
+    const [baseYear, baseMonth] = date.split('-').map(Number);
     const seenValues = new Set<string>();
 
     for (let offset = -2; offset <= 4; offset++) {
-      const invDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, dueDay);
-      const isoValue = invDate.toISOString().split('T')[0];
+      const invDate = new Date(baseYear, (baseMonth - 1) + offset, dueDay);
+      const isoValue = `${invDate.getFullYear()}-${String(invDate.getMonth() + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
       const periodKey = `${invDate.getFullYear()}-${String(invDate.getMonth() + 1).padStart(2, '0')}`;
       
       const manualStatus = selectedCard.manualInvoiceStatus?.[periodKey];
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const closingDate = new Date(invDate.getFullYear(), invDate.getMonth(), closingDay);
+      closingDate.setHours(0, 0, 0, 0);
       
-      // Permitir se:
-      // 1. Foi explicitamente reaberta (manualStatus === 'open')
-      // 2. Não fechou ainda (today <= closingDate)
-      // 3. É a fatura padrão calculada para a data da compra (offset >= 0)
       const isReopened = manualStatus === 'open';
       const isFutureOrCurrentOpen = today <= closingDate || offset >= 0;
       
@@ -89,10 +91,19 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
         }
       }
     }
-    return options;
-  }, [selectedCard, date]);
 
-  const [invoiceDate, setInvoiceDate] = useState(initialData?.invoiceDate || invoiceOptions[0]?.value || '');
+    // Se o defaultInvoice não estiver na lista (por exemplo, compra recente em fatura aberta), inclui no topo
+    if (!seenValues.has(defaultInvoice.invoiceDueDateStr)) {
+      const [dY, dM, dD] = defaultInvoice.invoiceDueDateStr.split('-').map(Number);
+      const dDate = new Date(dY, dM - 1, dD);
+      const formatted = dDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+      options.unshift({ label: formatted, value: defaultInvoice.invoiceDueDateStr });
+    }
+
+    return options;
+  }, [selectedCard, date, defaultInvoice]);
+
+  const [invoiceDate, setInvoiceDate] = useState(initialData?.invoiceDate || defaultInvoice.invoiceDueDateStr || '');
 
   const toggleDetails = () => {
     const nextState = !showMoreDetails;
