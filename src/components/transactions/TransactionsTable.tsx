@@ -4,9 +4,10 @@ import React, { useState, useMemo } from 'react';
 import { Transaction } from '@/types/finance';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency, formatDateBR } from '@/lib/utils';
+import { getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { TransactionRowMenu } from './TransactionRowMenu';
-import { Check, Clock, CreditCard, MoreVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Check, Clock, CreditCard, MoreVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Repeat, Layers } from 'lucide-react';
 
 interface TransactionsTableProps {
   transactions: Transaction[];
@@ -122,6 +123,13 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                   const card = creditCards.find((c) => c.id === tx.creditCardId);
                   const destAcc = accounts.find((a) => a.id === tx.destinationAccountId);
 
+                  const invoicePeriod = card ? getTransactionInvoicePeriod(tx, card) : null;
+                  const isEffectivelyPaid =
+                    tx.paid ||
+                    (card && invoicePeriod
+                      ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
+                      : false);
+
                   const isExpense = tx.type === 'expense';
                   const isIncome = tx.type === 'income';
                   const isTransfer = tx.type === 'transfer';
@@ -149,15 +157,15 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => togglePaid(tx.id, tx.paid)}
+                            onClick={() => togglePaid(tx.id, isEffectivelyPaid)}
                             className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                              tx.paid
+                              isEffectivelyPaid
                                 ? 'bg-emerald-500 text-slate-950 shadow-sm'
                                 : 'bg-slate-800 border border-slate-700 text-slate-400 hover:border-emerald-500'
                             }`}
-                            title={tx.paid ? 'Efetivado (clique para alternar)' : 'Pendente (clique para alternar)'}
+                            title={isEffectivelyPaid ? 'Efetivado (clique para alternar)' : 'Pendente (clique para alternar)'}
                           >
-                            {tx.paid ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <Clock className="w-3 h-3" />}
+                            {isEffectivelyPaid ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <Clock className="w-3 h-3" />}
                           </button>
                           {card && (
                             <div className="w-6 h-6 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400" title="Despesa no Cartão">
@@ -195,9 +203,21 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
                       {/* Descrição */}
                       <td className="py-3 px-4 min-w-[180px] max-w-[280px]">
-                        <span className="font-medium text-white block truncate" title={tx.description}>
-                          {tx.description}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-medium text-white truncate" title={tx.description}>
+                            {tx.description}
+                          </span>
+                          {tx.isRecurring && (
+                            <span className="inline-flex items-center gap-0.5 bg-indigo-950/80 text-indigo-300 border border-indigo-800/70 text-[10px] font-medium px-1.5 py-0.5 rounded-md shrink-0 shadow-sm" title="Despesa/Receita Fixa">
+                              <Repeat className="w-2.5 h-2.5" /> Fixo
+                            </span>
+                          )}
+                          {Boolean(tx.installmentTotal && tx.installmentTotal > 1) && (
+                            <span className="inline-flex items-center gap-0.5 bg-amber-950/70 text-amber-300 border border-amber-800/70 text-[10px] font-medium px-1.5 py-0.5 rounded-md shrink-0 shadow-sm" title="Compra Parcelada">
+                              <Layers className="w-2.5 h-2.5" /> {tx.installmentCurrent || 1}/{tx.installmentTotal}x
+                            </span>
+                          )}
+                        </div>
 
                         {/* Observação */}
                         {tx.notes && (
@@ -287,7 +307,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                 <tr className="bg-[#14171f]/80">
                   <td colSpan={showTypeColumn ? 9 : 8} className="py-2 text-center">
                     <span className="inline-block bg-[#232733] border border-slate-700/60 text-[11px] font-semibold text-slate-300 px-3.5 py-1 rounded-full shadow-sm">
-                      Saldo do Final do Dia{' '}
+                      Saldo do Final do Dia ({formatDateBR(group.date)}):{' '}
                       <strong className={group.dayBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
                         {formatCurrency(group.dayBalance)}
                       </strong>

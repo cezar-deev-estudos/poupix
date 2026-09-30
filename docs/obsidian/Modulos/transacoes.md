@@ -24,3 +24,13 @@ Ao editar ou excluir uma transação que faça parte de um grupo recorrente ou p
 1. **Apenas este lançamento (`single`)**: Altera/exclui somente a ocorrência atual.
 2. **Este e os próximos (`following`)**: Altera/exclui a partir do mês atual em diante, preservando o histórico passado.
 3. **Todos os lançamentos (`all`)**: Aplica a modificação em todas as parcelas/ocorrências da série.
+
+### 4. Competência Financeira do Cartão de Crédito
+- **Filtragem por Período de Fatura**: Despesas no cartão de crédito pertencem ao mês/ano da respectiva fatura de vencimento (`invoiceDate`), e não à data da compra (`date`). Isso garante que compras pós-fechamento do cartão apareçam apenas no mês em que a fatura será efetivamente quitada.
+- **Status Efetivado / Pendente**: A despesa de cartão de crédito é considerada efetivada (ícone verde de check) se o status individual `tx.paid` for verdadeiro ou se a fatura do cartão para aquele período estiver marcada como paga (`manualInvoiceStatus === 'paid'`).
+- **Sincronização em Lote**: Ao pagar uma fatura na aba de Cartões, todas as despesas vinculadas àquela fatura são automaticamente atualizadas para efetivadas (`paid: true`). Caso a fatura seja reaberta, retornam para pendentes (`paid: false`).
+
+### 5. Identificadores Visuais no Extrato (Desktop & Mobile)
+- **Item Fixo (`isRecurring`)**: Exibe o badge roxo estilizado `[🔁 Fixo]` ao lado da descrição da transação.
+- **Item Parcelado (`installmentTotal > 1`)**: Exibe o badge âmbar `[📚 X/Yx]` indicando a parcela atual e o total de parcelas.
+- **Cartão de Crédito (`creditCardId`)**: Exibe o selo circular ciano com o ícone de cartão de crédito.

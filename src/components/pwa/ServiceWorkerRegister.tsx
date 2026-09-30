@@ -27,6 +27,15 @@ export const ServiceWorkerRegister: React.FC = () => {
           }
         });
 
+        // Quando o novo Service Worker assumir o controle, recarrega a página automaticamente
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
+        });
+
         // Se houver um novo worker esperando, ativar imediatamente
         if (registration.waiting) {
           registration.waiting.postMessage({ type: 'SKIP_WAITING' });

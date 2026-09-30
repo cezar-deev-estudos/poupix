@@ -29,10 +29,12 @@ import { AlertsDrawer } from '@/components/alerts/AlertsDrawer';
 import { MobillsMobileHome } from '@/components/dashboard/MobillsMobileHome';
 import { CreditCardsDashboardCard } from '@/components/dashboard/CreditCardsDashboardCard';
 import { CategoryIncomeChart } from '@/components/dashboard/CategoryIncomeChart';
+import { MonthlyBalanceCard } from '@/components/dashboard/MonthlyBalanceCard';
 import {
   DashboardLayoutPreferences,
   DEFAULT_DASHBOARD_LAYOUT,
   DashboardCardId,
+  mergeDashboardLayout,
 } from '@/types/settings';
 import { Plus, ArrowRight, UploadCloud, Bell } from 'lucide-react';
 
@@ -48,18 +50,23 @@ function DashboardContent() {
 
   const { unreadAlertsCount } = useFinance();
 
-  const [dashboardLayout, setDashboardLayout] = useState<DashboardLayoutPreferences>(DEFAULT_DASHBOARD_LAYOUT);
+  const [dashboardLayout, setDashboardLayout] = useState<DashboardLayoutPreferences>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('mobills_dashboard_layout');
+        if (saved) return mergeDashboardLayout(saved);
+      } catch {
+        // fallback
+      }
+    }
+    return DEFAULT_DASHBOARD_LAYOUT;
+  });
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem('mobills_dashboard_layout');
       if (saved) {
-        const parsed = JSON.parse(saved);
-        setDashboardLayout({
-          leftColumn: parsed.leftColumn || DEFAULT_DASHBOARD_LAYOUT.leftColumn,
-          rightColumn: parsed.rightColumn || DEFAULT_DASHBOARD_LAYOUT.rightColumn,
-          enabled: { ...DEFAULT_DASHBOARD_LAYOUT.enabled, ...(parsed.enabled || {}) },
-        });
+        setDashboardLayout(mergeDashboardLayout(saved));
       }
     } catch {
       // fallback
@@ -177,6 +184,7 @@ function DashboardContent() {
                     .map(id => {
                       if (id === 'categoryExpenseChart') return <CategoryExpenseChart key={id} />;
                       if (id === 'categoryIncomeChart') return <CategoryIncomeChart key={id} />;
+                      if (id === 'monthlyBalanceCard') return <MonthlyBalanceCard key={id} onNavigateTab={handleNavigateTab} />;
                       if (id === 'creditCardInfo') {
                         return (
                           <CreditCardsDashboardCard
@@ -218,6 +226,7 @@ function DashboardContent() {
                     .map(id => {
                       if (id === 'categoryExpenseChart') return <CategoryExpenseChart key={id} />;
                       if (id === 'categoryIncomeChart') return <CategoryIncomeChart key={id} />;
+                      if (id === 'monthlyBalanceCard') return <MonthlyBalanceCard key={id} onNavigateTab={handleNavigateTab} />;
                       if (id === 'creditCardInfo') {
                         return (
                           <CreditCardsDashboardCard

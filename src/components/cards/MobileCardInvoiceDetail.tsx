@@ -126,10 +126,13 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
   const isOverdue = today > dueDate;
 
   // Status calculado da fatura
-  // Regra: se hoje > data de fechamento, a fatura fecha automaticamente
+  // Regra: se o usuário reabriu manualmente, tem prioridade enquanto estiver na tela.
   const invoiceStatus = useMemo((): 'open' | 'closed' | 'overdue' | 'paid' => {
     if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey] === 'paid') {
       return 'paid';
+    }
+    if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey] === 'open') {
+      return 'open';
     }
     if (isOverdue) return 'overdue';
     if (isClosed) return 'closed';
@@ -457,7 +460,7 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
                         </div>
 
                         <div className="min-w-0 space-y-0.5">
-                          <h4 className="font-semibold text-white text-sm truncate">
+                          <h4 className="font-normal text-slate-100 text-sm truncate">
                             {tx.description}
                           </h4>
                           <span className="text-xs text-slate-400 block truncate">
@@ -474,7 +477,7 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
 
                       {/* Valor + Badges Pequenos */}
                       <div className="text-right shrink-0 space-y-1">
-                        <span className="text-sm font-bold text-rose-500 block">
+                        <span className="text-sm font-normal text-rose-500 block">
                           {formatCurrency(tx.amount)}
                         </span>
                         <div className="flex items-center justify-end gap-1">

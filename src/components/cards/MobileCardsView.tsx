@@ -243,6 +243,21 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
           allCards={activeCards}
           initialFilterType={detailFilterType}
           onBack={() => {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const closingDate = new Date(targetYear, targetMonth, currentSelected.closingDay);
+            closingDate.setHours(0, 0, 0, 0);
+
+            if (today > closingDate && currentSelected.manualInvoiceStatus?.[targetPeriodKey] === 'open') {
+              const updatedManual = {
+                ...(currentSelected.manualInvoiceStatus || {}),
+                [targetPeriodKey]: 'closed' as const,
+              };
+              updateCreditCard(currentSelected.id, {
+                manualInvoiceStatus: updatedManual,
+              });
+            }
+
             setSelectedCardForDetail(null);
             setDetailFilterType('all');
           }}

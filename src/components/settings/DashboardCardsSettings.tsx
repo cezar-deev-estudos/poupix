@@ -6,6 +6,7 @@ import {
   DashboardLayoutPreferences,
   DEFAULT_DASHBOARD_LAYOUT,
   ALL_DASHBOARD_CARDS,
+  mergeDashboardLayout,
 } from '@/types/settings';
 import { Check, ChevronUp, ChevronDown, ArrowLeftRight, GripVertical } from 'lucide-react';
 
@@ -16,43 +17,11 @@ interface DashboardCardsSettingsProps {
 export const DashboardCardsSettings: React.FC<DashboardCardsSettingsProps> = ({ onSave }) => {
   const [layout, setLayout] = useState<DashboardLayoutPreferences>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('mobills_dashboard_layout');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          const validIds: DashboardCardId[] = [
-            'categoryExpenseChart',
-            'creditCardInfo',
-            'categoryIncomeChart',
-            'monthlyBalanceChart',
-            'recentTransactions',
-          ];
-
-          const filteredLeft = (parsed.leftColumn || []).filter((id: any) => validIds.includes(id));
-          const filteredRight = (parsed.rightColumn || []).filter((id: any) => validIds.includes(id));
-
-          // Garante que todos os 5 IDs estejam presentes em uma das colunas
-          validIds.forEach(id => {
-            if (!filteredLeft.includes(id) && !filteredRight.includes(id)) {
-              if (DEFAULT_DASHBOARD_LAYOUT.leftColumn.includes(id)) {
-                filteredLeft.push(id);
-              } else {
-                filteredRight.push(id);
-              }
-            }
-          });
-
-          return {
-            leftColumn: filteredLeft.length ? filteredLeft : DEFAULT_DASHBOARD_LAYOUT.leftColumn,
-            rightColumn: filteredRight.length ? filteredRight : DEFAULT_DASHBOARD_LAYOUT.rightColumn,
-            enabled: {
-              ...DEFAULT_DASHBOARD_LAYOUT.enabled,
-              ...(parsed.enabled || {}),
-            },
-          };
-        } catch {
-          // fallback
-        }
+      try {
+        const saved = localStorage.getItem('mobills_dashboard_layout');
+        if (saved) return mergeDashboardLayout(saved);
+      } catch {
+        // fallback
       }
     }
     return DEFAULT_DASHBOARD_LAYOUT;

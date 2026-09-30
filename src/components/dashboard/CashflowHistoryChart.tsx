@@ -3,11 +3,12 @@
 import React from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency, getShortMonthName } from '@/lib/utils';
+import { getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { BarChart3 } from 'lucide-react';
 
 export const CashflowHistoryChart: React.FC = () => {
-  const { transactions, selectedYear } = useFinance();
+  const { transactions, creditCards, selectedYear } = useFinance();
 
   const monthlyCashflow = React.useMemo(() => {
     const data = Array.from({ length: 12 }, (_, i) => ({
@@ -18,20 +19,32 @@ export const CashflowHistoryChart: React.FC = () => {
     }));
 
     transactions.forEach(t => {
-      if (!t.date) return;
-      const [tYear, tMonth] = t.date.split('-').map(Number);
-      if (tYear === selectedYear && tMonth >= 1 && tMonth <= 12) {
-        const idx = tMonth - 1;
+      let tYear: number;
+      let tMonthIndex: number;
+
+      if (t.creditCardId) {
+        const card = creditCards.find(c => c.id === t.creditCardId);
+        const { year, month } = getTransactionInvoicePeriod(t, card);
+        tYear = year;
+        tMonthIndex = month;
+      } else {
+        if (!t.date) return;
+        const [y, m] = t.date.split('-').map(Number);
+        tYear = y;
+        tMonthIndex = m - 1;
+      }
+
+      if (tYear === selectedYear && tMonthIndex >= 0 && tMonthIndex < 12) {
         if (t.type === 'income') {
-          data[idx].income += t.amount;
+          data[tMonthIndex].income += t.amount;
         } else if (t.type === 'expense') {
-          data[idx].expense += t.amount;
+          data[tMonthIndex].expense += t.amount;
         }
       }
     });
 
     return data;
-  }, [transactions, selectedYear]);
+  }, [transactions, creditCards, selectedYear]);
 
   return (
     <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between">

@@ -28,7 +28,7 @@ import { useAuth } from './AuthContext';
 import { useFinanceCloudSync } from '@/hooks/useFinanceCloudSync';
 import { transactionManager } from '@/hooks/useTransactionsManager';
 import { entityManager } from '@/hooks/useEntityManager';
-import { normalizeTransactionsInvoiceDates } from '@/lib/invoiceHelpers';
+import { normalizeTransactionsInvoiceDates, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
 
 interface FinanceContextType {
   users: UserProfile[];
@@ -265,11 +265,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Filtros de Transações por Período
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
+      if (t.creditCardId) {
+        const card = creditCards.find(c => c.id === t.creditCardId);
+        const { year, month } = getTransactionInvoicePeriod(t, card);
+        return year === selectedYear && month === selectedMonth;
+      }
       if (!t.date) return false;
       const [tYear, tMonth] = t.date.split('-').map(Number);
       return tYear === selectedYear && (tMonth - 1) === selectedMonth;
     });
-  }, [transactions, selectedYear, selectedMonth]);
+  }, [transactions, selectedYear, selectedMonth, creditCards]);
 
   // Alertas Inteligentes
   const alerts = useMemo(() => {

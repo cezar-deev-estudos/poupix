@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Transaction } from '@/types/finance';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency, formatDateBR } from '@/lib/utils';
+import { getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { MobileTransactionDetailDrawer } from './MobileTransactionDetailDrawer';
 import {
@@ -19,6 +20,9 @@ import {
   ArrowUp,
   ArrowDown,
   Scale,
+  CreditCard,
+  Repeat,
+  Layers,
 } from 'lucide-react';
 import { TransactionsFilterModal, AdvancedFilterState } from './TransactionsFilterModal';
 import { TransactionsOptionsMenu } from './TransactionsOptionsMenu';
@@ -630,6 +634,13 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                   const isExpense = tx.type === 'expense';
                   const isIncome = tx.type === 'income';
 
+                  const invoicePeriod = card ? getTransactionInvoicePeriod(tx, card) : null;
+                  const isEffectivelyPaid =
+                    tx.paid ||
+                    (card && invoicePeriod
+                      ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
+                      : false);
+
                   const accountName =
                     tx.type === 'transfer'
                       ? `${acc?.name || 'Conta'} ➔ ${destAcc?.name || 'Conta'}`
@@ -657,11 +668,30 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <span className="font-semibold text-white text-xs block truncate">
-                            {tx.description}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-white text-xs truncate">
+                              {tx.description}
+                            </span>
+                            {tx.isRecurring && (
+                              <span className="inline-flex items-center gap-0.5 bg-indigo-950/80 text-indigo-300 border border-indigo-800/70 text-[9px] font-medium px-1.5 py-0.2 rounded-md shrink-0 shadow-sm" title="Despesa/Receita Fixa">
+                                <Repeat className="w-2 h-2" /> Fixo
+                              </span>
+                            )}
+                            {Boolean(tx.installmentTotal && tx.installmentTotal > 1) && (
+                              <span className="inline-flex items-center gap-0.5 bg-amber-950/70 text-amber-300 border border-amber-800/70 text-[9px] font-medium px-1.5 py-0.2 rounded-md shrink-0 shadow-sm" title="Compra Parcelada">
+                                <Layers className="w-2 h-2" /> {tx.installmentCurrent || 1}/{tx.installmentTotal}x
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[11px] text-slate-400 block truncate mt-0.5">
-                            {categoryName} | {accountName}
+                            {categoryName} | {card ? (
+                              <span className="inline-flex items-center gap-1 text-cyan-300">
+                                <CreditCard className="w-3 h-3 inline shrink-0" />
+                                {accountName}
+                              </span>
+                            ) : (
+                              accountName
+                            )}
                           </span>
 
                           {/* Observação / Notas */}
@@ -703,14 +733,15 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
                         <button
                           type="button"
-                          onClick={(e) => togglePaid(e, tx.id, tx.paid)}
-                          className={`w-5 h-5 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                            tx.paid
+                          onClick={(e) => togglePaid(e, tx.id, isEffectivelyPaid)}
+                          className={`w-5 h-5 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                            isEffectivelyPaid
                               ? 'bg-[#22c55e] text-slate-950'
                               : 'border border-slate-600 bg-slate-800 text-slate-500'
                           }`}
+                          title={isEffectivelyPaid ? 'Efetivado' : 'Pendente'}
                         >
-                          {tx.paid ? <Check className="w-3 h-3 stroke-[3]" /> : <Clock className="w-2.5 h-2.5" />}
+                          {isEffectivelyPaid ? <Check className="w-3 h-3 stroke-[3]" /> : <Clock className="w-2.5 h-2.5" />}
                         </button>
                       </div>
                     </div>

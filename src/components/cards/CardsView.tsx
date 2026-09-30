@@ -10,7 +10,7 @@ import { CreditCardModal } from './CreditCardModal';
 import { ArchivedCardsModal } from './ArchivedCardsModal';
 import { AdvancePaymentModal } from './AdvancePaymentModal';
 import { NewTransactionModal } from '../transactions/NewTransactionModal';
-import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
+import { isTransactionInInvoicePeriod, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
 import { Plus, MoreVertical, ThumbsUp, CreditCard as CardIcon, DollarSign } from 'lucide-react';
 
 const MONTH_NAMES = [
@@ -32,6 +32,7 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
     addCreditCard,
     updateCreditCard,
     deleteCreditCard,
+    updateTransaction,
   } = useFinance();
 
   // Filtro de Aba Superior: Fatura Mês Atual vs Fatura Próximo Mês
@@ -181,6 +182,17 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
     updateCreditCard(card.id, {
       manualInvoiceStatus: updatedManual,
     });
+
+    if (newStatus === 'open') {
+      transactions.forEach(tx => {
+        if (tx.creditCardId === card.id) {
+          const { periodKey } = getTransactionInvoicePeriod(tx, card);
+          if (periodKey === period && tx.paid) {
+            updateTransaction(tx.id, { paid: false });
+          }
+        }
+      });
+    }
   };
 
   // Pagar Fatura
@@ -191,6 +203,15 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
     };
     updateCreditCard(card.id, {
       manualInvoiceStatus: updatedManual,
+    });
+
+    transactions.forEach(tx => {
+      if (tx.creditCardId === card.id) {
+        const { periodKey } = getTransactionInvoicePeriod(tx, card);
+        if (periodKey === period && !tx.paid) {
+          updateTransaction(tx.id, { paid: true });
+        }
+      }
     });
   };
 
@@ -230,6 +251,23 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
           allCards={activeCards}
           initialFilterType={detailFilterType}
           onBack={() => {
+            // Regra: Ao sair da tela, se a data atual for maior que a do fechamento, a fatura deve fechar automaticamente
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const closingDate = new Date(selectedYear, selectedMonth, currentSelected.closingDay);
+            closingDate.setHours(0, 0, 0, 0);
+
+            const pKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+            if (today > closingDate && currentSelected.manualInvoiceStatus?.[pKey] === 'open') {
+              const updatedManual = {
+                ...(currentSelected.manualInvoiceStatus || {}),
+                [pKey]: 'closed' as const,
+              };
+              updateCreditCard(currentSelected.id, {
+                manualInvoiceStatus: updatedManual,
+              });
+            }
+
             setSelectedCardForDetail(null);
             setDetailFilterType('all');
           }}

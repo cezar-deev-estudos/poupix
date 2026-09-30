@@ -25,8 +25,13 @@ import {
   Receipt,
   Lock,
   Unlock,
+  Menu,
+  Pencil,
 } from 'lucide-react';
 import { AdvancePaymentModal } from './AdvancePaymentModal';
+import { AdvanceInstallmentModal } from './AdvanceInstallmentModal';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { TransactionScopeModal, ScopeMode } from '@/components/transactions/TransactionScopeModal';
 import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
 
 interface CardInvoiceDetailViewProps {
@@ -75,6 +80,7 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
     setSelectedMonth,
     setSelectedYear,
     deleteTransaction,
+    updateTransaction,
   } = useFinance();
 
   // Estados de dropdown e busca
@@ -84,6 +90,45 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
   const [isAdvancePaymentOpen, setIsAdvancePaymentOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false);
+
+  // Estados de Antecipação e Exclusão com Escopo
+  const [advanceInstallmentTx, setAdvanceInstallmentTx] = useState<Transaction | null>(null);
+  const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
+  const [deleteMode, setDeleteMode] = useState<ScopeMode>('single');
+
+  // Handler de Exclusão
+  const handleConfirmDelete = () => {
+    if (!deletingTransaction) return;
+    deleteTransaction(deletingTransaction.id, deleteMode);
+    setDeletingTransaction(null);
+    setDeleteMode('single');
+  };
+
+  // Handler de Antecipação de Parcelas (atualiza o invoiceDate da transação para a fatura de destino)
+  const handleConfirmAdvanceInstallment = (targetPeriodKey: string) => {
+    if (!advanceInstallmentTx) return;
+    const dueDay = card.dueDay || 10;
+    const newInvoiceDueDateStr = `${targetPeriodKey}-${String(dueDay).padStart(2, '0')}`;
+
+    updateTransaction(
+      advanceInstallmentTx.id,
+      {
+        invoiceDate: newInvoiceDueDateStr,
+      },
+      'single'
+    );
+    setAdvanceInstallmentTx(null);
+  };
+
+  const isRecurringOrInstallment = (tx: Transaction | null) => {
+    if (!tx) return false;
+    return !!(
+      tx.isRecurring ||
+      tx.recurringGroupId ||
+      tx.installmentGroupId ||
+      (tx.installmentTotal && tx.installmentTotal > 1)
+    );
+  };
 
   useEffect(() => {
     setFilterType(initialFilterType);
@@ -135,10 +180,14 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
   }, [invoiceTransactions]);
 
   // Cálculo de Status da Fatura (Aberto / Fechado / Pago)
-  // Regra: se hoje > data de fechamento, a fatura fecha automaticamente
+  // Regra: se o usuário reabriu manualmente (manualInvoiceStatus === 'open'), permite editar nesta tela.
+  // Caso contrário, se hoje > data de fechamento, a fatura fecha automaticamente.
   const invoiceStatus = useMemo((): 'open' | 'closed' | 'paid' => {
     if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey] === 'paid') {
       return 'paid';
+    }
+    if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey] === 'open') {
+      return 'open';
     }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -238,28 +287,16 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
           </div>
         </div>
 
-        {/* Botões do Topo Direito: + , Busca, Menu ⋮ */}
+        {/* Botões do Topo Direito: + (quando aberta), Busca, Menu ⋮ */}
         <div className="flex items-center gap-2.5">
-          {/* Botão + (Reabre e lança se fechada) */}
-          {isClosedOrPaid ? (
+          {isOpen && (
             <button
-              onClick={() => {
-                onToggleInvoiceStatus(card, periodKey);
-                onOpenNewExpense(card.id);
-              }}
-              className="p-2.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 rounded-2xl transition-all cursor-pointer shadow-sm flex items-center gap-1 text-xs font-semibold"
-              title="Fatura Fechada - Clique para Reabrir e Lançar"
-            >
-              <Lock className="w-4 h-4" />
-              <span className="hidden sm:inline">Reabrir e Lançar</span>
-            </button>
-          ) : (
-            <button
+              type="button"
               onClick={() => onOpenNewExpense(card.id)}
-              className="p-2.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-2xl transition-all cursor-pointer shadow-sm"
-              title="Adicionar despesa neste cartão"
+              className="p-2.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-teal-400 hover:text-teal-300 rounded-2xl transition-all cursor-pointer shadow-sm flex items-center justify-center"
+              title="Adicionar despesa nesta fatura"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 stroke-[2.5]" />
             </button>
           )}
 
@@ -287,30 +324,19 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
 
             {isOptionsMenuOpen && (
               <div className="absolute right-0 top-full mt-2 w-56 bg-[#202024] border border-slate-700/80 rounded-2xl shadow-2xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100 text-xs">
-                {/* Ação Reabrir / Fechar Fatura */}
-                <button
-                  onClick={() => {
-                    setIsOptionsMenuOpen(false);
-                    onToggleInvoiceStatus(card, periodKey);
-                  }}
-                  className={`w-full px-4 py-2.5 font-bold text-left transition-colors cursor-pointer flex items-center gap-2 ${
-                    isClosedOrPaid
-                      ? 'text-teal-300 hover:bg-teal-500/20'
-                      : 'text-amber-300 hover:bg-amber-500/20'
-                  }`}
-                >
-                  {isClosedOrPaid ? (
-                    <>
-                      <Unlock className="w-4 h-4 text-teal-400" />
-                      <span>Reabrir fatura</span>
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="w-4 h-4 text-amber-400" />
-                      <span>Fechar fatura</span>
-                    </>
-                  )}
-                </button>
+                {/* Ação Reabrir Fatura (Apenas quando a fatura estiver Fechada ou Paga) */}
+                {isClosedOrPaid && (
+                  <button
+                    onClick={() => {
+                      setIsOptionsMenuOpen(false);
+                      onToggleInvoiceStatus(card, periodKey);
+                    }}
+                    className="w-full px-4 py-2.5 font-bold text-left transition-colors cursor-pointer flex items-center gap-2 text-teal-300 hover:bg-teal-500/20"
+                  >
+                    <Unlock className="w-4 h-4 text-teal-400" />
+                    <span>Reabrir fatura</span>
+                  </button>
+                )}
 
                 {/* Se não estiver paga */}
                 {invoiceStatus !== 'paid' && (
@@ -439,10 +465,10 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
         </div>
       )}
 
-      {/* Grid Principal: Extrato da Fatura (Esquerda) + 4 Cards de Resumo (Direita) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Coluna Esquerda: Extrato da Fatura (8 colunas) */}
-        <div className="lg:col-span-8 bg-[#18181b]/90 border border-slate-800/90 rounded-3xl p-5 shadow-xl space-y-4">
+      {/* Grid Principal: Extrato da Fatura (Esquerda 9 cols) + 4 Cards de Resumo (Direita 3 cols) */}
+      <div className="grid grid-cols-12 gap-4 items-start">
+        {/* Coluna Esquerda: Extrato da Fatura (9 colunas) */}
+        <div className="col-span-12 md:col-span-8 lg:col-span-9 bg-[#18181b]/90 border border-slate-800/90 rounded-3xl p-4 sm:p-5 shadow-xl space-y-4">
           {/* Seletor de Mês/Ano com Borda Ciano */}
           <div className="flex items-center justify-between gap-4 py-1">
             <div className="flex items-center gap-2">
@@ -486,12 +512,12 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-800/80 text-slate-400 font-medium pb-2">
-                  <th className="py-2.5 px-3">Situação</th>
-                  <th className="py-2.5 px-3">Data</th>
+                  <th className="py-2.5 px-3 w-10">Situação</th>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Data</th>
                   <th className="py-2.5 px-3">Descrição</th>
-                  <th className="py-2.5 px-3">Categoria</th>
-                  <th className="py-2.5 px-3">Valor</th>
-                  {isOpen && <th className="py-2.5 px-3 text-right">Ações</th>}
+                  <th className="py-2.5 px-3 whitespace-nowrap">Categoria</th>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Valor</th>
+                  {isOpen && <th className="py-2.5 px-3 text-right whitespace-nowrap min-w-[100px]">Ações</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
@@ -525,7 +551,7 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
                         {/* Descrição com ícone azul de notas/anexos se houver */}
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold text-white truncate max-w-[200px]" title={tx.description}>
+                            <span className="font-normal text-slate-100 truncate max-w-[200px]" title={tx.description}>
                               {tx.description}
                             </span>
                             {tx.notes && (
@@ -542,7 +568,7 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
                         {/* Categoria com Chip Colorido */}
                         <td className="py-3 px-3 whitespace-nowrap">
                           <span
-                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-normal"
                             style={{
                               backgroundColor: `${cat?.color || '#64748b'}20`,
                               color: cat?.color || '#94a3b8',
@@ -560,7 +586,7 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
                         {/* Valor */}
                         <td className="py-3 px-3 whitespace-nowrap">
                           <span
-                            className={`font-semibold ${
+                            className={`font-normal ${
                               isExpense ? 'text-rose-500' : 'text-emerald-400'
                             }`}
                           >
@@ -568,27 +594,41 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
                           </span>
                         </td>
 
-                        {/* Ações (Apenas se a fatura estiver aberta) */}
+                        {/* Ações (Disponíveis quando fatura aberta) */}
                         {isOpen && (
                           <td className="py-3 px-3 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100">
+                            <div className="flex items-center justify-end gap-1.5 opacity-90 group-hover:opacity-100">
+                              {/* Botão Antecipar Parcelas (≡) */}
                               <button
+                                type="button"
+                                onClick={() => setAdvanceInstallmentTx(tx)}
+                                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
+                                title="Antecipar parcelas"
+                              >
+                                <Menu className="w-4 h-4" />
+                              </button>
+
+                              {/* Botão Editar (✏️) */}
+                              <button
+                                type="button"
                                 onClick={() => onEditTransaction(tx)}
-                                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
                                 title="Editar"
                               >
-                                <Edit2 className="w-3.5 h-3.5" />
+                                <Pencil className="w-4 h-4" />
                               </button>
+
+                              {/* Botão Excluir (🗑️) */}
                               <button
+                                type="button"
                                 onClick={() => {
-                                  if (window.confirm(`Excluir "${tx.description}"?`)) {
-                                    deleteTransaction(tx.id);
-                                  }
+                                  setDeleteMode('single');
+                                  setDeletingTransaction(tx);
                                 }}
-                                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
                                 title="Excluir"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           </td>
@@ -602,69 +642,69 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
           </div>
         </div>
 
-        {/* Coluna Direita: 4 Cards de Resumo da Fatura (4 colunas) */}
-        <div className="lg:col-span-4 space-y-4">
+        {/* Coluna Direita: 4 Cards de Resumo da Fatura (3 colunas - mais estreito) */}
+        <div className="col-span-12 md:col-span-4 lg:col-span-3 space-y-3">
           {/* Card 1: Valor da fatura */}
-          <div className="bg-[#18181b]/90 border border-slate-800/90 rounded-3xl p-5 shadow-xl flex items-center justify-between">
-            <div>
-              <span className="text-xs text-slate-400 font-medium">Valor da fatura</span>
-              <div className="text-xl font-bold tracking-tight text-white mt-1.5">
+          <div className="bg-[#18181b]/90 border border-slate-800/90 rounded-2xl p-3.5 shadow-xl flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <span className="text-[11px] text-slate-400 font-medium block">Valor da fatura</span>
+              <div className="text-base font-bold tracking-tight text-white mt-0.5 truncate">
                 {formatCurrency(invoiceTotal)}
               </div>
             </div>
-            <div className="w-11 h-11 rounded-full bg-teal-500 flex items-center justify-center text-slate-950 shadow-lg shadow-teal-500/30">
-              <DollarSign className="w-5 h-5 font-black" />
+            <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center text-slate-950 shadow-md shadow-teal-500/20 shrink-0">
+              <DollarSign className="w-4 h-4 font-black" />
             </div>
           </div>
 
           {/* Card 2: Status */}
-          <div className="bg-[#18181b]/90 border border-slate-800/90 rounded-3xl p-5 shadow-xl flex items-center justify-between">
-            <div>
-              <span className="text-xs text-slate-400 font-medium">Status</span>
-              <div className="text-base font-bold tracking-tight text-white mt-1.5 flex items-center gap-1.5">
+          <div className="bg-[#18181b]/90 border border-slate-800/90 rounded-2xl p-3.5 shadow-xl flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <span className="text-[11px] text-slate-400 font-medium block">Status</span>
+              <div className="text-xs font-bold tracking-tight text-white mt-0.5 truncate">
                 {invoiceStatus === 'open' ? (
                   <span className="text-amber-400 flex items-center gap-1">
-                    <Unlock className="w-4 h-4" /> Fatura aberta
+                    <Unlock className="w-3.5 h-3.5 shrink-0" /> Fatura aberta
                   </span>
                 ) : invoiceStatus === 'paid' ? (
                   <span className="text-teal-300 flex items-center gap-1">
-                    <CheckCircle2 className="w-4 h-4" /> Fatura paga
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Fatura paga
                   </span>
                 ) : (
                   <span className="text-slate-300 flex items-center gap-1">
-                    <Lock className="w-4 h-4" /> Fatura fechada
+                    <Lock className="w-3.5 h-3.5 shrink-0" /> Fatura fechada
                   </span>
                 )}
               </div>
             </div>
-            <div className="w-11 h-11 rounded-full bg-teal-500 flex items-center justify-center text-slate-950 shadow-lg shadow-teal-500/30">
-              <Receipt className="w-5 h-5 font-black" />
+            <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center text-slate-950 shadow-md shadow-teal-500/20 shrink-0">
+              <Receipt className="w-4 h-4 font-black" />
             </div>
           </div>
 
           {/* Card 3: Dia de fechamento */}
-          <div className="bg-[#18181b]/90 border border-slate-800/90 rounded-3xl p-5 shadow-xl flex items-center justify-between">
-            <div>
-              <span className="text-xs text-slate-400 font-medium">Dia de fechamento</span>
-              <div className="text-base font-bold tracking-tight text-white mt-1.5">
+          <div className="bg-[#18181b]/90 border border-slate-800/90 rounded-2xl p-3.5 shadow-xl flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <span className="text-[11px] text-slate-400 font-medium block">Dia de fechamento</span>
+              <div className="text-xs font-bold tracking-tight text-white mt-0.5 truncate">
                 {card.closingDay} de {MONTH_NAMES[selectedMonth].toLowerCase()}
               </div>
             </div>
-            <div className="w-11 h-11 rounded-full bg-teal-500 flex items-center justify-center text-slate-950 shadow-lg shadow-teal-500/30">
-              <Calendar className="w-5 h-5 font-black" />
+            <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center text-slate-950 shadow-md shadow-teal-500/20 shrink-0">
+              <Calendar className="w-4 h-4 font-black" />
             </div>
           </div>
 
           {/* Card 4: Data vencimento */}
-          <div className="bg-[#18181b]/90 border border-slate-800/90 rounded-3xl p-5 shadow-xl flex items-center justify-between">
-            <div>
-              <span className="text-xs text-slate-400 font-medium">Data vencimento</span>
-              <div className="text-base font-bold tracking-tight text-white mt-1.5">
+          <div className="bg-[#18181b]/90 border border-slate-800/90 rounded-2xl p-3.5 shadow-xl flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <span className="text-[11px] text-slate-400 font-medium block">Data vencimento</span>
+              <div className="text-xs font-bold tracking-tight text-white mt-0.5 truncate">
                 {card.dueDay} de {MONTH_NAMES[selectedMonth].toLowerCase()}
               </div>
             </div>
-            <div className="w-11 h-11 rounded-full bg-teal-500 flex items-center justify-center text-slate-950 shadow-lg shadow-teal-500/30">
-              <CheckCircle2 className="w-5 h-5 font-black" />
+            <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center text-slate-950 shadow-md shadow-teal-500/20 shrink-0">
+              <CheckCircle2 className="w-4 h-4 font-black" />
             </div>
           </div>
         </div>
@@ -678,6 +718,47 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
           onOpenNewExpense(card.id);
         }}
       />
+
+      {/* Modal de Antecipar Parcelas para Fatura Específica */}
+      {advanceInstallmentTx && (
+        <AdvanceInstallmentModal
+          isOpen={!!advanceInstallmentTx}
+          onClose={() => setAdvanceInstallmentTx(null)}
+          transaction={advanceInstallmentTx}
+          card={card}
+          currentYear={selectedYear}
+          currentMonth={selectedMonth}
+          onConfirmAdvance={handleConfirmAdvanceInstallment}
+        />
+      )}
+
+      {/* Modal de Confirmação de Exclusão para Recorrência / Parcelamento */}
+      {deletingTransaction && isRecurringOrInstallment(deletingTransaction) ? (
+        <TransactionScopeModal
+          isOpen={!!deletingTransaction}
+          actionType="delete"
+          transaction={deletingTransaction}
+          selectedMode={deleteMode}
+          onSelectMode={setDeleteMode}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => {
+            setDeletingTransaction(null);
+            setDeleteMode('single');
+          }}
+        />
+      ) : (
+        /* Modal Padrão de Exclusão Simples */
+        <ConfirmModal
+          isOpen={!!deletingTransaction}
+          title="Excluir Lançamento"
+          message={`Tem certeza que deseja excluir o lançamento "${deletingTransaction?.description}" no valor de ${deletingTransaction ? formatCurrency(deletingTransaction.amount) : ''}? Esta ação não poderá ser desfeita.`}
+          confirmLabel="Sim, Excluir"
+          cancelLabel="Cancelar"
+          variant="danger"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeletingTransaction(null)}
+        />
+      )}
     </div>
   );
 };

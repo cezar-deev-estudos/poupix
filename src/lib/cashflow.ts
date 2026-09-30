@@ -43,9 +43,19 @@ export function calculateCashFlowProjections(
 
     // Buscar transações reais já cadastradas para este mês/ano específico
     const monthTxs = transactions.filter(t => {
-      if (!t.date) return false;
-      const [tYear, tMonth] = t.date.split('-').map(Number);
-      return tYear === targetYear && (tMonth - 1) === targetMonthIndex;
+      let tYear: number;
+      let tMonthIndex: number;
+      if (t.creditCardId && t.invoiceDate) {
+        const [y, m] = t.invoiceDate.split('-').map(Number);
+        tYear = y;
+        tMonthIndex = m - 1;
+      } else {
+        if (!t.date) return false;
+        const [tY, tM] = t.date.split('-').map(Number);
+        tYear = tY;
+        tMonthIndex = tM - 1;
+      }
+      return tYear === targetYear && tMonthIndex === targetMonthIndex;
     });
 
     // Separar por tipo

@@ -28,17 +28,21 @@ Os status são calculados dinamicamente com base nas datas e suportam override m
 
 ### 3. Fechamento Automático & Abertura Momentânea
 - **Fechamento Automático**: A fatura fecha automaticamente sempre que a data atual for maior que a data de fechamento (`closingDay`).
-- **Abertura Temporária**: A fatura pode ser reaberta manualmente para inclusão ou edição de itens no momento; ao sair da tela, se a data atual já tiver ultrapassado o fechamento, ela retorna automaticamente ao status de fechada.
+- **Abertura Temporária**: A fatura pode ser reaberta manualmente pelo menu de opções ⋮ para inclusão ou edição de itens no momento; ao sair da tela (voltar), se a data atual já tiver ultrapassado o fechamento, ela retorna automaticamente ao status de fechada.
 - **Data de Vencimento nas Transações**: Qualquer despesa de cartão pode ter sua data de compra (`tx.date`) em um dia arbitrário, mas para efeito de competência e pagamento o sistema utiliza sempre o vencimento (`invoiceDate`).
 - **Parcelamentos e Fixas**: Transações parceladas e fixas iniciam sua 1ª parcela no vencimento selecionado e distribuem as parcelas seguintes nos meses subsequentes conforme as datas de vencimento de cada mês.
 
-### 4. Proteção & Bloqueio de Edição em Faturas Fechadas/Pagas
-- Quando uma fatura está **Fechada** ou **Paga**:
-  - **Desktop (`CardInvoiceDetailView.tsx`)**: A coluna *"Ações"* e os botões de edição e exclusão de itens ficam ocultos.
-  - **Mobile (`MobileCardInvoiceDetail.tsx`)**: O clique sobre o item para abrir o modal de edição é desabilitado.
-  - O botão `(+)` no topo muda para um botão de destaque *"Reabrir e Lançar"*.
+### 4. Edição, Exclusão e Antecipação de Parcelas na Fatura
+- Quando a fatura está **Aberta** (seja no ciclo normal ou reaberta temporariamente):
+  - **Desktop (`CardInvoiceDetailView.tsx`)**: A coluna *"Ações"* é exibida com 3 botões por linha:
+    1. **`≡` Antecipar parcelas**: Abre o modal *"Antecipar parcelas"* permitindo escolher para qual fatura futura enviar a parcela.
+    2. **`✏️` Editar**: Abre o modal de edição de despesa do cartão (com suporte a escopo para despesas repetidas/parceladas).
+    3. **`🗑️` Excluir**: Abre o modal de confirmação de exclusão com suporte a escopo (`single`, `following`, `all`).
+  - **Mobile (`MobileCardInvoiceDetail.tsx`)**: O clique sobre o item abre a edição da despesa.
+- Quando a fatura está **Fechada** ou **Paga**: A coluna de ações permanece protegida contra alterações acidentais até que o usuário utilize a opção *"Reabrir fatura"*.
 
 ### 5. Menu de Opções ⋮ da Fatura
+- **Reabrir Fatura / Fechar Fatura**: Alterna o status temporário da fatura para permitir manutenções imediatas.
 - **Pagar Fatura vs Pagar Adiantado**:
   - Se a fatura estiver **Vencida** ou **Fechada** (e não paga): O menu exibe a opção **"Pagar fatura"** em destaque com ícone de confirmação ciano.
   - Se a fatura estiver **Aberta** e dentro do prazo: O menu exibe **"Pagar adiantado"**, abrindo o modal de antecipação.
