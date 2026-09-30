@@ -217,8 +217,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     openFinanceConnections?: OpenFinanceConnection[];
   }) => {
     let currentCards = creditCards;
-    if (cloudData.accounts && cloudData.accounts.length > 0) setAccounts(cloudData.accounts);
-    if (cloudData.creditCards && cloudData.creditCards.length > 0) {
+    if (cloudData.accounts !== undefined) setAccounts(cloudData.accounts);
+    if (cloudData.creditCards !== undefined) {
       setCreditCards(prevLocalCards => {
         const localStatusMap = new Map<string, Record<string, 'open' | 'closed' | 'paid'>>();
         prevLocalCards.forEach(c => {
@@ -226,7 +226,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             localStatusMap.set(c.id, c.manualInvoiceStatus);
           }
         });
-        const mergedCards = cloudData.creditCards!.map(cloudCard => {
+        const mergedCards = (cloudData.creditCards || []).map(cloudCard => {
           const preservedStatus = cloudCard.manualInvoiceStatus || localStatusMap.get(cloudCard.id);
           return {
             ...cloudCard,
@@ -237,14 +237,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return mergedCards;
       });
     }
-    if (cloudData.categories && cloudData.categories.length > 0) setCategories(cloudData.categories);
-    if (cloudData.tags && cloudData.tags.length > 0) setTags(cloudData.tags);
-    if (cloudData.transactions && cloudData.transactions.length > 0) {
+    if (cloudData.categories !== undefined && cloudData.categories.length > 0) {
+      setCategories(cloudData.categories);
+    }
+    if (cloudData.tags !== undefined) setTags(cloudData.tags);
+    if (cloudData.transactions !== undefined) {
       const normalizedCloudTxs = normalizeTransactionsInvoiceDates(cloudData.transactions, currentCards);
       setTransactions(normalizedCloudTxs);
     }
-    if (cloudData.goals && cloudData.goals.length > 0) setGoals(cloudData.goals);
-    if (cloudData.openFinanceConnections && cloudData.openFinanceConnections.length > 0) setOpenFinanceConnections(cloudData.openFinanceConnections);
+    if (cloudData.goals !== undefined) setGoals(cloudData.goals);
+    if (cloudData.openFinanceConnections !== undefined) setOpenFinanceConnections(cloudData.openFinanceConnections);
   }, [creditCards]);
 
   // 4. Hook de Sincronização em Nuvem (Debounced & Auto-Fetch)

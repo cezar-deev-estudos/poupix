@@ -21,3 +21,9 @@ Este documento descreve a arquitetura de persistência, modelo relacional, polí
 ### 3. Motor de Sincronização (Cloud Sync)
 - **Offline First & Debounce**: Alterações locais no estado React são salvas imediatamente no LocalStorage e enviadas ao Supabase de forma assíncrona com debounce (evitando requisições em excesso).
 - **Auto-Fetch**: Ao iniciar o app e autenticar, o sistema recupera os dados mais recentes da nuvem e normaliza as faturas sem sobrescrever seleções manuais.
+
+### 4. Sincronização em Tempo Real (Realtime & PWA Mobile)
+- **Canais Realtime (`postgres_changes`)**: Escuta ativa WebSocket em tempo real para as tabelas `transactions`, `accounts`, `credit_cards`, `categories`, `tags` e `goals`. Qualquer alteração realizada no Desktop é imediatamente transmitida ao Celular/Mobile.
+- **Revalidação em Foco / Visibilidade (`visibilitychange` e `focus`)**: Sempre que o usuário desbloqueia o celular, abre o PWA ou volta para a aba do navegador, o sistema revalida os dados da nuvem em segundo plano.
+- **Invalidação de Cache de Service Worker**: Cache-Control estrito em `/sw.js`, `manifest.json` e páginas dinâmicas, com Service Worker Network-First e `controllerchange` automático para garantir que novas atualizações de código cheguem imediatamente a todos os dispositivos.
+

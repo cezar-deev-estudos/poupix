@@ -8,14 +8,16 @@ export const ServiceWorkerRegister: React.FC = () => {
       return;
     }
 
+    let intervalId: NodeJS.Timeout | null = null;
+
     const registerSW = async () => {
       try {
         const registration = await navigator.serviceWorker.register('/sw.js');
 
-        // Forçar verificação de novas atualizações imediatamente
-        registration.update();
+        // Forçar verificação de novas atualizações imediatamente no carregamento
+        registration.update().catch(() => {});
 
-        // Verificar atualização quando o app volta ao primeiro plano
+        // Verificar atualização quando o app volta ao primeiro plano (desbloqueio do celular ou troca de aba)
         const checkUpdate = () => {
           registration.update().catch(() => {});
         };
@@ -26,6 +28,11 @@ export const ServiceWorkerRegister: React.FC = () => {
             checkUpdate();
           }
         });
+
+        // Checagem periódica a cada 2 minutos
+        intervalId = setInterval(() => {
+          registration.update().catch(() => {});
+        }, 120000);
 
         // Quando o novo Service Worker assumir o controle, recarrega a página automaticamente
         let refreshing = false;
@@ -52,7 +59,7 @@ export const ServiceWorkerRegister: React.FC = () => {
           }
         });
       } catch (error) {
-        console.error('Falha ao registrar ServiceWorker do PWA:', error);
+        console.error('[PWA] Falha ao registrar ServiceWorker:', error);
       }
     };
 
@@ -61,7 +68,12 @@ export const ServiceWorkerRegister: React.FC = () => {
     } else {
       window.addEventListener('load', registerSW);
     }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, []);
 
   return null;
 };
+

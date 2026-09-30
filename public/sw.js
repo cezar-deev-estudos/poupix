@@ -1,5 +1,5 @@
 // Poupix PRO - Service Worker
-const CACHE_NAME = 'poupix-pro-v3';
+const CACHE_NAME = 'poupix-pro-v4-realtime';
 
 const PRECACHE_ASSETS = [
   '/manifest.json',
@@ -8,7 +8,7 @@ const PRECACHE_ASSETS = [
   '/apple-touch-icon.png'
 ];
 
-// Install Event
+// Install Event - Ativa imediatamente o novo worker
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -18,7 +18,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate Event - Limpa caches antigos imediatamente
+// Activate Event - Limpa TODOS os caches antigos imediatamente
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -39,6 +39,11 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+  if (event.data && event.data.type === 'CLEAR_CACHE') {
+    caches.keys().then((keys) => {
+      keys.forEach((key) => caches.delete(key));
+    });
+  }
 });
 
 // Fetch Event
@@ -49,12 +54,14 @@ self.addEventListener('fetch', (event) => {
   if (
     url.hostname.includes('supabase.co') ||
     url.pathname.startsWith('/api/') ||
+    url.pathname.includes('_next/data') ||
+    url.searchParams.has('_rsc') ||
     event.request.method !== 'GET'
   ) {
     return;
   }
 
-  // 2. Navegação / Páginas HTML: NETWORK-FIRST (Sempre busca o deploy mais recente na Vercel)
+  // 2. Navegação / Páginas HTML: NETWORK-FIRST SEMPRE
   if (
     event.request.mode === 'navigate' ||
     (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html'))
@@ -78,22 +85,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Ativos Estáticos (_next/static, ícones, fontes): STALE-WHILE-REVALIDATE
+  // 3. Ativos Estáticos (_next/static, imagens, fontes): Network com Fallback para Cache
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseClone);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => cachedResponse);
-
-      return cachedResponse || fetchPromise;
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(event.request);
+      })
   );
 });
+

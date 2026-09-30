@@ -20,8 +20,27 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        source: '/manifest.json',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+        ],
+      },
+      {
+        source: '/',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate, max-age=0',
+          },
+        ],
+      },
     ];
   },
 };
 
 export default nextConfig;
+
