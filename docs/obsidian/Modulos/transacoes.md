@@ -34,3 +34,16 @@ Ao editar ou excluir uma transação que faça parte de um grupo recorrente ou p
 - **Item Fixo (`isRecurring`)**: Exibe o badge roxo estilizado `[🔁 Fixo]` ao lado da descrição da transação.
 - **Item Parcelado (`installmentTotal > 1`)**: Exibe o badge âmbar `[📚 X/Yx]` indicando a parcela atual e o total de parcelas.
 - **Cartão de Crédito (`creditCardId`)**: Exibe o selo circular ciano com o ícone de cartão de crédito.
+
+### 6. Gaveta de Detalhes no Mobile (Drawer de Ação)
+- **Despesa de Cartão de Crédito**:
+  - Ações de topo: 3 botões circulares (`Pago/Pendente`, `Despesa cartão` [turquesa], `Anexo`).
+  - Detalhes (2 colunas): Descrição, Valor, Data (`DD mmm. YYYY`), Fatura (`DD mmm.`), Categoria, Cartão de crédito, Lembrete, Tags, Observação.
+  - Switch: `Ignorar despesa cartão`.
+  - Botão de ação: `EDITAR DESPESA CARTÃO` em tom turquesa/verde-água.
+- **Transações de Conta Padrão (Despesa, Receita, Transferência)**:
+  - Ações de topo: 4 botões circulares (`Pago/Pendente`, `Despesa/Receita/Transferência`, `Anexo`, `Favorita`).
+  - Detalhes (2 colunas): Descrição, Valor, Data, Conta bancária, Categoria, Tags, Lembrete, Observação.
+  - Switch: `Ignorar despesa / receita / transferência`.
+  - Botão de ação: `EDITAR DESPESA` (coral/vermelho), `EDITAR RECEITA` (verde) ou `EDITAR TRANSFERÊNCIA` (azul).
+

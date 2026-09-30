@@ -109,7 +109,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
               <th className="py-3 px-3">Data ↓</th>
               <th className="py-3 px-4">Descrição</th>
               <th className="py-3 px-4">Categoria</th>
-              <th className="py-3 px-4">Conta</th>
+              <th className="py-3 px-4">Conta / Cartão</th>
               <th className="py-3 px-4 text-right">Valor</th>
               <th className="py-3 px-4 text-center w-16">Ações</th>
             </tr>
@@ -154,25 +154,18 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
                       {/* Situação */}
                       <td className="py-3 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => togglePaid(tx.id, isEffectivelyPaid)}
-                            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                              isEffectivelyPaid
-                                ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                : 'bg-slate-800 border border-slate-700 text-slate-400 hover:border-emerald-500'
-                            }`}
-                            title={isEffectivelyPaid ? 'Efetivado (clique para alternar)' : 'Pendente (clique para alternar)'}
-                          >
-                            {isEffectivelyPaid ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <Clock className="w-3 h-3" />}
-                          </button>
-                          {card && (
-                            <div className="w-6 h-6 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400" title="Despesa no Cartão">
-                              <CreditCard className="w-3.5 h-3.5" />
-                            </div>
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => togglePaid(tx.id, isEffectivelyPaid)}
+                          className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                            isEffectivelyPaid
+                              ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                              : 'bg-slate-800 border border-slate-700 text-slate-400 hover:border-emerald-500'
+                          }`}
+                          title={isEffectivelyPaid ? 'Efetivado (clique para alternar)' : 'Pendente (clique para alternar)'}
+                        >
+                          {isEffectivelyPaid ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <Clock className="w-3 h-3" />}
+                        </button>
                       </td>
 
                       {/* Tipo (exibido apenas em visualização mista) */}
@@ -257,13 +250,18 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                         </div>
                       </td>
 
-                      {/* Conta */}
+                      {/* Conta / Cartão */}
                       <td className="py-3 px-4 text-slate-300 whitespace-nowrap">
-                        {isTransfer
-                          ? `${acc?.name || 'Conta'} ➔ ${destAcc?.name || 'Conta'}`
-                          : card
-                          ? card.name
-                          : acc?.name || 'Conta'}
+                        {isTransfer ? (
+                          <span>{acc?.name || 'Conta'} ➔ {destAcc?.name || 'Conta'}</span>
+                        ) : card ? (
+                          <div className="inline-flex items-center gap-1.5 text-cyan-300 font-medium">
+                            <CreditCard className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                            <span>{card.name}</span>
+                          </div>
+                        ) : (
+                          <span>{acc?.name || 'Conta'}</span>
+                        )}
                       </td>
 
                       {/* Valor */}

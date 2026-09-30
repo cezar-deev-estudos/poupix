@@ -669,30 +669,27 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-semibold text-white text-xs truncate">
+                            <span className="font-normal text-slate-100 text-xs truncate">
                               {tx.description}
                             </span>
                             {tx.isRecurring && (
-                              <span className="inline-flex items-center gap-0.5 bg-indigo-950/80 text-indigo-300 border border-indigo-800/70 text-[9px] font-medium px-1.5 py-0.2 rounded-md shrink-0 shadow-sm" title="Despesa/Receita Fixa">
+                              <span className="inline-flex items-center gap-0.5 bg-indigo-950/80 text-indigo-300 border border-indigo-800/70 text-[9px] font-normal px-1.5 py-0.2 rounded-md shrink-0 shadow-sm" title="Despesa/Receita Fixa">
                                 <Repeat className="w-2 h-2" /> Fixo
                               </span>
                             )}
-                            {Boolean(tx.installmentTotal && tx.installmentTotal > 1) && (
-                              <span className="inline-flex items-center gap-0.5 bg-amber-950/70 text-amber-300 border border-amber-800/70 text-[9px] font-medium px-1.5 py-0.2 rounded-md shrink-0 shadow-sm" title="Compra Parcelada">
-                                <Layers className="w-2 h-2" /> {tx.installmentCurrent || 1}/{tx.installmentTotal}x
-                              </span>
-                            )}
                           </div>
-                          <span className="text-[11px] text-slate-400 block truncate mt-0.5">
-                            {categoryName} | {card ? (
-                              <span className="inline-flex items-center gap-1 text-cyan-300">
-                                <CreditCard className="w-3 h-3 inline shrink-0" />
-                                {accountName}
+                          <div className="text-[11px] text-slate-400 flex items-center gap-1.5 truncate mt-0.5">
+                            <span className="truncate">{categoryName}</span>
+                            <span className="text-slate-600">|</span>
+                            {card ? (
+                              <span className="inline-flex items-center gap-1 text-cyan-300 truncate">
+                                <CreditCard className="w-3 h-3 shrink-0" />
+                                <span className="truncate">{accountName}</span>
                               </span>
                             ) : (
-                              accountName
+                              <span className="truncate">{accountName}</span>
                             )}
-                          </span>
+                          </div>
 
                           {/* Observação / Notas */}
                           {tx.notes && (
@@ -720,7 +717,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                       {/* Valor e Botão de Status */}
                       <div className="flex items-center gap-2.5 shrink-0 ml-3 self-center">
                         <span
-                          className={`text-xs font-bold ${
+                          className={`text-xs font-normal ${
                             isIncome
                               ? 'text-emerald-400'
                               : isExpense
