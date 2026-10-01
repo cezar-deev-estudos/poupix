@@ -1,5 +1,5 @@
-// Poupix PRO - Service Worker
-const CACHE_NAME = 'poupix-pro-v4-realtime';
+// Poupix PRO - Service Worker (gerado automaticamente em build)
+const CACHE_NAME = 'poupix-pro-mupp93uu';
 
 const PRECACHE_ASSETS = [
   '/manifest.json',
@@ -8,49 +8,36 @@ const PRECACHE_ASSETS = [
   '/apple-touch-icon.png'
 ];
 
-// Install Event - Ativa imediatamente o novo worker
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_ASSETS))
   );
   self.skipWaiting();
 });
 
-// Activate Event - Limpa TODOS os caches antigos imediatamente
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
-      );
-    })
+    caches.keys().then((keys) =>
+      Promise.all(keys.map((key) => { if (key !== CACHE_NAME) return caches.delete(key); }))
+    )
   );
   self.clients.claim();
 });
 
-// Mensagens do Cliente
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
   if (event.data && event.data.type === 'CLEAR_CACHE') {
-    caches.keys().then((keys) => {
-      keys.forEach((key) => caches.delete(key));
-    });
+    caches.keys().then((keys) => keys.forEach((key) => caches.delete(key)));
   }
 });
 
-// Fetch Event
 self.addEventListener('fetch', (event) => {
+  // Ignorar requests que nao sao http/https (ex: chrome-extension://)
+  if (!event.request.url.startsWith('http')) return;
+
   const url = new URL(event.request.url);
 
-  // 1. Ignorar chamadas ao Supabase, APIs dinâmicas e métodos não-GET
+  // Ignorar Supabase, APIs e metodos nao-GET
   if (
     url.hostname.includes('supabase.co') ||
     url.pathname.startsWith('/api/') ||
@@ -61,45 +48,33 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Navegação / Páginas HTML: NETWORK-FIRST SEMPRE
+  // Paginas HTML: NETWORK-FIRST sempre
   if (
     event.request.mode === 'navigate' ||
-    (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html'))
+    (event.request.headers.get('accept') || '').includes('text/html')
   ) {
     event.respondWith(
       fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseClone);
-            });
+        .then((res) => {
+          if (res && res.status === 200) {
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, res.clone()));
           }
-          return networkResponse;
+          return res;
         })
-        .catch(() => {
-          // Fallback para cache apenas quando estiver 100% offline
-          return caches.match(event.request).then((cached) => cached || caches.match('/'));
-        })
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/')))
     );
     return;
   }
 
-  // 3. Ativos Estáticos (_next/static, imagens, fontes): Network com Fallback para Cache
+  // Ativos estaticos: Network com fallback para cache
   event.respondWith(
     fetch(event.request)
-      .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
+      .then((res) => {
+        if (res && res.status === 200) {
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, res.clone()));
         }
-        return networkResponse;
+        return res;
       })
-      .catch(() => {
-        return caches.match(event.request);
-      })
+      .catch(() => caches.match(event.request))
   );
 });
-
