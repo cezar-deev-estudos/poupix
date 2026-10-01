@@ -180,19 +180,31 @@ export const transactionManager: TransactionManagerActions = {
     }
   },
 
-  updateTransaction: (id, updated, mode, transactions, setTransactions) => {
-    const target = transactions.find(t => t.id === id);
-    if (!target) return;
+  updateTransaction: (id, updated, mode, _transactions, setTransactions) => {
+    setTransactions(prev => {
+      const target = prev.find(t => t.id === id);
+      if (!target) {
+        return prev.map(t => (t.id === id ? { ...t, ...updated } : t));
+      }
 
-    if (mode === 'single' || (!target.recurringGroupId && !target.installmentGroupId)) {
-      setTransactions(prev => prev.map(t => (t.id === id ? { ...t, ...updated } : t)));
-      return;
-    }
+      if (mode === 'single' || (!target.recurringGroupId && !target.installmentGroupId)) {
+        return prev.map(t => (t.id === id ? { ...t, ...updated } : t));
+      }
 
-    if (mode === 'following') {
-      if (target.recurringGroupId) {
-        setTransactions(prev =>
-          prev.map(t =>
+      // Função auxiliar para calcular a descrição adequada de cada parcela ao editar em lote
+      const computeInstallmentDescription = (item: Transaction): string => {
+        if (!updated.description) return item.description;
+        // Remove qualquer sufixo de parcela existente da nova descrição para obter o texto base
+        const cleanBaseDescription = updated.description.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim();
+        if (item.installmentCurrent && item.installmentTotal) {
+          return `${cleanBaseDescription} (${item.installmentCurrent}/${item.installmentTotal})`;
+        }
+        return updated.description;
+      };
+
+      if (mode === 'following') {
+        if (target.recurringGroupId) {
+          return prev.map(t =>
             t.recurringGroupId === target.recurringGroupId && t.date >= target.date
               ? {
                   ...t,
@@ -202,32 +214,29 @@ export const transactionManager: TransactionManagerActions = {
                   invoiceDate: t.id === target.id ? (updated.invoiceDate || t.invoiceDate) : t.invoiceDate,
                 }
               : t
-          )
-        );
-      } else if (target.installmentGroupId) {
-        setTransactions(prev =>
-          prev.map(t =>
+          );
+        }
+        if (target.installmentGroupId) {
+          return prev.map(t =>
             t.installmentGroupId === target.installmentGroupId && (t.installmentCurrent || 0) >= (target.installmentCurrent || 0)
               ? {
                   ...t,
                   ...updated,
                   id: t.id,
+                  description: computeInstallmentDescription(t),
                   date: t.id === target.id ? (updated.date || t.date) : t.date,
                   invoiceDate: t.id === target.id ? (updated.invoiceDate || t.invoiceDate) : t.invoiceDate,
                   installmentCurrent: t.installmentCurrent,
                   installmentTotal: t.installmentTotal,
                 }
               : t
-          )
-        );
+          );
+        }
       }
-      return;
-    }
 
-    if (mode === 'all') {
-      if (target.recurringGroupId) {
-        setTransactions(prev =>
-          prev.map(t =>
+      if (mode === 'all') {
+        if (target.recurringGroupId) {
+          return prev.map(t =>
             t.recurringGroupId === target.recurringGroupId
               ? {
                   ...t,
@@ -237,66 +246,69 @@ export const transactionManager: TransactionManagerActions = {
                   invoiceDate: t.id === target.id ? (updated.invoiceDate || t.invoiceDate) : t.invoiceDate,
                 }
               : t
-          )
-        );
-      } else if (target.installmentGroupId) {
-        setTransactions(prev =>
-          prev.map(t =>
+          );
+        }
+        if (target.installmentGroupId) {
+          return prev.map(t =>
             t.installmentGroupId === target.installmentGroupId
               ? {
                   ...t,
                   ...updated,
                   id: t.id,
+                  description: computeInstallmentDescription(t),
                   date: t.id === target.id ? (updated.date || t.date) : t.date,
                   invoiceDate: t.id === target.id ? (updated.invoiceDate || t.invoiceDate) : t.invoiceDate,
                   installmentCurrent: t.installmentCurrent,
                   installmentTotal: t.installmentTotal,
                 }
               : t
-          )
-        );
+          );
+        }
       }
-    }
+
+      return prev.map(t => (t.id === id ? { ...t, ...updated } : t));
+    });
   },
 
   deleteTransaction: (id, mode, transactions, setTransactions) => {
-    const target = transactions.find(t => t.id === id);
-    if (!target) return;
+    setTransactions(prev => {
+      const target = prev.find(t => t.id === id) || transactions.find(t => t.id === id);
+      if (target) {
+        deleteTransactionFromSupabase(id, target.recurringGroupId, target.installmentGroupId, mode);
+      } else {
+        deleteTransactionFromSupabase(id, undefined, undefined, 'single');
+      }
 
-    // Disparar exclusão no Supabase
-    deleteTransactionFromSupabase(id, target.recurringGroupId, target.installmentGroupId, mode);
+      if (!target || mode === 'single' || (!target.recurringGroupId && !target.installmentGroupId)) {
+        return prev.filter(t => t.id !== id);
+      }
 
-    if (mode === 'single' || (!target.recurringGroupId && !target.installmentGroupId)) {
-      setTransactions(prev => prev.filter(t => t.id !== id));
-      return;
-    }
-
-    if (mode === 'following') {
-      if (target.recurringGroupId) {
-        setTransactions(prev =>
-          prev.filter(t => !(t.recurringGroupId === target.recurringGroupId && t.date >= target.date && (!t.paid || t.id === target.id)))
-        );
-      } else if (target.installmentGroupId) {
-        setTransactions(prev =>
-          prev.filter(
+      if (mode === 'following') {
+        if (target.recurringGroupId) {
+          return prev.filter(t => !(t.recurringGroupId === target.recurringGroupId && t.date >= target.date && (!t.paid || t.id === target.id)));
+        }
+        if (target.installmentGroupId) {
+          return prev.filter(
             t =>
               !(
                 t.installmentGroupId === target.installmentGroupId &&
                 (t.installmentCurrent || 0) >= (target.installmentCurrent || 0) &&
                 (!t.paid || t.id === target.id)
               )
-          )
-        );
+          );
+        }
       }
-      return;
-    }
 
-    if (mode === 'all') {
-      if (target.recurringGroupId) {
-        setTransactions(prev => prev.filter(t => t.recurringGroupId !== target.recurringGroupId));
-      } else if (target.installmentGroupId) {
-        setTransactions(prev => prev.filter(t => t.installmentGroupId !== target.installmentGroupId));
+      if (mode === 'all') {
+        if (target.recurringGroupId) {
+          return prev.filter(t => t.recurringGroupId !== target.recurringGroupId);
+        }
+        if (target.installmentGroupId) {
+          return prev.filter(t => t.installmentGroupId !== target.installmentGroupId);
+        }
       }
-    }
+
+      return prev.filter(t => t.id !== id);
+    });
   },
 };

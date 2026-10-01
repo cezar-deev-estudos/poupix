@@ -155,19 +155,21 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
 
   // Transações do Cartão para o Mês Selecionado (baseado na data de vencimento da fatura)
   const invoiceTransactions = useMemo(() => {
-    return transactions.filter(tx => {
-      if (!isTransactionInInvoicePeriod(tx, card, selectedYear, selectedMonth)) return false;
+    return transactions
+      .filter(tx => {
+        if (!isTransactionInInvoicePeriod(tx, card, selectedYear, selectedMonth)) return false;
 
-      if (filterType === 'fixed' && !tx.isRecurring) {
-        return false;
-      }
+        if (filterType === 'fixed' && !tx.isRecurring) {
+          return false;
+        }
 
-      if (searchTerm.trim()) {
-        const query = searchTerm.toLowerCase();
-        return tx.description.toLowerCase().includes(query);
-      }
-      return true;
-    });
+        if (searchTerm.trim()) {
+          const query = searchTerm.toLowerCase();
+          return tx.description.toLowerCase().includes(query);
+        }
+        return true;
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, card, selectedMonth, selectedYear, filterType, searchTerm]);
 
   // Total da Fatura

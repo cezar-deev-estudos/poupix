@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { Transaction } from '@/types/finance';
 import { MoneyInput } from './MoneyInput';
@@ -51,6 +51,24 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
   const [repeatPeriod, setRepeatPeriod] = useState<'monthly' | 'weekly' | 'yearly'>('monthly');
 
   const [showValidation, setShowValidation] = useState(false);
+
+  useEffect(() => {
+    if (initialData) {
+      setAmount(initialData.amount ? initialData.amount.toString() : '');
+      setDate(initialData.date || new Date().toISOString().split('T')[0]);
+      setPaid(initialData.paid ?? true);
+      setDescription(initialData.description || '');
+      setIsFavorite(Boolean(initialData.isFavorite));
+      setCategoryId(initialData.categoryId || defaultCatId);
+      setAccountId(initialData.accountId || defaultAccId);
+      setIgnoreInTotals(Boolean(initialData.ignoreInTotals));
+      setTags(initialData.tags || []);
+      setNotes(initialData.notes || '');
+      setIsRecurring(Boolean(initialData.isRecurring));
+      setIsRepeat(Boolean(initialData.installmentTotal));
+      setRepeatCount(initialData.installmentTotal || 2);
+    }
+  }, [initialData, defaultCatId, defaultAccId]);
 
   const toggleDetails = () => {
     const nextState = !showMoreDetails;
@@ -131,7 +149,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
               }`}
             >
               <span
-                className={`block w-4 h-4 rounded-full bg-slate-950 transition-transform ${
+                className={`block w-4 h-4 rounded-full bg-white transition-transform ${
                   paid ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
@@ -185,7 +203,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
               }`}
             >
               <span
-                className={`block w-4 h-4 rounded-full bg-slate-950 transition-transform ${
+                className={`block w-4 h-4 rounded-full bg-white transition-transform ${
                   ignoreInTotals ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
@@ -236,7 +254,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
                 }`}
               >
                 <span
-                  className={`block w-4 h-4 rounded-full bg-slate-950 transition-transform ${
+                  className={`block w-4 h-4 rounded-full bg-white transition-transform ${
                     isRecurring ? 'translate-x-6' : 'translate-x-1'
                   }`}
                 />
@@ -258,7 +276,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
                   }`}
                 >
                   <span
-                    className={`block w-4 h-4 rounded-full bg-slate-950 transition-transform ${
+                    className={`block w-4 h-4 rounded-full bg-white transition-transform ${
                       isRepeat ? 'translate-x-6' : 'translate-x-1'
                     }`}
                   />

@@ -3,30 +3,33 @@ import { calculateCashFlowProjections } from '@/lib/cashflow';
 import { Transaction } from '@/types/finance';
 
 describe('Cash Flow Projections Engine', () => {
+  const now = new Date();
+  const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
   const mockTransactions: Transaction[] = [
     {
       id: 'tx-1',
       description: 'Salário Mensal',
       amount: 8000,
-      date: '2026-09-05',
+      date: `${currentYearMonth}-05`,
       type: 'income',
       categoryId: 'cat-salario',
       paid: true,
       isRecurring: true,
       recurringPeriod: 'monthly',
-      createdAt: '2026-09-01',
+      createdAt: `${currentYearMonth}-01`,
     },
     {
       id: 'tx-2',
       description: 'Aluguel Fixo',
       amount: 2500,
-      date: '2026-09-10',
+      date: `${currentYearMonth}-10`,
       type: 'expense',
       categoryId: 'cat-moradia',
       paid: true,
       isRecurring: true,
       recurringPeriod: 'monthly',
-      createdAt: '2026-09-01',
+      createdAt: `${currentYearMonth}-01`,
     },
   ];
 

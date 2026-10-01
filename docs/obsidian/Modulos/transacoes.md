@@ -22,8 +22,8 @@ O módulo de Transações é responsável pela criação, edição, exclusão e 
 ### 3. Escopos de Edição e Exclusão
 Ao editar ou excluir uma transação que faça parte de um grupo recorrente ou parcelado, o sistema abre o modal de escopo:
 1. **Apenas este lançamento (`single`)**: Altera/exclui somente a ocorrência atual.
-2. **Este e os próximos (`following`)**: Altera/exclui a partir do mês atual em diante, preservando o histórico passado.
-3. **Todos os lançamentos (`all`)**: Aplica a modificação em todas as parcelas/ocorrências da série.
+2. **Este e os próximos (`following`)**: Altera/exclui a partir do mês atual em diante, preservando o histórico passado e mantendo a numeração original de cada parcela futura `(i/Total)`.
+3. **Todos os lançamentos (`all`)**: Aplica a modificação em todas as ocorrências da série, recalculando a descrição base e preservando a numeração sequencial de cada parcela `(1/N, 2/N, ...)`.
 
 ### 4. Competência Financeira do Cartão de Crédito
 - **Filtragem por Período de Fatura**: Despesas no cartão de crédito pertencem ao mês/ano da respectiva fatura de vencimento (`invoiceDate`), e não à data da compra (`date`). Isso garante que compras pós-fechamento do cartão apareçam apenas no mês em que a fatura será efetivamente quitada.
@@ -41,9 +41,9 @@ Ao editar ou excluir uma transação que faça parte de um grupo recorrente ou p
   - Detalhes (2 colunas): Descrição, Valor, Data (`DD mmm. YYYY`), Fatura (`DD mmm.`), Categoria, Cartão de crédito, Lembrete, Tags, Observação.
   - Switch: `Ignorar despesa cartão`.
   - Botão de ação: `EDITAR DESPESA CARTÃO` em tom turquesa/verde-água.
-- **Transações de Conta Padrão (Despesa, Receita, Transferência)**:
-  - Ações de topo: 4 botões circulares (`Pago/Pendente`, `Despesa/Receita/Transferência`, `Anexo`, `Favorita`).
-  - Detalhes (2 colunas): Descrição, Valor, Data, Conta bancária, Categoria, Tags, Lembrete, Observação.
-  - Switch: `Ignorar despesa / receita / transferência`.
-  - Botão de ação: `EDITAR DESPESA` (coral/vermelho), `EDITAR RECEITA` (verde) ou `EDITAR TRANSFERÊNCIA` (azul).
+### 7. Data Efetiva de Listagem e Ordenação no Extrato
+- **Despesas de Cartão de Crédito**: São exibidas, ordenadas e agrupadas no extrato pela sua **data de vencimento da fatura** (`invoiceDate` ou o dia de vencimento calculado do cartão, ex: `20/10/2026`), e não pela data de emissão/compra.
+- **Edição da Fatura de Vencimento**: Caso o usuário altere a fatura de vencimento ao editar a despesa de cartão (ou ao antecipar uma parcela), a transação é automaticamente realocada para o dia e mês da nova fatura selecionada.
+- **Transações de Conta Padrão**: Permanecem listadas e agrupadas na data da sua ocorrência (`date`).
+
 

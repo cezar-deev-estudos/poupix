@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency, formatDateBR } from '@/lib/utils';
+import { getEffectiveTransactionDate } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { CheckCircle2, Clock, Trash2, Pencil, ArrowRightLeft, CreditCard, Wallet } from 'lucide-react';
 import { Transaction } from '@/types/finance';
@@ -71,6 +72,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ limit, showAll
           const isExpense = tx.type === 'expense';
           const isIncome = tx.type === 'income';
           const isTransfer = tx.type === 'transfer';
+          const effectiveDate = getEffectiveTransactionDate(tx, card);
 
           return (
             <div
@@ -113,7 +115,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ limit, showAll
                   </div>
 
                   <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5 truncate">
-                    <span>{formatDateBR(tx.date)}</span>
+                    <span>{formatDateBR(effectiveDate)}</span>
                     <span>•</span>
                     {isTransfer ? (
                       <span className="truncate">{acc?.name} ➔ {destAcc?.name}</span>
@@ -153,12 +155,11 @@ export const TransactionList: React.FC<TransactionListProps> = ({ limit, showAll
                     {isExpense ? '- ' : isIncome ? '+ ' : ''}
                     {formatCurrency(tx.amount)}
                   </span>
-                  <button
-                    onClick={() => togglePaid(tx.id, tx.paid)}
-                    className={`text-[10px] flex items-center gap-1 ml-auto font-medium transition-colors ${
-                      tx.paid ? 'text-emerald-500/80 hover:text-emerald-400' : 'text-amber-500/80 hover:text-amber-400'
+                  <div
+                    className={`text-[10px] flex items-center gap-1 ml-auto font-medium select-none ${
+                      tx.paid ? 'text-emerald-500/80' : 'text-amber-500/80'
                     }`}
-                    title={tx.paid ? 'Transação confirmada/paga (clique para alternar)' : 'Transação pendente (clique para alternar)'}
+                    title={tx.paid ? 'Efetivado' : 'Pendente'}
                   >
                     {tx.paid ? (
                       <>
@@ -171,7 +172,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ limit, showAll
                         Pendente
                       </>
                     )}
-                  </button>
+                  </div>
                 </div>
 
                 {/* Ações de Edição e Exclusão */}

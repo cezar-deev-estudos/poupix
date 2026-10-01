@@ -243,7 +243,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (cloudData.tags !== undefined) setTags(cloudData.tags);
     if (cloudData.transactions !== undefined) {
       const normalizedCloudTxs = normalizeTransactionsInvoiceDates(cloudData.transactions, currentCards);
-      setTransactions(normalizedCloudTxs);
+      setTransactions(prevLocalTxs => {
+        const cloudIdSet = new Set(normalizedCloudTxs.map(t => t.id));
+        const unsyncedLocalTxs = prevLocalTxs.filter(t => !cloudIdSet.has(t.id));
+        if (unsyncedLocalTxs.length > 0) {
+          return [...unsyncedLocalTxs, ...normalizedCloudTxs];
+        }
+        return normalizedCloudTxs;
+      });
     }
     if (cloudData.goals !== undefined) setGoals(cloudData.goals);
     if (cloudData.openFinanceConnections !== undefined) setOpenFinanceConnections(cloudData.openFinanceConnections);

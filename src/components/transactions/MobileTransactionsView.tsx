@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Transaction } from '@/types/finance';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency, formatDateBR } from '@/lib/utils';
-import { getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
+import { getTransactionInvoicePeriod, getEffectiveTransactionDate } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { MobileTransactionDetailDrawer } from './MobileTransactionDetailDrawer';
 import {
@@ -149,6 +149,11 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
   const totalIncome = pendingIncome + paidIncome;
 
+  const getTxDate = (tx: Transaction) => {
+    const card = creditCards.find((c) => c.id === tx.creditCardId);
+    return getEffectiveTransactionDate(tx, card);
+  };
+
   // Filtragem Dinâmica
   const displayedTransactions = useMemo(() => {
     return filteredTransactions.filter((tx) => {
@@ -161,8 +166,9 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
         if (!matchesDesc && !matchesAmount) return false;
       }
 
-      if (advancedFilter.startDate && tx.date < advancedFilter.startDate) return false;
-      if (advancedFilter.endDate && tx.date > advancedFilter.endDate) return false;
+      const txDate = getTxDate(tx);
+      if (advancedFilter.startDate && txDate < advancedFilter.startDate) return false;
+      if (advancedFilter.endDate && txDate > advancedFilter.endDate) return false;
       if (advancedFilter.categoryId && tx.categoryId !== advancedFilter.categoryId) return false;
       if (advancedFilter.accountId && tx.accountId !== advancedFilter.accountId) return false;
       if (advancedFilter.tag && (!tx.tags || !tx.tags.includes(advancedFilter.tag))) return false;
@@ -172,7 +178,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
       return true;
     });
-  }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter]);
+  }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter, creditCards]);
 
   // Agrupamento por Dias no padrão Mobills: "Ontem", "Hoje", "Segunda, 21", etc.
   const groupedByDate = useMemo(() => {
@@ -181,31 +187,34 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     yesterdayDate.setDate(yesterdayDate.getDate() - 1);
     const yesterday = yesterdayDate.toISOString().split('T')[0];
 
-    const sorted = [...displayedTransactions].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
+    const sorted = [...displayedTransactions].sort((a, b) => {
+      const dateA = getTxDate(a);
+      const dateB = getTxDate(b);
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
 
     const groups: { dateKey: string; label: string; items: Transaction[] }[] = [];
 
     sorted.forEach((tx) => {
-      const existing = groups.find((g) => g.dateKey === tx.date);
+      const effectiveDate = getTxDate(tx);
+      const existing = groups.find((g) => g.dateKey === effectiveDate);
       if (existing) {
         existing.items.push(tx);
       } else {
         let label = '';
-        if (tx.date === today) {
+        if (effectiveDate === today) {
           label = 'Hoje';
-        } else if (tx.date === yesterday) {
+        } else if (effectiveDate === yesterday) {
           label = 'Ontem';
         } else {
-          const [y, m, d] = tx.date.split('-').map(Number);
+          const [y, m, d] = effectiveDate.split('-').map(Number);
           const dt = new Date(y, m - 1, d);
           const weekDay = WEEKDAY_NAMES[dt.getDay()];
           label = `${weekDay}, ${d}`;
         }
 
         groups.push({
-          dateKey: tx.date,
+          dateKey: effectiveDate,
           label,
           items: [tx],
         });
@@ -213,7 +222,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     });
 
     return groups;
-  }, [displayedTransactions]);
+  }, [displayedTransactions, creditCards]);
 
   const togglePaid = (e: React.MouseEvent, id: string, currentPaid: boolean) => {
     e.stopPropagation();
@@ -728,10 +737,8 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                           {formatCurrency(tx.amount)}
                         </span>
 
-                        <button
-                          type="button"
-                          onClick={(e) => togglePaid(e, tx.id, isEffectivelyPaid)}
-                          className={`w-5 h-5 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                        <div
+                          className={`w-5 h-5 rounded-full flex items-center justify-center transition-all select-none shrink-0 ${
                             isEffectivelyPaid
                               ? 'bg-[#22c55e] text-slate-950'
                               : 'border border-slate-600 bg-slate-800 text-slate-500'
@@ -739,7 +746,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                           title={isEffectivelyPaid ? 'Efetivado' : 'Pendente'}
                         >
                           {isEffectivelyPaid ? <Check className="w-3 h-3 stroke-[3]" /> : <Clock className="w-2.5 h-2.5" />}
-                        </button>
+                        </div>
                       </div>
                     </div>
                   );

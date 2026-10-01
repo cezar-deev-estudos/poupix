@@ -43,15 +43,25 @@ export function useFinanceCloudSync({
 }: UseFinanceCloudSyncProps) {
   const isFirstSyncDone = useRef(false);
   const isApplyingRemoteData = useRef(false);
+  const isSyncingToCloud = useRef(false);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSyncTimestampRef = useRef<number>(0);
+  const hasPendingLocalChangesRef = useRef<boolean>(false);
 
   // Função centralizada para carregar os dados mais recentes do Supabase
-  const loadCloudData = useCallback(async () => {
+  const loadCloudData = useCallback(async (force: boolean = false) => {
     if (!user) return;
+    // Se há alterações locais pendentes de envio ou uma gravação em curso, ignora fetch remoto concorrente
+    if (!force && (hasPendingLocalChangesRef.current || isSyncingToCloud.current || syncTimeoutRef.current !== null)) {
+      return;
+    }
     try {
       const cloudData = await fetchAllFromSupabase(user.id);
       if (cloudData) {
+        // Verifica novamente se não houve novas alterações locais enquanto a request estava em voo
+        if (!force && (hasPendingLocalChangesRef.current || isSyncingToCloud.current || syncTimeoutRef.current !== null)) {
+          return;
+        }
         isApplyingRemoteData.current = true;
         onCloudDataLoaded(cloudData);
         isFirstSyncDone.current = true;
@@ -73,7 +83,7 @@ export function useFinanceCloudSync({
       return;
     }
 
-    loadCloudData();
+    loadCloudData(true);
 
     // Inscrição em Tempo Real (Supabase Realtime) para refletir instantaneamente alterações do Desktop no Celular
     const supabase = getSupabaseClient();
@@ -86,8 +96,10 @@ export function useFinanceCloudSync({
           'postgres_changes',
           { event: '*', schema: 'public', filter: `user_id=eq.${user.id}` },
           () => {
-            // Ao receber qualquer evento de inserção, alteração ou deleção remota, recarrega os dados imediatamente
-            loadCloudData();
+            // Ao receber qualquer evento de inserção, alteração ou deleção remota, recarrega apenas se não estivermos gravando
+            if (!isSyncingToCloud.current && !hasPendingLocalChangesRef.current && syncTimeoutRef.current === null) {
+              loadCloudData();
+            }
           }
         )
         .subscribe();
@@ -98,7 +110,7 @@ export function useFinanceCloudSync({
       if (document.visibilityState === 'visible') {
         const timeSinceLastSync = Date.now() - lastSyncTimestampRef.current;
         // Evita chamadas duplicadas se já sincronizou há menos de 3 segundos
-        if (timeSinceLastSync > 3000) {
+        if (timeSinceLastSync > 3000 && !isSyncingToCloud.current && !hasPendingLocalChangesRef.current && syncTimeoutRef.current === null) {
           loadCloudData();
         }
       }
@@ -109,7 +121,7 @@ export function useFinanceCloudSync({
 
     // 3. Polling de segurança a cada 45 segundos quando a janela estiver ativa
     const intervalId = setInterval(() => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && !isSyncingToCloud.current && !hasPendingLocalChangesRef.current && syncTimeoutRef.current === null) {
         loadCloudData();
       }
     }, 45000);
@@ -129,11 +141,15 @@ export function useFinanceCloudSync({
     if (!user || !isInitialized || !isFirstSyncDone.current) return;
     if (isApplyingRemoteData.current) return;
 
+    hasPendingLocalChangesRef.current = true;
+
     if (syncTimeoutRef.current) {
       clearTimeout(syncTimeoutRef.current);
     }
 
     syncTimeoutRef.current = setTimeout(async () => {
+      syncTimeoutRef.current = null;
+      isSyncingToCloud.current = true;
       try {
         await syncAllToSupabase({
           currentUser,
@@ -146,10 +162,13 @@ export function useFinanceCloudSync({
           openFinanceConnections,
         });
         lastSyncTimestampRef.current = Date.now();
+        hasPendingLocalChangesRef.current = false;
       } catch (err) {
         console.error('[CloudSync] Falha no auto-sync:', err);
+      } finally {
+        isSyncingToCloud.current = false;
       }
-    }, 1500);
+    }, 1000);
 
     return () => {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);

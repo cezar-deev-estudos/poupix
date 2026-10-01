@@ -120,3 +120,21 @@ export function isTransactionInInvoicePeriod(
   const { year, month } = getTransactionInvoicePeriod(tx, card);
   return year === targetYear && month === targetMonth;
 }
+
+/**
+ * Retorna a data efetiva de exibição e ordenação de uma transação.
+ * Para despesas de cartão de crédito, retorna a data de vencimento da fatura (invoiceDate ou vencimento calculado).
+ * Para transações normais de conta/carteira, retorna a data original (date).
+ */
+export function getEffectiveTransactionDate(tx: Transaction, card?: CreditCard): string {
+  if (tx.creditCardId) {
+    if (tx.invoiceDate) return tx.invoiceDate;
+    if (card) {
+      return getTransactionInvoicePeriod(tx, card).invoiceDueDateStr;
+    }
+    return calculateDefaultInvoiceDueDate(tx.date, card).invoiceDueDateStr;
+  }
+  return tx.date || '';
+}
+
+

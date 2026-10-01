@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Transaction } from '@/types/finance';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency, formatDateBR } from '@/lib/utils';
-import { getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
+import { getTransactionInvoicePeriod, getEffectiveTransactionDate } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { TransactionRowMenu } from './TransactionRowMenu';
 import { Check, Clock, CreditCard, MoreVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Repeat, Layers } from 'lucide-react';
@@ -34,10 +34,19 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   const [isRowsDropdownOpen, setIsRowsDropdownOpen] = useState(false);
   const [openMenuTxId, setOpenMenuTxId] = useState<string | null>(null);
 
-  // Ordenar transações decrescente por data
+  const getTxDate = (tx: Transaction) => {
+    const card = creditCards.find((c) => c.id === tx.creditCardId);
+    return getEffectiveTransactionDate(tx, card);
+  };
+
+  // Ordenar transações decrescente por data efetiva (vencimento para cartões)
   const sortedTransactions = useMemo(() => {
-    return [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions]);
+    return [...transactions].sort((a, b) => {
+      const dateA = getTxDate(a);
+      const dateB = getTxDate(b);
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
+  }, [transactions, creditCards]);
 
   // Paginação
   const totalItems = sortedTransactions.length;
@@ -54,14 +63,15 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     const groups: { date: string; items: Transaction[]; dayBalance: number }[] = [];
 
     paginatedTransactions.forEach((tx) => {
-      const existing = groups.find((g) => g.date === tx.date);
+      const txEffectiveDate = getTxDate(tx);
+      const existing = groups.find((g) => g.date === txEffectiveDate);
       const delta = tx.type === 'income' ? tx.amount : -tx.amount;
       if (existing) {
         existing.items.push(tx);
         existing.dayBalance += delta;
       } else {
         groups.push({
-          date: tx.date,
+          date: txEffectiveDate,
           items: [tx],
           dayBalance: delta,
         });
@@ -69,7 +79,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     });
 
     return groups;
-  }, [paginatedTransactions]);
+  }, [paginatedTransactions, creditCards]);
 
   const handleSelectAll = () => {
     if (selectedIds.length === paginatedTransactions.length) {
@@ -123,6 +133,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                   const card = creditCards.find((c) => c.id === tx.creditCardId);
                   const destAcc = accounts.find((a) => a.id === tx.destinationAccountId);
 
+                  const effectiveDate = getEffectiveTransactionDate(tx, card);
                   const invoicePeriod = card ? getTransactionInvoicePeriod(tx, card) : null;
                   const isEffectivelyPaid =
                     tx.paid ||
@@ -154,18 +165,16 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
                       {/* Situação */}
                       <td className="py-3 px-3">
-                        <button
-                          type="button"
-                          onClick={() => togglePaid(tx.id, isEffectivelyPaid)}
-                          className={`w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                        <div
+                          className={`w-6 h-6 rounded-full flex items-center justify-center transition-all select-none ${
                             isEffectivelyPaid
                               ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                              : 'bg-slate-800 border border-slate-700 text-slate-400 hover:border-emerald-500'
+                              : 'bg-slate-800 border border-slate-700 text-slate-400'
                           }`}
-                          title={isEffectivelyPaid ? 'Efetivado (clique para alternar)' : 'Pendente (clique para alternar)'}
+                          title={isEffectivelyPaid ? 'Efetivado' : 'Pendente'}
                         >
                           {isEffectivelyPaid ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <Clock className="w-3 h-3" />}
-                        </button>
+                        </div>
                       </td>
 
                       {/* Tipo (exibido apenas em visualização mista) */}
@@ -191,7 +200,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
                       {/* Data */}
                       <td className="py-3 px-3 text-slate-300 whitespace-nowrap">
-                        {formatDateBR(tx.date)}
+                        {formatDateBR(effectiveDate)}
                       </td>
 
                       {/* Descrição */}
