@@ -244,12 +244,29 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (cloudData.transactions !== undefined) {
       const normalizedCloudTxs = normalizeTransactionsInvoiceDates(cloudData.transactions, currentCards);
       setTransactions(prevLocalTxs => {
-        const cloudIdSet = new Set(normalizedCloudTxs.map(t => t.id));
-        const unsyncedLocalTxs = prevLocalTxs.filter(t => !cloudIdSet.has(t.id));
+        // Mapa de transações da nuvem por ID para lookup rápido
+        const cloudMap = new Map(normalizedCloudTxs.map(t => [t.id, t]));
+        // Mapa de transações locais por ID
+        const localMap = new Map(prevLocalTxs.map(t => [t.id, t]));
+
+        // 1. Para cada transação local existente, preservar a versão local se o campo divergir
+        //    (prioriza edições locais que podem não ter sido refletidas no fetch da nuvem)
+        const mergedFromCloud = normalizedCloudTxs.map(cloudTx => {
+          const localTx = localMap.get(cloudTx.id);
+          if (localTx) {
+            // Preserva campos editados localmente que diferem da versão da nuvem
+            return { ...cloudTx, ...localTx };
+          }
+          return cloudTx;
+        });
+
+        // 2. Transações locais com IDs que NÃO existem na nuvem (recém-criadas e ainda não sincronizadas)
+        const unsyncedLocalTxs = prevLocalTxs.filter(t => !cloudMap.has(t.id));
+
         if (unsyncedLocalTxs.length > 0) {
-          return [...unsyncedLocalTxs, ...normalizedCloudTxs];
+          return [...unsyncedLocalTxs, ...mergedFromCloud];
         }
-        return normalizedCloudTxs;
+        return mergedFromCloud;
       });
     }
     if (cloudData.goals !== undefined) setGoals(cloudData.goals);

@@ -47,12 +47,17 @@ export function useFinanceCloudSync({
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSyncTimestampRef = useRef<number>(0);
   const hasPendingLocalChangesRef = useRef<boolean>(false);
+  const postSyncCooldownUntilRef = useRef<number>(0);
 
   // Função centralizada para carregar os dados mais recentes do Supabase
   const loadCloudData = useCallback(async (force: boolean = false) => {
     if (!user) return;
     // Se há alterações locais pendentes de envio ou uma gravação em curso, ignora fetch remoto concorrente
     if (!force && (hasPendingLocalChangesRef.current || isSyncingToCloud.current || syncTimeoutRef.current !== null)) {
+      return;
+    }
+    // Cooldown pós-sync: ignora fetches do Realtime por 3s após uma gravação bem-sucedida
+    if (!force && Date.now() < postSyncCooldownUntilRef.current) {
       return;
     }
     try {
@@ -162,11 +167,13 @@ export function useFinanceCloudSync({
           openFinanceConnections,
         });
         lastSyncTimestampRef.current = Date.now();
-        hasPendingLocalChangesRef.current = false;
+        // Cooldown de 3s bloqueia loadCloudData vindo do Realtime para não sobrescrever dados locais recém-sincronizados
+        postSyncCooldownUntilRef.current = Date.now() + 3000;
       } catch (err) {
         console.error('[CloudSync] Falha no auto-sync:', err);
       } finally {
         isSyncingToCloud.current = false;
+        hasPendingLocalChangesRef.current = false;
       }
     }, 1000);
 
