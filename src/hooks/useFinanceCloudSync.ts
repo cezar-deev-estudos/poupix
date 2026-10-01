@@ -99,6 +99,9 @@ export function useFinanceCloudSync({
   const canFetchRef = useRef(canFetchFromCloud);
   canFetchRef.current = canFetchFromCloud;
 
+  // Referência para cancelar timeout de busca por Realtime
+  const realtimeFetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // 1. Carregamento inicial + Realtime + Revalidação por visibilidade (apenas 1x por usuário)
   useEffect(() => {
     if (!user) {
@@ -113,16 +116,21 @@ export function useFinanceCloudSync({
     let channel: any = null;
 
     if (supabase) {
-      // Inscrição no Realtime por tabela de transações (filtro correto com table especificada)
+      // Inscrição no Realtime por tabela de transações
       channel = supabase
         .channel(`finance-sync-${user.id}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
           () => {
+            // Se houver alteração local em fila ou sincronização ativa, ignorar o Realtime
             if (canFetchRef.current(false)) {
-              // Pequeno delay para garantir que o Supabase já processou o commit
-              setTimeout(() => loadCloudDataRef.current(), 800);
+              if (realtimeFetchTimeoutRef.current) clearTimeout(realtimeFetchTimeoutRef.current);
+              realtimeFetchTimeoutRef.current = setTimeout(() => {
+                if (canFetchRef.current(false)) {
+                  loadCloudDataRef.current();
+                }
+              }, 1200);
             }
           }
         )
@@ -166,25 +174,30 @@ export function useFinanceCloudSync({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleWindowFocus);
       clearInterval(pollingInterval);
+      if (realtimeFetchTimeoutRef.current) clearTimeout(realtimeFetchTimeoutRef.current);
       if (channel && supabase) {
         supabase.removeChannel(channel);
       }
     };
   }, [user?.id]);
 
-  // 2. Debounced Auto-Sync ao alterar dados locais
+  // 2. Debounced Auto-Sync ao alterar dados locais (rápido: 400ms)
   useEffect(() => {
     if (!user || !isInitialized || !isFirstSyncDone.current) return;
     // Não dispara sync se estamos aplicando dados vindos da nuvem
     if (isApplyingRemoteData.current) return;
 
     hasPendingLocalChangesRef.current = true;
+    // Cancela qualquer busca remota pendente do Realtime para não atropelar a edição local
+    if (realtimeFetchTimeoutRef.current) {
+      clearTimeout(realtimeFetchTimeoutRef.current);
+    }
 
     if (syncTimeoutRef.current) {
       clearTimeout(syncTimeoutRef.current);
     }
 
-    // Debounce de 2s para agrupar múltiplas edições rápidas em um único sync
+    // Sincronização rápida (400ms) para salvar no banco quase instantaneamente
     syncTimeoutRef.current = setTimeout(async () => {
       syncTimeoutRef.current = null;
       isSyncingToCloud.current = true;
@@ -200,8 +213,8 @@ export function useFinanceCloudSync({
           openFinanceConnections,
         });
         lastSyncTimestampRef.current = Date.now();
-        // Cooldown de 5s após sync bem-sucedido para evitar que o Realtime traga dados stale
-        blockRemoteFetchUntilRef.current = Date.now() + 5000;
+        // Cooldown de 4s após sync bem-sucedido
+        blockRemoteFetchUntilRef.current = Date.now() + 4000;
         console.log('[CloudSync] Dados sincronizados com a nuvem com sucesso');
       } catch (err) {
         console.error('[CloudSync] Falha no auto-sync:', err);
@@ -209,7 +222,7 @@ export function useFinanceCloudSync({
         isSyncingToCloud.current = false;
         hasPendingLocalChangesRef.current = false;
       }
-    }, 2000);
+    }, 400);
 
     return () => {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);

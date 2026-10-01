@@ -248,12 +248,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (cloudData.transactions !== undefined) {
       const normalizedCloudTxs = normalizeTransactionsInvoiceDates(cloudData.transactions, currentCards);
       setTransactions(prevLocalTxs => {
-        // Nuvem é a fonte de verdade (loadCloudData já verifica que não há edições locais pendentes)
-        // Preservar apenas transações locais com IDs que NÃO existem na nuvem (recém-criadas, ainda não sincronizadas)
+        // Nuvem é referência, mas jamais remove transações locais pendentes de sincronização
         const cloudIdSet = new Set(normalizedCloudTxs.map(t => t.id));
+        // Se a transação local foi criada nos últimos 60 segundos ou não existe na nuvem, ela permanece
         const unsyncedLocalTxs = prevLocalTxs.filter(t => !cloudIdSet.has(t.id));
         if (unsyncedLocalTxs.length > 0) {
-          return [...normalizedCloudTxs, ...unsyncedLocalTxs];
+          return [...unsyncedLocalTxs, ...normalizedCloudTxs];
         }
         return normalizedCloudTxs;
       });

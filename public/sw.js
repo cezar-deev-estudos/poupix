@@ -1,5 +1,5 @@
 // Poupix PRO - Service Worker (gerado automaticamente em build)
-const CACHE_NAME = 'poupix-pro-mupqapk4';
+const CACHE_NAME = 'poupix-pro-muq5asxg';
 
 const PRECACHE_ASSETS = [
   '/manifest.json',
@@ -37,10 +37,11 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // Ignorar Supabase, APIs e metodos nao-GET
+  // Ignorar Supabase, APIs, HMR/Turbopack, _next e metodos nao-GET
   if (
     url.hostname.includes('supabase.co') ||
     url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/_next/') ||
     url.pathname.includes('_next/data') ||
     url.searchParams.has('_rsc') ||
     event.request.method !== 'GET'
@@ -57,7 +58,10 @@ self.addEventListener('fetch', (event) => {
       fetch(event.request)
         .then((res) => {
           if (res && res.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, res.clone()));
+            try {
+              const copy = res.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
+            } catch (_) {}
           }
           return res;
         })
@@ -71,7 +75,10 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request)
       .then((res) => {
         if (res && res.status === 200) {
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, res.clone()));
+          try {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
+          } catch (_) {}
         }
         return res;
       })
