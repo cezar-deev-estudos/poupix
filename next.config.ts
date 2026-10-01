@@ -42,10 +42,11 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // Ignorar Supabase, APIs e metodos nao-GET
+  // Ignorar Supabase, APIs, HMR/Turbopack, _next e metodos nao-GET
   if (
     url.hostname.includes('supabase.co') ||
     url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/_next/') ||
     url.pathname.includes('_next/data') ||
     url.searchParams.has('_rsc') ||
     event.request.method !== 'GET'
@@ -62,7 +63,10 @@ self.addEventListener('fetch', (event) => {
       fetch(event.request)
         .then((res) => {
           if (res && res.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, res.clone()));
+            try {
+              const copy = res.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
+            } catch (_) {}
           }
           return res;
         })
@@ -76,7 +80,10 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request)
       .then((res) => {
         if (res && res.status === 200) {
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, res.clone()));
+          try {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
+          } catch (_) {}
         }
         return res;
       })
@@ -85,12 +92,16 @@ self.addEventListener('fetch', (event) => {
 });
 `;
 
-// Gera versão única por build e escreve sw.js
-const BUILD_VERSION = Date.now().toString(36);
-const swContent = SW_TEMPLATE.replace(/BUILD_VERSION/g, BUILD_VERSION);
+// Gera versão única por build e escreve sw.js apenas em produção ou se o arquivo ainda não existir
 const swOutputPath = path.join(process.cwd(), 'public', 'sw.js');
-fs.writeFileSync(swOutputPath, swContent, 'utf-8');
-console.log(`[SW] Service Worker gerado: poupix-pro-${BUILD_VERSION}`);
+const shouldGenerateSW = process.env.NODE_ENV === 'production' || !fs.existsSync(swOutputPath);
+
+if (shouldGenerateSW) {
+  const BUILD_VERSION = Date.now().toString(36);
+  const swContent = SW_TEMPLATE.replace(/BUILD_VERSION/g, BUILD_VERSION);
+  fs.writeFileSync(swOutputPath, swContent, 'utf-8');
+  console.log(`[SW] Service Worker gerado: poupix-pro-${BUILD_VERSION}`);
+}
 
 const nextConfig: NextConfig = {
   async headers() {

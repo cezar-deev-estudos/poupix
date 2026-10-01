@@ -57,8 +57,8 @@ export const CategoryExpenseChart: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
           {/* Gráfico Donut */}
-          <div className="h-56 relative flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-56 relative flex items-center justify-center min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <PieChart>
                 <Tooltip
                   content={({ active, payload }) => {

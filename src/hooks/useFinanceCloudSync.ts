@@ -50,6 +50,10 @@ export function useFinanceCloudSync({
   // Timestamp até o qual o loadCloudData deve ser bloqueado após um sync local
   const blockRemoteFetchUntilRef = useRef<number>(0);
 
+  // Mantém referência sempre fresca do callback para evitar re-criação de loadCloudData
+  const onCloudDataLoadedRef = useRef(onCloudDataLoaded);
+  onCloudDataLoadedRef.current = onCloudDataLoaded;
+
   // Verifica se é seguro carregar dados da nuvem agora
   const canFetchFromCloud = useCallback((force: boolean): boolean => {
     if (force) return true;
@@ -75,7 +79,7 @@ export function useFinanceCloudSync({
       if (!canFetchFromCloud(force)) return;
 
       isApplyingRemoteData.current = true;
-      onCloudDataLoaded(cloudData);
+      onCloudDataLoadedRef.current(cloudData);
       isFirstSyncDone.current = true;
       lastSyncTimestampRef.current = Date.now();
 
@@ -87,9 +91,15 @@ export function useFinanceCloudSync({
       console.error('[CloudSync] Erro ao buscar dados da nuvem:', err);
       isApplyingRemoteData.current = false;
     }
-  }, [user, onCloudDataLoaded, canFetchFromCloud]);
+  }, [user, canFetchFromCloud]);
 
-  // 1. Carregamento inicial + Realtime + Revalidação por visibilidade
+  // Mantém loadCloudData e canFetchFromCloud em ref para o listener e timers
+  const loadCloudDataRef = useRef(loadCloudData);
+  loadCloudDataRef.current = loadCloudData;
+  const canFetchRef = useRef(canFetchFromCloud);
+  canFetchRef.current = canFetchFromCloud;
+
+  // 1. Carregamento inicial + Realtime + Revalidação por visibilidade (apenas 1x por usuário)
   useEffect(() => {
     if (!user) {
       isFirstSyncDone.current = false;
@@ -97,7 +107,7 @@ export function useFinanceCloudSync({
     }
 
     // Carregamento inicial forçado ao logar
-    loadCloudData(true);
+    loadCloudDataRef.current(true);
 
     const supabase = getSupabaseClient();
     let channel: any = null;
@@ -110,9 +120,9 @@ export function useFinanceCloudSync({
           'postgres_changes',
           { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
           () => {
-            if (canFetchFromCloud(false)) {
+            if (canFetchRef.current(false)) {
               // Pequeno delay para garantir que o Supabase já processou o commit
-              setTimeout(() => loadCloudData(), 800);
+              setTimeout(() => loadCloudDataRef.current(), 800);
             }
           }
         )
@@ -129,16 +139,16 @@ export function useFinanceCloudSync({
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         const timeSinceLastSync = Date.now() - lastSyncTimestampRef.current;
-        if (timeSinceLastSync > 5000 && canFetchFromCloud(false)) {
-          loadCloudData();
+        if (timeSinceLastSync > 5000 && canFetchRef.current(false)) {
+          loadCloudDataRef.current();
         }
       }
     };
 
     const handleWindowFocus = () => {
       const timeSinceLastSync = Date.now() - lastSyncTimestampRef.current;
-      if (timeSinceLastSync > 5000 && canFetchFromCloud(false)) {
-        loadCloudData();
+      if (timeSinceLastSync > 5000 && canFetchRef.current(false)) {
+        loadCloudDataRef.current();
       }
     };
 
@@ -147,8 +157,8 @@ export function useFinanceCloudSync({
 
     // Polling de segurança a cada 60s
     const pollingInterval = setInterval(() => {
-      if (document.visibilityState === 'visible' && canFetchFromCloud(false)) {
-        loadCloudData();
+      if (document.visibilityState === 'visible' && canFetchRef.current(false)) {
+        loadCloudDataRef.current();
       }
     }, 60000);
 
@@ -160,7 +170,7 @@ export function useFinanceCloudSync({
         supabase.removeChannel(channel);
       }
     };
-  }, [user, loadCloudData, canFetchFromCloud]);
+  }, [user?.id]);
 
   // 2. Debounced Auto-Sync ao alterar dados locais
   useEffect(() => {

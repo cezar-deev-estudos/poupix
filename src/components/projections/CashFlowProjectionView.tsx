@@ -138,8 +138,8 @@ export const CashFlowProjectionView: React.FC = () => {
           </span>
         </div>
 
-        <div className="h-72 w-full pt-4">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-72 w-full pt-4 min-w-0">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
@@ -183,8 +183,8 @@ export const CashFlowProjectionView: React.FC = () => {
           <p className="text-xs text-slate-400">Projeção mensal de receitas, custos fixos e faturas futuras</p>
         </div>
 
-        <div className="h-64 w-full pt-2">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-64 w-full pt-2 min-w-0">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart data={chartData} barGap={4}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
               <XAxis dataKey="name" stroke="#64748B" tick={{ fontSize: 11 }} />

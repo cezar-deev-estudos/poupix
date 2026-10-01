@@ -4,7 +4,12 @@ import { useEffect } from 'react';
 
 export const ServiceWorkerRegister: React.FC = () => {
   useEffect(() => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    // Não registrar Service Worker em ambiente de desenvolvimento local
+    if (
+      process.env.NODE_ENV !== 'production' ||
+      typeof window === 'undefined' ||
+      !('serviceWorker' in navigator)
+    ) {
       return;
     }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Account,
   Category,
@@ -206,6 +206,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [users, currentUserId]);
 
+  // Referência estável para creditCards para evitar que handleCloudDataLoaded seja recriado a cada sincronização
+  const creditCardsRef = useRef(creditCards);
+  creditCardsRef.current = creditCards;
+
   // 3. Callback de dados vindos da nuvem (Supabase)
   const handleCloudDataLoaded = useCallback((cloudData: {
     accounts?: Account[];
@@ -216,7 +220,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     goals?: Goal[];
     openFinanceConnections?: OpenFinanceConnection[];
   }) => {
-    let currentCards = creditCards;
+    let currentCards = creditCardsRef.current;
     if (cloudData.accounts !== undefined) setAccounts(cloudData.accounts);
     if (cloudData.creditCards !== undefined) {
       setCreditCards(prevLocalCards => {
@@ -256,7 +260,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
     if (cloudData.goals !== undefined) setGoals(cloudData.goals);
     if (cloudData.openFinanceConnections !== undefined) setOpenFinanceConnections(cloudData.openFinanceConnections);
-  }, [creditCards]);
+  }, []);
 
   // 4. Hook de Sincronização em Nuvem (Debounced & Auto-Fetch)
   useFinanceCloudSync({

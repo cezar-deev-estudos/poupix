@@ -24,6 +24,7 @@ trigger: always_on
    - **NUNCA FAZER ALÉM DO QUE FOI SOLICITADO**.
    - O agente deve listar todos os arquivos que pretende modificar ANTES de iniciar e aguardar confirmação/autorização explícita do usuário.
    - **PROIBIDO FAZER COMMITS, PUSHES OU MERGES AUTOMÁTICOS** nas branches `develop` ou `main`. O assistente deve apenas implementar localmente, rodar testes/build e apresentar o resultado final. Qualquer commit ou push/deploy requer solicitação/autorização expressa e individual do usuário.
+   - **Verificação Prévia de Deploy (MANDATÓRIO)**: Sempre que o usuário relatar uma dúvida, erro ou comportamento no link em produção (Vercel), o assistente DEVE OBRIGATORIAMENTE checar primeiro se a correção já existe localmente e se o deploy ainda não foi enviado (`git status`), comunicando isso imediatamente.
 
 2. **No Native Dialogs (MANDATÓRIO)**:
    - É terminantemente proibido o uso de `window.alert`, `window.confirm` ou `window.prompt`.
