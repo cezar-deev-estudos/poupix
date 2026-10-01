@@ -47,103 +47,125 @@ export function useFinanceCloudSync({
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSyncTimestampRef = useRef<number>(0);
   const hasPendingLocalChangesRef = useRef<boolean>(false);
-  const postSyncCooldownUntilRef = useRef<number>(0);
+  // Timestamp até o qual o loadCloudData deve ser bloqueado após um sync local
+  const blockRemoteFetchUntilRef = useRef<number>(0);
+
+  // Verifica se é seguro carregar dados da nuvem agora
+  const canFetchFromCloud = useCallback((force: boolean): boolean => {
+    if (force) return true;
+    // Bloqueia se há alterações locais em fila ou gravação em andamento
+    if (hasPendingLocalChangesRef.current) return false;
+    if (isSyncingToCloud.current) return false;
+    if (syncTimeoutRef.current !== null) return false;
+    // Bloqueia se ainda estamos dentro do cooldown pós-sync
+    if (Date.now() < blockRemoteFetchUntilRef.current) return false;
+    return true;
+  }, []);
 
   // Função centralizada para carregar os dados mais recentes do Supabase
   const loadCloudData = useCallback(async (force: boolean = false) => {
     if (!user) return;
-    // Se há alterações locais pendentes de envio ou uma gravação em curso, ignora fetch remoto concorrente
-    if (!force && (hasPendingLocalChangesRef.current || isSyncingToCloud.current || syncTimeoutRef.current !== null)) {
-      return;
-    }
-    // Cooldown pós-sync: ignora fetches do Realtime por 3s após uma gravação bem-sucedida
-    if (!force && Date.now() < postSyncCooldownUntilRef.current) {
-      return;
-    }
+    if (!canFetchFromCloud(force)) return;
+
     try {
       const cloudData = await fetchAllFromSupabase(user.id);
-      if (cloudData) {
-        // Verifica novamente se não houve novas alterações locais enquanto a request estava em voo
-        if (!force && (hasPendingLocalChangesRef.current || isSyncingToCloud.current || syncTimeoutRef.current !== null)) {
-          return;
-        }
-        isApplyingRemoteData.current = true;
-        onCloudDataLoaded(cloudData);
-        isFirstSyncDone.current = true;
-        lastSyncTimestampRef.current = Date.now();
-        // Reseta a flag após o ciclo de renderização
-        setTimeout(() => {
-          isApplyingRemoteData.current = false;
-        }, 1000);
-      }
+      if (!cloudData) return;
+
+      // Verifica novamente após o await (pode ter iniciado uma edição local durante o fetch)
+      if (!canFetchFromCloud(force)) return;
+
+      isApplyingRemoteData.current = true;
+      onCloudDataLoaded(cloudData);
+      isFirstSyncDone.current = true;
+      lastSyncTimestampRef.current = Date.now();
+
+      // Libera a flag após o React aplicar as atualizações de estado
+      setTimeout(() => {
+        isApplyingRemoteData.current = false;
+      }, 500);
     } catch (err) {
       console.error('[CloudSync] Erro ao buscar dados da nuvem:', err);
+      isApplyingRemoteData.current = false;
     }
-  }, [user, onCloudDataLoaded]);
+  }, [user, onCloudDataLoaded, canFetchFromCloud]);
 
-  // 1. Carregamento inicial da Nuvem e Realtime Channel Subscriptions
+  // 1. Carregamento inicial + Realtime + Revalidação por visibilidade
   useEffect(() => {
     if (!user) {
       isFirstSyncDone.current = false;
       return;
     }
 
+    // Carregamento inicial forçado ao logar
     loadCloudData(true);
 
-    // Inscrição em Tempo Real (Supabase Realtime) para refletir instantaneamente alterações do Desktop no Celular
     const supabase = getSupabaseClient();
     let channel: any = null;
 
     if (supabase) {
+      // Inscrição no Realtime por tabela de transações (filtro correto com table especificada)
       channel = supabase
-        .channel(`realtime-finance-sync-${user.id}`)
+        .channel(`finance-sync-${user.id}`)
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', filter: `user_id=eq.${user.id}` },
+          { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
           () => {
-            // Ao receber qualquer evento de inserção, alteração ou deleção remota, recarrega apenas se não estivermos gravando
-            if (!isSyncingToCloud.current && !hasPendingLocalChangesRef.current && syncTimeoutRef.current === null) {
-              loadCloudData();
+            if (canFetchFromCloud(false)) {
+              // Pequeno delay para garantir que o Supabase já processou o commit
+              setTimeout(() => loadCloudData(), 800);
             }
           }
         )
-        .subscribe();
+        .subscribe((status: string) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('[CloudSync] Realtime conectado com sucesso');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.warn('[CloudSync] Erro no canal Realtime — usando polling como fallback');
+          }
+        });
     }
 
-    // 2. Revalidação automática ao voltar para o app (desbloquear celular ou alternar abas)
-    const handleRevalidate = () => {
+    // Revalidação ao retornar para a aba (mobile/desktop)
+    const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         const timeSinceLastSync = Date.now() - lastSyncTimestampRef.current;
-        // Evita chamadas duplicadas se já sincronizou há menos de 3 segundos
-        if (timeSinceLastSync > 3000 && !isSyncingToCloud.current && !hasPendingLocalChangesRef.current && syncTimeoutRef.current === null) {
+        if (timeSinceLastSync > 5000 && canFetchFromCloud(false)) {
           loadCloudData();
         }
       }
     };
 
-    window.addEventListener('focus', handleRevalidate);
-    document.addEventListener('visibilitychange', handleRevalidate);
-
-    // 3. Polling de segurança a cada 45 segundos quando a janela estiver ativa
-    const intervalId = setInterval(() => {
-      if (document.visibilityState === 'visible' && !isSyncingToCloud.current && !hasPendingLocalChangesRef.current && syncTimeoutRef.current === null) {
+    const handleWindowFocus = () => {
+      const timeSinceLastSync = Date.now() - lastSyncTimestampRef.current;
+      if (timeSinceLastSync > 5000 && canFetchFromCloud(false)) {
         loadCloudData();
       }
-    }, 45000);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+
+    // Polling de segurança a cada 60s
+    const pollingInterval = setInterval(() => {
+      if (document.visibilityState === 'visible' && canFetchFromCloud(false)) {
+        loadCloudData();
+      }
+    }, 60000);
 
     return () => {
-      window.removeEventListener('focus', handleRevalidate);
-      document.removeEventListener('visibilitychange', handleRevalidate);
-      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+      clearInterval(pollingInterval);
       if (channel && supabase) {
         supabase.removeChannel(channel);
       }
     };
-  }, [user, loadCloudData]);
+  }, [user, loadCloudData, canFetchFromCloud]);
 
-  // 4. Debounced Auto-Sync para Nuvem ao alterar dados locais (apenas quando não é atualização remota)
+  // 2. Debounced Auto-Sync ao alterar dados locais
   useEffect(() => {
     if (!user || !isInitialized || !isFirstSyncDone.current) return;
+    // Não dispara sync se estamos aplicando dados vindos da nuvem
     if (isApplyingRemoteData.current) return;
 
     hasPendingLocalChangesRef.current = true;
@@ -152,6 +174,7 @@ export function useFinanceCloudSync({
       clearTimeout(syncTimeoutRef.current);
     }
 
+    // Debounce de 2s para agrupar múltiplas edições rápidas em um único sync
     syncTimeoutRef.current = setTimeout(async () => {
       syncTimeoutRef.current = null;
       isSyncingToCloud.current = true;
@@ -167,19 +190,19 @@ export function useFinanceCloudSync({
           openFinanceConnections,
         });
         lastSyncTimestampRef.current = Date.now();
-        // Cooldown de 3s bloqueia loadCloudData vindo do Realtime para não sobrescrever dados locais recém-sincronizados
-        postSyncCooldownUntilRef.current = Date.now() + 3000;
+        // Cooldown de 5s após sync bem-sucedido para evitar que o Realtime traga dados stale
+        blockRemoteFetchUntilRef.current = Date.now() + 5000;
+        console.log('[CloudSync] Dados sincronizados com a nuvem com sucesso');
       } catch (err) {
         console.error('[CloudSync] Falha no auto-sync:', err);
       } finally {
         isSyncingToCloud.current = false;
         hasPendingLocalChangesRef.current = false;
       }
-    }, 1000);
+    }, 2000);
 
     return () => {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     };
   }, [user, isInitialized, currentUser, accounts, creditCards, categories, tags, transactions, goals, openFinanceConnections]);
 }
-

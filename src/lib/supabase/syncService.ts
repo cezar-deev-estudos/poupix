@@ -247,7 +247,9 @@ export const fetchAllFromSupabase = async (userId: string) => {
   if (!supabase) return null
 
   try {
-    const [accRes, cardRes, catRes, tagRes, txRes, goalRes, ofRes] = await Promise.all([
+    // Usando allSettled para que falhas em tabelas individuais (ex: open_finance_connections)
+    // não bloqueiem a sincronização das demais tabelas
+    const [accRes, cardRes, catRes, tagRes, txRes, goalRes, ofRes] = await Promise.allSettled([
       supabase.from('accounts').select('*').eq('user_id', userId),
       supabase.from('credit_cards').select('*').eq('user_id', userId),
       supabase.from('categories').select('*').eq('user_id', userId),
@@ -257,7 +259,12 @@ export const fetchAllFromSupabase = async (userId: string) => {
       supabase.from('open_finance_connections').select('*').eq('user_id', userId),
     ])
 
-    const accounts: Account[] = (accRes.data || []).map((a: any) => ({
+    const getResData = (res: PromiseSettledResult<any>) => {
+      if (res.status === 'fulfilled') return res.value.data || []
+      return []
+    }
+
+    const accounts: Account[] = getResData(accRes).map((a: any) => ({
       id: a.id,
       name: a.name,
       type: a.type,
@@ -269,7 +276,7 @@ export const fetchAllFromSupabase = async (userId: string) => {
       createdAt: a.created_at,
     }))
 
-    const creditCards: CreditCard[] = (cardRes.data || []).map((c: any) => ({
+    const creditCards: CreditCard[] = getResData(cardRes).map((c: any) => ({
       id: c.id,
       name: c.name,
       limit: Number(c.limit_amount) || 0,
@@ -280,7 +287,7 @@ export const fetchAllFromSupabase = async (userId: string) => {
       createdAt: c.created_at,
     }))
 
-    const categories: Category[] = (catRes.data || []).map((cat: any) => ({
+    const categories: Category[] = getResData(catRes).map((cat: any) => ({
       id: cat.id,
       name: cat.name,
       type: cat.type,
@@ -291,14 +298,14 @@ export const fetchAllFromSupabase = async (userId: string) => {
       isDefault: cat.is_default ?? false,
     }))
 
-    const tags: Tag[] = (tagRes.data || []).map((t: any) => ({
+    const tags: Tag[] = getResData(tagRes).map((t: any) => ({
       id: t.id,
       name: t.name,
       color: t.color || '#3B82F6',
       createdAt: t.created_at,
     }))
 
-    const transactions: Transaction[] = (txRes.data || []).map((t: any) => ({
+    const transactions: Transaction[] = getResData(txRes).map((t: any) => ({
       id: t.id,
       description: t.description,
       amount: Number(t.amount) || 0,
@@ -308,7 +315,7 @@ export const fetchAllFromSupabase = async (userId: string) => {
       accountId: t.account_id || undefined,
       destinationAccountId: t.destination_account_id || undefined,
       creditCardId: t.credit_card_id || undefined,
-      paid: t.paid ?? true,
+      paid: t.paid ?? false,
       isRecurring: t.is_recurring ?? false,
       recurringPeriod: t.recurring_period || undefined,
       recurringGroupId: t.recurring_group_id || undefined,
@@ -323,7 +330,7 @@ export const fetchAllFromSupabase = async (userId: string) => {
       createdAt: t.created_at,
     }))
 
-    const goals: Goal[] = (goalRes.data || []).map((g: any) => ({
+    const goals: Goal[] = getResData(goalRes).map((g: any) => ({
       id: g.id,
       name: g.name,
       targetAmount: Number(g.target_amount) || 0,
@@ -337,7 +344,7 @@ export const fetchAllFromSupabase = async (userId: string) => {
       createdAt: g.created_at,
     }))
 
-    const openFinanceConnections: OpenFinanceConnection[] = (ofRes.data || []).map((o: any) => ({
+    const openFinanceConnections: OpenFinanceConnection[] = getResData(ofRes).map((o: any) => ({
       id: o.id,
       institutionId: o.institution_id,
       institutionName: o.institution_name,
