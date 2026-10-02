@@ -87,7 +87,9 @@ export const MobileTransactionDetailDrawer: React.FC<MobileTransactionDetailDraw
 
   if (!isOpen || !transaction) return null;
 
-  const cat = categories.find((c) => c.id === transaction.categoryId);
+  const directCat = categories.find((c) => c.id === transaction.categoryId);
+  const parentCat = directCat?.parentId ? categories.find((c) => c.id === directCat.parentId) : null;
+  const cat = parentCat || directCat;
   const acc = accounts.find((a) => a.id === transaction.accountId);
   const card = creditCards.find((c) => c.id === transaction.creditCardId);
   const destAcc = accounts.find((a) => a.id === transaction.destinationAccountId);

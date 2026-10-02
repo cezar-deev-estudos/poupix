@@ -730,7 +730,9 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
               {/* Itens do Dia */}
               <div className="space-y-1.5">
                 {group.items.map((tx) => {
-                  const cat = categories.find((c) => c.id === tx.categoryId);
+                  const directCat = categories.find((c) => c.id === tx.categoryId);
+                  const parentCat = directCat?.parentId ? categories.find((c) => c.id === directCat.parentId) : null;
+                  const cat = parentCat || directCat;
                   const acc = accounts.find((a) => a.id === tx.accountId);
                   const card = creditCards.find((c) => c.id === tx.creditCardId);
                   const destAcc = accounts.find((a) => a.id === tx.destinationAccountId);

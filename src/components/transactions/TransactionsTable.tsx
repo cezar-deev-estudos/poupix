@@ -158,7 +158,9 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
             {dailyGroups.map((group) => (
               <React.Fragment key={group.date}>
                 {group.items.map((tx) => {
-                  const cat = categories.find((c) => c.id === tx.categoryId);
+                  const directCat = categories.find((c) => c.id === tx.categoryId);
+                  const parentCat = directCat?.parentId ? categories.find((c) => c.id === directCat.parentId) : null;
+                  const cat = parentCat || directCat;
                   const acc = accounts.find((a) => a.id === tx.accountId);
                   const card = creditCards.find((c) => c.id === tx.creditCardId);
                   const destAcc = accounts.find((a) => a.id === tx.destinationAccountId);
