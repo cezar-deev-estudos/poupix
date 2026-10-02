@@ -8,6 +8,7 @@ export interface AdvancedFilterState {
   startDate: string;
   endDate: string;
   categoryId: string;
+  subcategoryId?: string;
   accountId: string;
   tag: string;
   status: 'all' | 'paid' | 'pending';
@@ -33,6 +34,20 @@ export const TransactionsFilterModal: React.FC<TransactionsFilterModalProps> = (
   const { categories, accounts, tags } = useFinance();
   const [activeTab, setActiveTab] = useState<'new' | 'saved'>('new');
   const [currentFilter, setCurrentFilter] = useState<AdvancedFilterState>(filter);
+
+  // Categorias Pai (sem parentId)
+  const parentCategories = React.useMemo(
+    () => categories.filter((c) => !c.parentId),
+    [categories]
+  );
+
+  // Subcategorias disponíveis para a Categoria Pai selecionada (ou todas caso nenhuma esteja selecionada)
+  const availableSubcategories = React.useMemo(() => {
+    if (currentFilter.categoryId) {
+      return categories.filter((c) => c.parentId === currentFilter.categoryId);
+    }
+    return categories.filter((c) => Boolean(c.parentId));
+  }, [categories, currentFilter.categoryId]);
 
   if (!isOpen) return null;
 
@@ -114,20 +129,65 @@ export const TransactionsFilterModal: React.FC<TransactionsFilterModalProps> = (
               </div>
             </div>
 
-            {/* Categorias */}
+            {/* Categorias (Somente Pais) */}
             <div className="space-y-1">
-              <label className="text-[11px] text-slate-400 font-medium">Categorias</label>
+              <label className="text-[11px] text-slate-400 font-medium">Categoria</label>
               <select
                 value={currentFilter.categoryId}
-                onChange={(e) => setCurrentFilter((prev) => ({ ...prev, categoryId: e.target.value }))}
+                onChange={(e) => {
+                  const newCatId = e.target.value;
+                  setCurrentFilter((prev) => {
+                    // Se mudou de categoria pai e a subcategoria atual não pertence a ela, limpa a subcategoria
+                    const subBelongs = newCatId
+                      ? categories.some((c) => c.id === prev.subcategoryId && c.parentId === newCatId)
+                      : true;
+                    return {
+                      ...prev,
+                      categoryId: newCatId,
+                      subcategoryId: subBelongs ? prev.subcategoryId : '',
+                    };
+                  });
+                }}
                 className="w-full bg-[#181b24] border border-slate-700 rounded-2xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
               >
                 <option value="">Todas as categorias</option>
-                {categories.map((c) => (
+                {parentCategories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            {/* Subcategorias (Pai / Subcategoria) */}
+            <div className="space-y-1">
+              <label className="text-[11px] text-slate-400 font-medium">Subcategoria</label>
+              <select
+                value={currentFilter.subcategoryId || ''}
+                onChange={(e) => {
+                  const selectedSubId = e.target.value;
+                  setCurrentFilter((prev) => {
+                    const sub = categories.find((c) => c.id === selectedSubId);
+                    return {
+                      ...prev,
+                      subcategoryId: selectedSubId,
+                      // Se selecionou subcategoria e não tinha pai selecionado, preenche o pai correspondente automaticamente
+                      categoryId: sub?.parentId ? sub.parentId : prev.categoryId,
+                    };
+                  });
+                }}
+                className="w-full bg-[#181b24] border border-slate-700 rounded-2xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+              >
+                <option value="">Todas as subcategorias</option>
+                {availableSubcategories.map((sub) => {
+                  const parent = categories.find((c) => c.id === sub.parentId);
+                  const label = parent ? `${parent.name} / ${sub.name}` : sub.name;
+                  return (
+                    <option key={sub.id} value={sub.id}>
+                      {label}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 

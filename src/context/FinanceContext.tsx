@@ -30,6 +30,7 @@ import { transactionManager } from '@/hooks/useTransactionsManager';
 import { entityManager } from '@/hooks/useEntityManager';
 import { normalizeTransactionsInvoiceDates, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { ensureValidUUID } from '@/lib/supabase/syncService';
 
 interface FinanceContextType {
   users: UserProfile[];
@@ -244,6 +245,23 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const creditCardsRef = useRef(creditCards);
   creditCardsRef.current = creditCards;
 
+  // Tombstones de IDs excluídos recentemente para evitar que buscas em nuvem ressuscitem transações apagadas
+  const deletedTransactionIdsRef = useRef<Set<string>>(new Set());
+
+  const handleTransactionDeleted = useCallback((deletedIds: string[]) => {
+    deletedIds.forEach(id => {
+      deletedTransactionIdsRef.current.add(id);
+      deletedTransactionIdsRef.current.add(ensureValidUUID(id));
+    });
+    // Limpa os tombstones após 10 minutos
+    setTimeout(() => {
+      deletedIds.forEach(id => {
+        deletedTransactionIdsRef.current.delete(id);
+        deletedTransactionIdsRef.current.delete(ensureValidUUID(id));
+      });
+    }, 10 * 60 * 1000);
+  }, []);
+
   // 3. Callback de dados vindos da nuvem (Supabase)
   const handleCloudDataLoaded = useCallback((cloudData: {
     accounts?: Account[];
@@ -280,12 +298,25 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
     if (cloudData.tags !== undefined) setTags(cloudData.tags);
     if (cloudData.transactions !== undefined) {
-      const normalizedCloudTxs = normalizeTransactionsInvoiceDates(cloudData.transactions, currentCards);
+      // Filtra transações que foram excluídas recentemente pelo usuário
+      const tombstones = deletedTransactionIdsRef.current;
+      const validCloudTxs = cloudData.transactions.filter(t => !tombstones.has(t.id) && !tombstones.has(ensureValidUUID(t.id)));
+      const normalizedCloudTxs = normalizeTransactionsInvoiceDates(validCloudTxs, currentCards);
+
       setTransactions(prevLocalTxs => {
-        // Nuvem é referência, mas jamais remove transações locais pendentes de sincronização
-        const cloudIdSet = new Set(normalizedCloudTxs.map(t => t.id));
-        // Se a transação local foi criada nos últimos 60 segundos ou não existe na nuvem, ela permanece
-        const unsyncedLocalTxs = prevLocalTxs.filter(t => !cloudIdSet.has(t.id));
+        // Nuvem é referência, e remove transações que já foram excluídas
+        const cloudIdSet = new Set<string>();
+        normalizedCloudTxs.forEach(t => {
+          cloudIdSet.add(t.id);
+          cloudIdSet.add(ensureValidUUID(t.id));
+        });
+
+        // Mantém apenas transações locais não sincronizadas que NÃO foram excluídas
+        const unsyncedLocalTxs = prevLocalTxs.filter(t => {
+          if (tombstones.has(t.id) || tombstones.has(ensureValidUUID(t.id))) return false;
+          return !cloudIdSet.has(t.id) && !cloudIdSet.has(ensureValidUUID(t.id));
+        });
+
         if (unsyncedLocalTxs.length > 0) {
           return [...unsyncedLocalTxs, ...normalizedCloudTxs];
         }
@@ -397,7 +428,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addTransaction: tx => transactionManager.addTransaction(tx, setTransactions, setAccounts),
         importTransactions: txs => transactionManager.importTransactions(txs, setTransactions, setAccounts),
         updateTransaction: (id, up, mode = 'single') => transactionManager.updateTransaction(id, up, mode, transactions, setTransactions),
-        deleteTransaction: (id, mode = 'single') => transactionManager.deleteTransaction(id, mode, transactions, setTransactions),
+        deleteTransaction: (id, mode = 'single') => transactionManager.deleteTransaction(id, mode, transactions, setTransactions, handleTransactionDeleted),
         addAccount: acc => entityManager.addAccount(acc, setAccounts),
         updateAccount: (id, up) => entityManager.updateAccount(id, up, setAccounts),
         deleteAccount: id => entityManager.deleteAccount(id, setAccounts),

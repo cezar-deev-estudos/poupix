@@ -172,7 +172,20 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
       const txDate = getTxDate(tx);
       if (advancedFilter.startDate && txDate < advancedFilter.startDate) return false;
       if (advancedFilter.endDate && txDate > advancedFilter.endDate) return false;
-      if (advancedFilter.categoryId && tx.categoryId !== advancedFilter.categoryId) return false;
+
+      // Filtro de Categoria e Subcategoria
+      if (advancedFilter.subcategoryId) {
+        // Se uma subcategoria específica foi escolhida, deve bater exatamente com ela
+        if (tx.categoryId !== advancedFilter.subcategoryId) return false;
+      } else if (advancedFilter.categoryId) {
+        // Se apenas a categoria pai foi escolhida, inclui transações vinculadas diretamente a ela OU a qualquer de suas subcategorias filhas
+        const matchingCategoryIds = new Set([
+          advancedFilter.categoryId,
+          ...categories.filter((c) => c.parentId === advancedFilter.categoryId).map((c) => c.id),
+        ]);
+        if (!matchingCategoryIds.has(tx.categoryId)) return false;
+      }
+
       if (advancedFilter.accountId && tx.accountId !== advancedFilter.accountId) return false;
       if (advancedFilter.tag && (!tx.tags || !tx.tags.includes(advancedFilter.tag))) return false;
       if (advancedFilter.status === 'paid' && !tx.paid) return false;
@@ -229,7 +242,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     });
 
     return [...nonCardTransactions, ...aggregatedCardItems];
-  }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter, groupByCard, creditCards, accounts, selectedYear, selectedMonth]);
+  }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter, groupByCard, creditCards, accounts, categories, selectedYear, selectedMonth]);
 
   // Agrupamento por Dias no padrão Mobills: "Ontem", "Hoje", "Segunda, 21", etc.
   const groupedByDate = useMemo(() => {

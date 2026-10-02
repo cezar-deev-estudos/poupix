@@ -43,6 +43,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     deleteTransaction,
     creditCards,
     accounts,
+    categories,
     groupByCard,
     toggleGroupByCard,
   } = useFinance();
@@ -116,7 +117,20 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       // 3. Filtros Avançados
       if (advancedFilter.startDate && tx.date < advancedFilter.startDate) return false;
       if (advancedFilter.endDate && tx.date > advancedFilter.endDate) return false;
-      if (advancedFilter.categoryId && tx.categoryId !== advancedFilter.categoryId) return false;
+
+      // Filtro de Categoria e Subcategoria
+      if (advancedFilter.subcategoryId) {
+        // Se uma subcategoria específica foi escolhida, deve bater exatamente com ela
+        if (tx.categoryId !== advancedFilter.subcategoryId) return false;
+      } else if (advancedFilter.categoryId) {
+        // Se apenas a categoria pai foi escolhida, inclui transações vinculadas diretamente a ela OU a qualquer de suas subcategorias filhas
+        const matchingCategoryIds = new Set([
+          advancedFilter.categoryId,
+          ...categories.filter((c) => c.parentId === advancedFilter.categoryId).map((c) => c.id),
+        ]);
+        if (!matchingCategoryIds.has(tx.categoryId)) return false;
+      }
+
       if (advancedFilter.accountId && tx.accountId !== advancedFilter.accountId) return false;
       if (advancedFilter.tag && (!tx.tags || !tx.tags.includes(advancedFilter.tag))) return false;
       if (advancedFilter.status === 'paid' && !tx.paid) return false;
@@ -177,7 +191,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     });
 
     return [...nonCardTransactions, ...aggregatedCardItems];
-  }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter, groupByCard, creditCards, accounts, selectedYear, selectedMonth]);
+  }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter, groupByCard, creditCards, accounts, categories, selectedYear, selectedMonth]);
 
   // Exclusão
   const handleConfirmDelete = () => {

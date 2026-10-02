@@ -373,41 +373,77 @@ export const fetchAllFromSupabase = async (userId: string) => {
 }
 
 // 3. Exclusão Direta de Transações no Supabase
-export const deleteTransactionFromSupabase = async (txId: string, recurringGroupId?: string, installmentGroupId?: string, mode: 'single' | 'following' | 'all' = 'single') => {
+export const deleteTransactionFromSupabase = async (
+  txId: string,
+  recurringGroupId?: string,
+  installmentGroupId?: string,
+  mode: 'single' | 'following' | 'all' = 'single',
+  userId?: string
+) => {
   const supabase = getSupabaseClient()
   if (!supabase) return
 
   try {
     const uuid = ensureValidUUID(txId)
+    const effectiveUserId = userId ? ensureValidUUID(userId) : undefined
+
     if (mode === 'single' || (!recurringGroupId && !installmentGroupId)) {
-      await supabase.from('transactions').delete().eq('id', uuid)
+      let query = supabase.from('transactions').delete()
+      if (effectiveUserId) query = query.eq('user_id', effectiveUserId)
+      // Tenta deletar tanto pelo UUID gerado quanto pelo txId original
+      if (uuid === txId) {
+        await query.eq('id', uuid)
+      } else {
+        await query.or(`id.eq.${uuid},id.eq.${txId}`)
+      }
       return
     }
 
     if (mode === 'all') {
+      let query = supabase.from('transactions').delete()
+      if (effectiveUserId) query = query.eq('user_id', effectiveUserId)
+
       if (recurringGroupId) {
-        await supabase.from('transactions').delete().eq('recurring_group_id', recurringGroupId)
+        await query.eq('recurring_group_id', recurringGroupId)
       } else if (installmentGroupId) {
-        await supabase.from('transactions').delete().eq('installment_group_id', installmentGroupId)
+        await query.eq('installment_group_id', installmentGroupId)
       }
       return
     }
 
     // following mode
-    await supabase.from('transactions').delete().eq('id', uuid)
+    let query = supabase.from('transactions').delete()
+    if (effectiveUserId) query = query.eq('user_id', effectiveUserId)
+    if (uuid === txId) {
+      await query.eq('id', uuid)
+    } else {
+      await query.or(`id.eq.${uuid},id.eq.${txId}`)
+    }
   } catch (err) {
     console.error('[Supabase Delete Tx Error]', err)
   }
 }
 
 // 4. Exclusão Direta de Entidades (Contas, Cartões, Categorias, Tags, Metas)
-export const deleteEntityFromSupabase = async (table: 'accounts' | 'credit_cards' | 'categories' | 'tags' | 'goals', id: string) => {
+export const deleteEntityFromSupabase = async (
+  table: 'accounts' | 'credit_cards' | 'categories' | 'tags' | 'goals',
+  id: string,
+  userId?: string
+) => {
   const supabase = getSupabaseClient()
   if (!supabase) return
 
   try {
     const uuid = ensureValidUUID(id)
-    await supabase.from(table).delete().eq('id', uuid)
+    let query = supabase.from(table).delete()
+    if (userId) {
+      query = query.eq('user_id', ensureValidUUID(userId))
+    }
+    if (uuid === id) {
+      await query.eq('id', uuid)
+    } else {
+      await query.or(`id.eq.${uuid},id.eq.${id}`)
+    }
   } catch (err) {
     console.error(`[Supabase Delete ${table} Error]`, err)
   }

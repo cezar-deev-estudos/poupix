@@ -37,7 +37,8 @@ export interface TransactionManagerActions {
     id: string,
     mode: 'single' | 'following' | 'all',
     transactions: Transaction[],
-    setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>
+    setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>,
+    onTransactionDeleted?: (deletedIds: string[]) => void
   ) => void;
 }
 
@@ -202,14 +203,35 @@ export const transactionManager: TransactionManagerActions = {
         return updated.description;
       };
 
+      // Helper para ajustar apenas o DIA da data de cada lançamento caso o usuário tenha alterado o dia na edição
+      const computeAdjustedDate = (origDate: string, updatedDate?: string): string => {
+        if (!updatedDate) return origDate;
+        // Se a data editada for idêntica à data do item alvo original, mantém a data própria de cada item
+        if (updatedDate === target.date) return origDate;
+        const [origY, origM] = origDate.split('-').map(Number);
+        const [, , newD] = updatedDate.split('-').map(Number);
+        const maxDaysInOrigMonth = new Date(origY, origM, 0).getDate();
+        const adjustedDay = Math.min(newD, maxDaysInOrigMonth);
+        return `${origY}-${String(origM).padStart(2, '0')}-${String(adjustedDay).padStart(2, '0')}`;
+      };
+
+      const computeAdjustedInvoiceDate = (origInvDate?: string, updatedInvDate?: string): string | undefined => {
+        if (!origInvDate) return origInvDate;
+        if (!updatedInvDate) return origInvDate;
+        if (updatedInvDate === target.invoiceDate) return origInvDate;
+        const [origY, origM] = origInvDate.split('-').map(Number);
+        const [, , newD] = updatedInvDate.split('-').map(Number);
+        const maxDaysInOrigMonth = new Date(origY, origM, 0).getDate();
+        const adjustedDay = Math.min(newD, maxDaysInOrigMonth);
+        return `${origY}-${String(origM).padStart(2, '0')}-${String(adjustedDay).padStart(2, '0')}`;
+      };
+
       if (mode === 'following') {
         if (target.recurringGroupId) {
-          const targetIndex = target.installmentCurrent || 1;
           return prev.map(t => {
             if (t.recurringGroupId === target.recurringGroupId && t.date >= target.date) {
-              const offset = (t.installmentCurrent ? t.installmentCurrent - targetIndex : 0);
-              const newDate = updated.date ? getNextMonthDate(updated.date, offset) : t.date;
-              const newInvoiceDate = updated.invoiceDate ? getNextInvoiceDate(updated.invoiceDate, offset) : t.invoiceDate;
+              const newDate = computeAdjustedDate(t.date, updated.date);
+              const newInvoiceDate = computeAdjustedInvoiceDate(t.invoiceDate, updated.invoiceDate);
               return {
                 ...t,
                 ...updated,
@@ -222,12 +244,10 @@ export const transactionManager: TransactionManagerActions = {
           });
         }
         if (target.installmentGroupId) {
-          const targetIndex = target.installmentCurrent || 1;
           return prev.map(t => {
             if (t.installmentGroupId === target.installmentGroupId && (t.installmentCurrent || 0) >= (target.installmentCurrent || 0)) {
-              const offset = (t.installmentCurrent || 1) - targetIndex;
-              const newDate = updated.date ? getNextMonthDate(updated.date, offset) : t.date;
-              const newInvoiceDate = updated.invoiceDate ? getNextInvoiceDate(updated.invoiceDate, offset) : t.invoiceDate;
+              const newDate = computeAdjustedDate(t.date, updated.date);
+              const newInvoiceDate = computeAdjustedInvoiceDate(t.invoiceDate, updated.invoiceDate);
               return {
                 ...t,
                 ...updated,
@@ -246,12 +266,10 @@ export const transactionManager: TransactionManagerActions = {
 
       if (mode === 'all') {
         if (target.recurringGroupId) {
-          const targetIndex = target.installmentCurrent || 1;
           return prev.map(t => {
             if (t.recurringGroupId === target.recurringGroupId) {
-              const offset = (t.installmentCurrent ? t.installmentCurrent - targetIndex : 0);
-              const newDate = updated.date ? getNextMonthDate(updated.date, offset) : t.date;
-              const newInvoiceDate = updated.invoiceDate ? getNextInvoiceDate(updated.invoiceDate, offset) : t.invoiceDate;
+              const newDate = computeAdjustedDate(t.date, updated.date);
+              const newInvoiceDate = computeAdjustedInvoiceDate(t.invoiceDate, updated.invoiceDate);
               return {
                 ...t,
                 ...updated,
@@ -264,12 +282,10 @@ export const transactionManager: TransactionManagerActions = {
           });
         }
         if (target.installmentGroupId) {
-          const targetIndex = target.installmentCurrent || 1;
           return prev.map(t => {
             if (t.installmentGroupId === target.installmentGroupId) {
-              const offset = (t.installmentCurrent || 1) - targetIndex;
-              const newDate = updated.date ? getNextMonthDate(updated.date, offset) : t.date;
-              const newInvoiceDate = updated.invoiceDate ? getNextInvoiceDate(updated.invoiceDate, offset) : t.invoiceDate;
+              const newDate = computeAdjustedDate(t.date, updated.date);
+              const newInvoiceDate = computeAdjustedInvoiceDate(t.invoiceDate, updated.invoiceDate);
               return {
                 ...t,
                 ...updated,
@@ -290,25 +306,32 @@ export const transactionManager: TransactionManagerActions = {
     });
   },
 
-  deleteTransaction: (id, mode, transactions, setTransactions) => {
+  deleteTransaction: (id, mode, transactions, setTransactions, onTransactionDeleted) => {
     setTransactions(prev => {
       const target = prev.find(t => t.id === id) || transactions.find(t => t.id === id);
-      if (target) {
-        deleteTransactionFromSupabase(id, target.recurringGroupId, target.installmentGroupId, mode);
-      } else {
-        deleteTransactionFromSupabase(id, undefined, undefined, 'single');
-      }
+      const deletedIds: string[] = [id];
 
       if (!target || mode === 'single' || (!target.recurringGroupId && !target.installmentGroupId)) {
+        deleteTransactionFromSupabase(id, target?.recurringGroupId, target?.installmentGroupId, 'single');
+        onTransactionDeleted?.(deletedIds);
         return prev.filter(t => t.id !== id);
       }
 
       if (mode === 'following') {
+        let remaining = prev;
         if (target.recurringGroupId) {
-          return prev.filter(t => !(t.recurringGroupId === target.recurringGroupId && t.date >= target.date && (!t.paid || t.id === target.id)));
-        }
-        if (target.installmentGroupId) {
-          return prev.filter(
+          const removed = prev.filter(t => (t.recurringGroupId === target.recurringGroupId && t.date >= target.date && (!t.paid || t.id === target.id)));
+          removed.forEach(t => deletedIds.push(t.id));
+          remaining = prev.filter(t => !(t.recurringGroupId === target.recurringGroupId && t.date >= target.date && (!t.paid || t.id === target.id)));
+        } else if (target.installmentGroupId) {
+          const removed = prev.filter(
+            t =>
+              t.installmentGroupId === target.installmentGroupId &&
+              (t.installmentCurrent || 0) >= (target.installmentCurrent || 0) &&
+              (!t.paid || t.id === target.id)
+          );
+          removed.forEach(t => deletedIds.push(t.id));
+          remaining = prev.filter(
             t =>
               !(
                 t.installmentGroupId === target.installmentGroupId &&
@@ -317,17 +340,29 @@ export const transactionManager: TransactionManagerActions = {
               )
           );
         }
+        deleteTransactionFromSupabase(id, target.recurringGroupId, target.installmentGroupId, 'following');
+        onTransactionDeleted?.(deletedIds);
+        return remaining;
       }
 
       if (mode === 'all') {
+        let remaining = prev;
         if (target.recurringGroupId) {
-          return prev.filter(t => t.recurringGroupId !== target.recurringGroupId);
+          const removed = prev.filter(t => t.recurringGroupId === target.recurringGroupId);
+          removed.forEach(t => deletedIds.push(t.id));
+          remaining = prev.filter(t => t.recurringGroupId !== target.recurringGroupId);
+        } else if (target.installmentGroupId) {
+          const removed = prev.filter(t => t.installmentGroupId === target.installmentGroupId);
+          removed.forEach(t => deletedIds.push(t.id));
+          remaining = prev.filter(t => t.installmentGroupId !== target.installmentGroupId);
         }
-        if (target.installmentGroupId) {
-          return prev.filter(t => t.installmentGroupId !== target.installmentGroupId);
-        }
+        deleteTransactionFromSupabase(id, target.recurringGroupId, target.installmentGroupId, 'all');
+        onTransactionDeleted?.(deletedIds);
+        return remaining;
       }
 
+      deleteTransactionFromSupabase(id, target?.recurringGroupId, target?.installmentGroupId, mode);
+      onTransactionDeleted?.(deletedIds);
       return prev.filter(t => t.id !== id);
     });
   },
