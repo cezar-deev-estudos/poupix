@@ -24,14 +24,17 @@ export const MonthlyBalanceCard: React.FC<MonthlyBalanceCardProps> = ({ onNaviga
   const expenseHeightPct = Math.min(100, Math.max(15, (summary.monthlyExpense / maxBarValue) * 100));
 
   return (
-    <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+    <div
+      onClick={() => onNavigateTab?.('monthly-balance')}
+      className="bg-slate-900/80 hover:bg-slate-900/95 border border-slate-800 hover:border-slate-700/80 rounded-3xl p-6 shadow-xl flex flex-col justify-between cursor-pointer transition-all group"
+    >
       {/* Cabeçalho */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400">
+          <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:scale-105 transition-transform">
             <Scale className="w-4 h-4" />
           </div>
-          <h3 className="font-bold text-white text-base">Balanço mensal</h3>
+          <h3 className="font-bold text-white text-base group-hover:text-purple-300 transition-colors">Balanço mensal</h3>
         </div>
         <span className="text-xs text-slate-400 font-medium">Mês Atual</span>
       </div>
@@ -87,7 +90,10 @@ export const MonthlyBalanceCard: React.FC<MonthlyBalanceCardProps> = ({ onNaviga
       <div className="pt-4 mt-4 border-t border-slate-800/60 flex justify-center">
         <button
           type="button"
-          onClick={() => onNavigateTab?.('projections')}
+          onClick={(e) => {
+            e.stopPropagation();
+            onNavigateTab?.('monthly-balance');
+          }}
           className="text-xs font-bold text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-wider cursor-pointer"
         >
           VER MAIS

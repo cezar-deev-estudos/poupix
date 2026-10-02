@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FinanceProvider, useFinance } from '@/context/FinanceContext';
+import { Transaction } from '@/types/finance';
 import { Sidebar, ActiveTab } from '@/components/layout/Sidebar';
 import { MonthSelector } from '@/components/layout/MonthSelector';
 import { SummaryCards } from '@/components/dashboard/SummaryCards';
@@ -28,6 +29,7 @@ import { BankStatementImporterModal } from '@/components/importer/BankStatementI
 import { AlertsDrawer } from '@/components/alerts/AlertsDrawer';
 import { MobillsMobileHome } from '@/components/dashboard/MobillsMobileHome';
 import { MobileMonthlyBalanceView } from '@/components/dashboard/MobileMonthlyBalanceView';
+import { DesktopMonthlyBalanceView } from '@/components/dashboard/DesktopMonthlyBalanceView';
 import { CreditCardsDashboardCard } from '@/components/dashboard/CreditCardsDashboardCard';
 import { CategoryIncomeChart } from '@/components/dashboard/CategoryIncomeChart';
 import { MonthlyBalanceCard } from '@/components/dashboard/MonthlyBalanceCard';
@@ -44,6 +46,7 @@ function DashboardContent() {
   const [selectedTxFilter, setSelectedTxFilter] = useState<'all' | 'income' | 'expense' | 'transfer'>('all');
   const [selectedDetailCardId, setSelectedDetailCardId] = useState<string | null>(null);
   const [isNewTxModalOpen, setIsNewTxModalOpen] = useState(false);
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [txModalFlow, setTxModalFlow] = useState<TransactionFlowType>('expense');
   const [txModalCreditCardId, setTxModalCreditCardId] = useState<string | null>(null);
   const [isImporterOpen, setIsImporterOpen] = useState(false);
@@ -118,6 +121,7 @@ function DashboardContent() {
       if (isNewTxModalOpen || isImporterOpen || isAlertsDrawerOpen || selectedDetailCardId) {
         if (isNewTxModalOpen) {
           setIsNewTxModalOpen(false);
+          setEditingTx(null);
           setTxModalCreditCardId(null);
         }
         if (isImporterOpen) setIsImporterOpen(false);
@@ -452,14 +456,28 @@ function DashboardContent() {
         {activeTab === 'users' && <UsersManagementView />}
         {activeTab === 'settings' && <SettingsView />}
         {activeTab === 'monthly-balance' && (
-          <MobileMonthlyBalanceView
-            onBack={handleGoBack}
-            onEditTransaction={tx => {
-              // Permite abrir modal de edição se necessário
-              setTxModalFlow(tx.type === 'transfer' ? 'transfer' : tx.creditCardId ? 'creditCard' : tx.type);
-              setIsNewTxModalOpen(true);
-            }}
-          />
+          <>
+            <div className="block md:hidden">
+              <MobileMonthlyBalanceView
+                onBack={handleGoBack}
+                onEditTransaction={tx => {
+                  setEditingTx(tx);
+                  setTxModalFlow(tx.type === 'transfer' ? 'transfer' : tx.creditCardId ? 'creditCard' : tx.type);
+                  setIsNewTxModalOpen(true);
+                }}
+              />
+            </div>
+            <div className="hidden md:block">
+              <DesktopMonthlyBalanceView
+                onBack={handleGoBack}
+                onEditTransaction={tx => {
+                  setEditingTx(tx);
+                  setTxModalFlow(tx.type === 'transfer' ? 'transfer' : tx.creditCardId ? 'creditCard' : tx.type);
+                  setIsNewTxModalOpen(true);
+                }}
+              />
+            </div>
+          </>
         )}
       </main>
 
@@ -468,9 +486,11 @@ function DashboardContent() {
         isOpen={isNewTxModalOpen}
         onClose={() => {
           setIsNewTxModalOpen(false);
+          setEditingTx(null);
           setTxModalCreditCardId(null);
         }}
         flowType={txModalFlow}
+        transactionToEdit={editingTx}
         defaultCreditCardId={txModalCreditCardId}
       />
 

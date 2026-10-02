@@ -1,15 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Transaction, Category } from '@/types/finance';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency, formatDateBR } from '@/lib/utils';
 import { getEffectiveTransactionDate, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
-import { Check, Edit3, CreditCard } from 'lucide-react';
-import { MobileTransactionDetailDrawer } from '../transactions/MobileTransactionDetailDrawer';
+import { Check, Edit3, CreditCard, X } from 'lucide-react';
 
-interface MobileCategoryDetailDrawerProps {
+interface DesktopCategoryDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   category: Category;
@@ -17,25 +16,22 @@ interface MobileCategoryDetailDrawerProps {
   onEditTransaction?: (tx: Transaction) => void;
 }
 
-export const MobileCategoryDetailDrawer: React.FC<MobileCategoryDetailDrawerProps> = ({
+export const DesktopCategoryDetailModal: React.FC<DesktopCategoryDetailModalProps> = ({
   isOpen,
   onClose,
   category,
   transactions,
   onEditTransaction,
 }) => {
-  const { updateTransaction, deleteTransaction, accounts, creditCards } = useFinance();
-  const [selectedTxDetail, setSelectedTxDetail] = useState<Transaction | null>(null);
+  const { updateTransaction, accounts, creditCards } = useFinance();
 
   if (!isOpen) return null;
 
-  // Alterna status de pago/pendente
   const handleTogglePaid = (e: React.MouseEvent, tx: Transaction, currentEffectivelyPaid: boolean) => {
     e.stopPropagation();
     updateTransaction(tx.id, { paid: !currentEffectivelyPaid });
   };
 
-  // Agrupa transações por data formatada
   const groupedTransactions = transactions.reduce<Record<string, Transaction[]>>((acc, tx) => {
     const card = creditCards.find(c => c.id === tx.creditCardId);
     const dateKey = getEffectiveTransactionDate(tx, card);
@@ -69,38 +65,43 @@ export const MobileCategoryDetailDrawer: React.FC<MobileCategoryDetailDrawerProp
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 backdrop-blur-sm animate-fadeIn">
-      {/* Backdrop */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
       <div className="fixed inset-0" onClick={onClose} />
 
-      {/* Drawer */}
       <div
         onClick={e => e.stopPropagation()}
-        className="relative w-full max-w-lg bg-[#323642] text-white rounded-t-3xl shadow-2xl p-5 border-t border-slate-700/80 animate-slideUp space-y-4 max-h-[85vh] overflow-y-auto z-10"
+        className="relative w-full max-w-2xl bg-[#1e222d] text-white rounded-3xl shadow-2xl border border-slate-800 p-6 space-y-4 max-h-[85vh] flex flex-col z-10 animate-scaleUp"
       >
-        {/* Handle de fechamento */}
-        <div className="w-12 h-1.5 bg-slate-600 rounded-full mx-auto cursor-pointer" onClick={onClose} />
+        {/* Header do Modal */}
+        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="w-11 h-11 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-md"
+              style={{ backgroundColor: category.color || '#3B82F6' }}
+            >
+              <CategoryIcon name={category.icon || 'Tag'} size={22} />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-lg font-bold text-white truncate">{category.name}</h3>
+              <span className="text-xs text-slate-400">
+                {transactions.length} {transactions.length === 1 ? 'lançamento' : 'lançamentos'}
+              </span>
+            </div>
+          </div>
 
-        {/* Título da Categoria */}
-        <div className="flex items-center gap-3 pt-1">
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 shadow-md"
-            style={{ backgroundColor: category.color || '#3B82F6' }}
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-9 h-9 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
           >
-            <CategoryIcon name={category.icon || 'Tag'} size={20} />
-          </div>
-          <div className="min-w-0">
-            <h3 className="text-base font-bold text-white truncate">{category.name}</h3>
-            <span className="text-xs text-slate-400">
-              {transactions.length} {transactions.length === 1 ? 'lançamento' : 'lançamentos'}
-            </span>
-          </div>
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* Lista de Transações da Categoria */}
-        <div className="space-y-4 pt-2">
+        {/* Lista de Transações */}
+        <div className="flex-1 overflow-y-auto pr-1 space-y-4">
           {sortedDates.length === 0 ? (
-            <div className="text-center py-8 text-slate-400 text-xs">
+            <div className="text-center py-12 text-slate-400 text-sm">
               Nenhuma transação nesta categoria neste mês.
             </div>
           ) : (
@@ -129,28 +130,27 @@ export const MobileCategoryDetailDrawer: React.FC<MobileCategoryDetailDrawerProp
                       return (
                         <div
                           key={tx.id}
-                          onClick={() => setSelectedTxDetail(tx)}
-                          className="flex items-center justify-between p-3 bg-[#242732]/90 border border-slate-700/60 hover:border-slate-600 rounded-2xl transition-all cursor-pointer"
+                          onClick={() => onEditTransaction?.(tx)}
+                          className="flex items-center justify-between p-3.5 bg-[#252a36] border border-slate-800 hover:border-slate-700 rounded-2xl transition-all cursor-pointer group"
                         >
-                          {/* Ícone e Informações */}
-                          <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
                             <div
-                              className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 shadow-md mt-0.5"
+                              className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm"
                               style={{ backgroundColor: category.color || (isIncome ? '#10b981' : '#f97316') }}
                             >
-                              <CategoryIcon name={category.icon || 'Tag'} size={18} />
+                              <CategoryIcon name={category.icon || 'Tag'} size={17} />
                             </div>
 
                             <div className="min-w-0 flex-1">
-                              <span className="font-medium text-slate-100 text-xs block truncate">
+                              <span className="font-semibold text-slate-100 text-sm block truncate group-hover:text-emerald-400 transition-colors">
                                 {tx.description}
                               </span>
-                              <div className="text-[11px] text-slate-400 flex items-center gap-1.5 truncate mt-0.5">
+                              <div className="text-xs text-slate-400 flex items-center gap-2 truncate mt-0.5">
                                 <span>{formatDateBR(tx.date)}</span>
-                                <span className="text-slate-600">|</span>
+                                <span className="text-slate-600">•</span>
                                 {card ? (
                                   <span className="inline-flex items-center gap-1 text-cyan-300 truncate">
-                                    <CreditCard className="w-3 h-3 shrink-0" />
+                                    <CreditCard className="w-3.5 h-3.5 shrink-0" />
                                     <span className="truncate">{accountLabel}</span>
                                   </span>
                                 ) : (
@@ -158,20 +158,18 @@ export const MobileCategoryDetailDrawer: React.FC<MobileCategoryDetailDrawerProp
                                 )}
                               </div>
 
-                              {/* Observação / Notas */}
                               {tx.notes && (
-                                <p className="text-[10px] text-slate-400 italic truncate mt-0.5 flex items-center gap-1">
-                                  <Edit3 className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+                                <p className="text-xs text-slate-400 italic truncate mt-1 flex items-center gap-1.5">
+                                  <Edit3 className="w-3 h-3 text-slate-500 shrink-0" />
                                   <span>{tx.notes}</span>
                                 </p>
                               )}
                             </div>
                           </div>
 
-                          {/* Valor e Botão de Status Efetivado */}
-                          <div className="flex items-center gap-2.5 shrink-0 ml-3">
+                          <div className="flex items-center gap-3.5 shrink-0 ml-4">
                             <span
-                              className={`text-xs font-bold ${
+                              className={`text-sm font-bold tracking-tight ${
                                 isIncome ? 'text-emerald-400' : 'text-rose-400'
                               }`}
                             >
@@ -181,17 +179,17 @@ export const MobileCategoryDetailDrawer: React.FC<MobileCategoryDetailDrawerProp
                             <button
                               type="button"
                               onClick={e => handleTogglePaid(e, tx, isEffectivelyPaid)}
-                              className={`w-5 h-5 rounded-full flex items-center justify-center transition-all select-none shrink-0 cursor-pointer ${
+                              className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all select-none shrink-0 cursor-pointer ${
                                 isEffectivelyPaid
-                                  ? 'bg-[#22c55e] text-slate-950 shadow-sm'
-                                  : 'bg-[#ef4444] text-white shadow-sm'
+                                  ? 'bg-[#22c55e] text-slate-950 shadow-sm hover:bg-[#16a34a]'
+                                  : 'bg-[#ef4444] text-white shadow-sm hover:bg-[#dc2626]'
                               }`}
-                              title={isEffectivelyPaid ? 'Efetivado / Pago' : 'Pendente de pagamento'}
+                              title={isEffectivelyPaid ? 'Efetivado / Pago (Clique para desmarcar)' : 'Pendente (Clique para efetivar)'}
                             >
                               {isEffectivelyPaid ? (
-                                <Check className="w-3 h-3 stroke-[3]" />
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
                               ) : (
-                                <span className="text-[10px] font-black leading-none">!</span>
+                                <span className="text-xs font-black leading-none">!</span>
                               )}
                             </button>
                           </div>
@@ -205,21 +203,6 @@ export const MobileCategoryDetailDrawer: React.FC<MobileCategoryDetailDrawerProp
           )}
         </div>
       </div>
-
-      {/* Drawer de Ações / Detalhes do Lançamento no Mobile */}
-      <MobileTransactionDetailDrawer
-        transaction={selectedTxDetail}
-        isOpen={Boolean(selectedTxDetail)}
-        onClose={() => setSelectedTxDetail(null)}
-        onEdit={tx => {
-          setSelectedTxDetail(null);
-          onEditTransaction?.(tx);
-        }}
-        onDelete={tx => {
-          setSelectedTxDetail(null);
-          deleteTransaction(tx.id);
-        }}
-      />
     </div>
   );
 };
