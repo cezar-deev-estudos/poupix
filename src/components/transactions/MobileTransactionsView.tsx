@@ -59,6 +59,8 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     categories,
     accounts,
     creditCards,
+    groupByCard,
+    toggleGroupByCard,
   } = useFinance();
 
   // Estados de Filtros e Visualização
@@ -75,7 +77,6 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false);
-  const [groupByCard, setGroupByCard] = useState(false);
   const [alertPending, setAlertPending] = useState(false);
 
   // Estados de Detalhe e Edição
@@ -457,7 +458,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
               isOpen={isOptionsMenuOpen}
               onClose={() => setIsOptionsMenuOpen(false)}
               groupByCard={groupByCard}
-              onToggleGroupByCard={() => setGroupByCard(!groupByCard)}
+              onToggleGroupByCard={toggleGroupByCard}
               alertPending={alertPending}
               onToggleAlertPending={() => setAlertPending(!alertPending)}
             />

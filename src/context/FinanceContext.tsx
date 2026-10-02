@@ -29,6 +29,7 @@ import { useFinanceCloudSync } from '@/hooks/useFinanceCloudSync';
 import { transactionManager } from '@/hooks/useTransactionsManager';
 import { entityManager } from '@/hooks/useEntityManager';
 import { normalizeTransactionsInvoiceDates, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface FinanceContextType {
   users: UserProfile[];
@@ -49,6 +50,8 @@ interface FinanceContextType {
   toggleTheme: () => void;
   isPrivacyMode: boolean;
   togglePrivacyMode: () => void;
+  groupByCard: boolean;
+  toggleGroupByCard: () => void;
   unreadAlertsCount: number;
   selectedMonth: number;
   selectedYear: number;
@@ -105,6 +108,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [openFinanceConnections, setOpenFinanceConnections] = useState<OpenFinanceConnection[]>([]);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [isPrivacyMode, setIsPrivacyMode] = useState<boolean>(false);
+  const [groupByCard, setGroupByCard] = useState<boolean>(false);
   const [readAlertIds, setReadAlertIds] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -123,6 +127,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const savedOpenFinance = localStorage.getItem(`${userStoragePrefix}open_finance`);
       const savedPrivacy = localStorage.getItem('mobills_privacy_mode');
       const savedTheme = localStorage.getItem('mobills_theme') as 'dark' | 'light' | null;
+
+      const savedGroupByCard = localStorage.getItem(`${userStoragePrefix}group_by_card`);
 
       if (user) {
         const authProfile: UserProfile = {
@@ -146,6 +152,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setTransactions(normalizedTxs);
         setGoals(savedGoals ? JSON.parse(savedGoals) : []);
         setOpenFinanceConnections(savedOpenFinance ? JSON.parse(savedOpenFinance) : []);
+
+        if (user.user_metadata?.group_by_card !== undefined) {
+          setGroupByCard(Boolean(user.user_metadata.group_by_card));
+        } else if (savedGroupByCard !== null) {
+          setGroupByCard(JSON.parse(savedGroupByCard));
+        }
       } else {
         const loadedCards: CreditCard[] = savedCards ? JSON.parse(savedCards) : INITIAL_CREDIT_CARDS;
         const rawTxs: Transaction[] = savedTransactions ? JSON.parse(savedTransactions) : INITIAL_TRANSACTIONS;
@@ -160,6 +172,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setTransactions(normalizedTxs);
         setGoals(savedGoals ? JSON.parse(savedGoals) : INITIAL_GOALS);
         setOpenFinanceConnections(savedOpenFinance ? JSON.parse(savedOpenFinance) : INITIAL_OPEN_FINANCE_CONNECTIONS);
+        if (savedGroupByCard !== null) {
+          setGroupByCard(JSON.parse(savedGroupByCard));
+        }
       }
 
       setReadAlertIds(savedReadAlerts ? JSON.parse(savedReadAlerts) : []);
@@ -183,6 +198,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem(`${userStoragePrefix}goals`, JSON.stringify(goals));
     localStorage.setItem(`${userStoragePrefix}read_alerts`, JSON.stringify(readAlertIds));
     localStorage.setItem(`${userStoragePrefix}open_finance`, JSON.stringify(openFinanceConnections));
+    localStorage.setItem(`${userStoragePrefix}group_by_card`, JSON.stringify(groupByCard));
     localStorage.setItem('mobills_privacy_mode', JSON.stringify(isPrivacyMode));
     localStorage.setItem('mobills_theme', theme);
 
@@ -193,7 +209,25 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       document.documentElement.classList.add('light');
       document.documentElement.classList.remove('dark');
     }
-  }, [accounts, creditCards, categories, tags, transactions, goals, readAlertIds, openFinanceConnections, isPrivacyMode, theme, isInitialized, userStoragePrefix]);
+  }, [accounts, creditCards, categories, tags, transactions, goals, readAlertIds, openFinanceConnections, isPrivacyMode, groupByCard, theme, isInitialized, userStoragePrefix]);
+
+  const toggleGroupByCard = useCallback(async () => {
+    const nextVal = !groupByCard;
+    setGroupByCard(nextVal);
+    try {
+      localStorage.setItem(`${userStoragePrefix}group_by_card`, JSON.stringify(nextVal));
+      if (user) {
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          await supabase.auth.updateUser({
+            data: { group_by_card: nextVal }
+          });
+        }
+      }
+    } catch (err) {
+      console.error('[FinanceContext] Erro ao salvar groupByCard no Supabase:', err);
+    }
+  }, [groupByCard, user, userStoragePrefix]);
 
   const currentUser = useMemo(() => {
     return users.find(u => u.id === currentUserId) || users[0] || {
@@ -347,6 +381,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         toggleTheme: () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark')),
         isPrivacyMode,
         togglePrivacyMode: () => setIsPrivacyMode(prev => !prev),
+        groupByCard,
+        toggleGroupByCard,
         unreadAlertsCount,
         users,
         currentUser,

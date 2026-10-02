@@ -43,6 +43,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     deleteTransaction,
     creditCards,
     accounts,
+    groupByCard,
+    toggleGroupByCard,
   } = useFinance();
 
   // Estados de Filtros e Visualização
@@ -58,7 +60,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false);
-  const [groupByCard, setGroupByCard] = useState(false);
   const [alertPending, setAlertPending] = useState(false);
 
   // Estados de Modais
@@ -355,7 +356,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               isOpen={isOptionsMenuOpen}
               onClose={() => setIsOptionsMenuOpen(false)}
               groupByCard={groupByCard}
-              onToggleGroupByCard={() => setGroupByCard(!groupByCard)}
+              onToggleGroupByCard={toggleGroupByCard}
               alertPending={alertPending}
               onToggleAlertPending={() => setAlertPending(!alertPending)}
             />
