@@ -204,65 +204,85 @@ export const transactionManager: TransactionManagerActions = {
 
       if (mode === 'following') {
         if (target.recurringGroupId) {
-          return prev.map(t =>
-            t.recurringGroupId === target.recurringGroupId && t.date >= target.date
-              ? {
-                  ...t,
-                  ...updated,
-                  id: t.id,
-                  date: t.id === target.id ? (updated.date || t.date) : t.date,
-                  invoiceDate: t.id === target.id ? (updated.invoiceDate || t.invoiceDate) : t.invoiceDate,
-                }
-              : t
-          );
+          const targetIndex = target.installmentCurrent || 1;
+          return prev.map(t => {
+            if (t.recurringGroupId === target.recurringGroupId && t.date >= target.date) {
+              const offset = (t.installmentCurrent ? t.installmentCurrent - targetIndex : 0);
+              const newDate = updated.date ? getNextMonthDate(updated.date, offset) : t.date;
+              const newInvoiceDate = updated.invoiceDate ? getNextInvoiceDate(updated.invoiceDate, offset) : t.invoiceDate;
+              return {
+                ...t,
+                ...updated,
+                id: t.id,
+                date: newDate,
+                invoiceDate: newInvoiceDate,
+              };
+            }
+            return t;
+          });
         }
         if (target.installmentGroupId) {
-          return prev.map(t =>
-            t.installmentGroupId === target.installmentGroupId && (t.installmentCurrent || 0) >= (target.installmentCurrent || 0)
-              ? {
-                  ...t,
-                  ...updated,
-                  id: t.id,
-                  description: computeInstallmentDescription(t),
-                  date: t.id === target.id ? (updated.date || t.date) : t.date,
-                  invoiceDate: t.id === target.id ? (updated.invoiceDate || t.invoiceDate) : t.invoiceDate,
-                  installmentCurrent: t.installmentCurrent,
-                  installmentTotal: t.installmentTotal,
-                }
-              : t
-          );
+          const targetIndex = target.installmentCurrent || 1;
+          return prev.map(t => {
+            if (t.installmentGroupId === target.installmentGroupId && (t.installmentCurrent || 0) >= (target.installmentCurrent || 0)) {
+              const offset = (t.installmentCurrent || 1) - targetIndex;
+              const newDate = updated.date ? getNextMonthDate(updated.date, offset) : t.date;
+              const newInvoiceDate = updated.invoiceDate ? getNextInvoiceDate(updated.invoiceDate, offset) : t.invoiceDate;
+              return {
+                ...t,
+                ...updated,
+                id: t.id,
+                description: computeInstallmentDescription(t),
+                date: newDate,
+                invoiceDate: newInvoiceDate,
+                installmentCurrent: t.installmentCurrent,
+                installmentTotal: t.installmentTotal,
+              };
+            }
+            return t;
+          });
         }
       }
 
       if (mode === 'all') {
         if (target.recurringGroupId) {
-          return prev.map(t =>
-            t.recurringGroupId === target.recurringGroupId
-              ? {
-                  ...t,
-                  ...updated,
-                  id: t.id,
-                  date: t.id === target.id ? (updated.date || t.date) : t.date,
-                  invoiceDate: t.id === target.id ? (updated.invoiceDate || t.invoiceDate) : t.invoiceDate,
-                }
-              : t
-          );
+          const targetIndex = target.installmentCurrent || 1;
+          return prev.map(t => {
+            if (t.recurringGroupId === target.recurringGroupId) {
+              const offset = (t.installmentCurrent ? t.installmentCurrent - targetIndex : 0);
+              const newDate = updated.date ? getNextMonthDate(updated.date, offset) : t.date;
+              const newInvoiceDate = updated.invoiceDate ? getNextInvoiceDate(updated.invoiceDate, offset) : t.invoiceDate;
+              return {
+                ...t,
+                ...updated,
+                id: t.id,
+                date: newDate,
+                invoiceDate: newInvoiceDate,
+              };
+            }
+            return t;
+          });
         }
         if (target.installmentGroupId) {
-          return prev.map(t =>
-            t.installmentGroupId === target.installmentGroupId
-              ? {
-                  ...t,
-                  ...updated,
-                  id: t.id,
-                  description: computeInstallmentDescription(t),
-                  date: t.id === target.id ? (updated.date || t.date) : t.date,
-                  invoiceDate: t.id === target.id ? (updated.invoiceDate || t.invoiceDate) : t.invoiceDate,
-                  installmentCurrent: t.installmentCurrent,
-                  installmentTotal: t.installmentTotal,
-                }
-              : t
-          );
+          const targetIndex = target.installmentCurrent || 1;
+          return prev.map(t => {
+            if (t.installmentGroupId === target.installmentGroupId) {
+              const offset = (t.installmentCurrent || 1) - targetIndex;
+              const newDate = updated.date ? getNextMonthDate(updated.date, offset) : t.date;
+              const newInvoiceDate = updated.invoiceDate ? getNextInvoiceDate(updated.invoiceDate, offset) : t.invoiceDate;
+              return {
+                ...t,
+                ...updated,
+                id: t.id,
+                description: computeInstallmentDescription(t),
+                date: newDate,
+                invoiceDate: newInvoiceDate,
+                installmentCurrent: t.installmentCurrent,
+                installmentTotal: t.installmentTotal,
+              };
+            }
+            return t;
+          });
         }
       }
 

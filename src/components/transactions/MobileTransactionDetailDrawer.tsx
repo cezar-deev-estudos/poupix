@@ -115,7 +115,7 @@ export const MobileTransactionDetailDrawer: React.FC<MobileTransactionDetailDraw
   };
 
   const getTypeLabel = () => {
-    if (isCreditCard) return 'Despesa cartão';
+    if (isCreditCard) return 'Despesa Cartão';
     if (isIncome) return 'Receita';
     if (isExpense) return 'Despesa';
     return 'Transferência';
@@ -162,7 +162,7 @@ export const MobileTransactionDetailDrawer: React.FC<MobileTransactionDetailDraw
                 <CreditCard className="w-6 h-6" />
               </div>
               <span className="text-[11px] text-slate-300 font-medium leading-tight">
-                Despesa<br />cartão
+                Despesa<br />Cartão
               </span>
             </div>
 

@@ -7,7 +7,7 @@ import { formatCurrency, formatDateBR } from '@/lib/utils';
 import { getTransactionInvoicePeriod, getEffectiveTransactionDate } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { TransactionRowMenu } from './TransactionRowMenu';
-import { Check, Clock, CreditCard, MoreVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Repeat, Layers } from 'lucide-react';
+import { Check, Clock, CreditCard, MoreVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Repeat } from 'lucide-react';
 
 interface TransactionsTableProps {
   transactions: Transaction[];
@@ -237,7 +237,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                           )}
                           {isExpense && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
-                              Despesa
+                              {Boolean(tx.creditCardId || isGroupedCard) ? 'Despesa Cartão' : 'Despesa'}
                             </span>
                           )}
                           {isTransfer && (
@@ -262,11 +262,6 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                           {tx.isRecurring && (
                             <span className="inline-flex items-center gap-0.5 bg-indigo-950/80 text-indigo-300 border border-indigo-800/70 text-[10px] font-medium px-1.5 py-0.5 rounded-md shrink-0 shadow-sm" title="Despesa/Receita Fixa">
                               <Repeat className="w-2.5 h-2.5" /> Fixo
-                            </span>
-                          )}
-                          {Boolean(tx.installmentTotal && tx.installmentTotal > 1) && (
-                            <span className="inline-flex items-center gap-0.5 bg-amber-950/70 text-amber-300 border border-amber-800/70 text-[10px] font-medium px-1.5 py-0.5 rounded-md shrink-0 shadow-sm" title="Compra Parcelada">
-                              <Layers className="w-2.5 h-2.5" /> {tx.installmentCurrent || 1}/{tx.installmentTotal}x
                             </span>
                           )}
                         </div>
