@@ -313,7 +313,10 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
       {/* 2. CARD: BALANÇO MENSAL */}
       <div className="space-y-2">
         <h4 className="text-sm font-bold text-slate-300 px-1">Balanço mensal</h4>
-        <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-5 shadow-xl flex items-center justify-between gap-4">
+        <div
+          onClick={() => onNavigateTab('monthly-balance')}
+          className="bg-[#1c202a] hover:bg-[#222734] border border-slate-800/90 rounded-3xl p-5 shadow-xl flex items-center justify-between gap-4 cursor-pointer active:scale-[0.99] transition-all"
+        >
           {/* Gráfico de Barras Verticais (Verde e Vermelho) */}
           <div className="flex items-end gap-2 h-24 w-16 px-2 pb-1 bg-slate-950/40 rounded-2xl border border-slate-800/50 shrink-0 justify-center">
             {/* Barra Receita */}
@@ -347,13 +350,9 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
             </div>
 
             <div className="pt-1 text-right">
-              <button
-                type="button"
-                onClick={() => onNavigateTab('projections')}
-                className="text-[11px] font-black text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-wider cursor-pointer"
-              >
+              <span className="text-[11px] font-black text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-wider">
                 DETALHES
-              </button>
+              </span>
             </div>
           </div>
         </div>

@@ -27,6 +27,7 @@ import { TransactionModal, TransactionFlowType } from '@/components/transactions
 import { BankStatementImporterModal } from '@/components/importer/BankStatementImporterModal';
 import { AlertsDrawer } from '@/components/alerts/AlertsDrawer';
 import { MobillsMobileHome } from '@/components/dashboard/MobillsMobileHome';
+import { MobileMonthlyBalanceView } from '@/components/dashboard/MobileMonthlyBalanceView';
 import { CreditCardsDashboardCard } from '@/components/dashboard/CreditCardsDashboardCard';
 import { CategoryIncomeChart } from '@/components/dashboard/CategoryIncomeChart';
 import { MonthlyBalanceCard } from '@/components/dashboard/MonthlyBalanceCard';
@@ -450,6 +451,16 @@ function DashboardContent() {
         {activeTab === 'reports' && <ReportsView />}
         {activeTab === 'users' && <UsersManagementView />}
         {activeTab === 'settings' && <SettingsView />}
+        {activeTab === 'monthly-balance' && (
+          <MobileMonthlyBalanceView
+            onBack={handleGoBack}
+            onEditTransaction={tx => {
+              // Permite abrir modal de edição se necessário
+              setTxModalFlow(tx.type === 'transfer' ? 'transfer' : tx.creditCardId ? 'creditCard' : tx.type);
+              setIsNewTxModalOpen(true);
+            }}
+          />
+        )}
       </main>
 
       {/* Modais e Drawers Globais */}

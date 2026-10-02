@@ -27,7 +27,7 @@ import { useAuth } from '@/context/AuthContext';
 import { MobileMoreDrawer } from './MobileMoreDrawer';
 import { MobileSpeedDial } from './MobileSpeedDial';
 
-export type ActiveTab = 'dashboard' | 'transactions' | 'cards' | 'accounts' | 'budgets' | 'goals' | 'tags' | 'projections' | 'openfinance' | 'reports' | 'users' | 'settings';
+export type ActiveTab = 'dashboard' | 'transactions' | 'cards' | 'accounts' | 'budgets' | 'goals' | 'tags' | 'projections' | 'openfinance' | 'reports' | 'users' | 'settings' | 'monthly-balance';
 
 interface SidebarProps {
   activeTab: ActiveTab;
