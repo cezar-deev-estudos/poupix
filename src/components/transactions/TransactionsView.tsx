@@ -11,6 +11,7 @@ import { TransactionScopeModal } from './TransactionScopeModal';
 import { NewTransactionModal } from './NewTransactionModal';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { formatCurrency } from '@/lib/utils';
+import { getEffectiveTransactionDate, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
 import {
   ChevronLeft,
   ChevronRight,
@@ -40,6 +41,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     setSelectedYear,
     updateTransaction,
     deleteTransaction,
+    creditCards,
+    accounts,
   } = useFinance();
 
   // Estados de Filtros e Visualização
@@ -97,7 +100,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
   // Filtragem Dinâmica
   const displayedTransactions = useMemo(() => {
-    return filteredTransactions.filter((tx) => {
+    const filtered = filteredTransactions.filter((tx) => {
       // 1. Tipo Rápido
       if (activeTypeFilter !== 'all' && tx.type !== activeTypeFilter) return false;
 
@@ -121,7 +124,59 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
       return true;
     });
-  }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter]);
+
+    // Se NÃO estiver agrupando por cartão, retorna as transações individuais normais
+    if (!groupByCard) {
+      return filtered;
+    }
+
+    // Se estiver agrupando por cartão:
+    // 1. Manter todas as transações que NÃO são de cartão
+    const nonCardTransactions = filtered.filter(tx => !tx.creditCardId);
+
+    // 2. Agrupar transações por cada cartão de crédito presente
+    const cardGroupsMap = new Map<string, Transaction[]>();
+    filtered.forEach(tx => {
+      if (tx.creditCardId) {
+        const list = cardGroupsMap.get(tx.creditCardId) || [];
+        list.push(tx);
+        cardGroupsMap.set(tx.creditCardId, list);
+      }
+    });
+
+    const currentPeriodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+
+    // 3. Gerar item sintético de fatura para cada cartão que tem compras
+    const aggregatedCardItems: Transaction[] = [];
+    cardGroupsMap.forEach((txList, cardId) => {
+      const card = creditCards.find(c => c.id === cardId);
+      const totalAmount = txList.reduce((acc, t) => acc + t.amount, 0);
+      const isPaid = card?.manualInvoiceStatus?.[currentPeriodKey] === 'paid' || txList.every(t => t.paid);
+      
+      // Data de vencimento da fatura do mês selecionado
+      const dueDateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(card?.dueDay || 10).padStart(2, '0')}`;
+
+      // Conta bancária de referência (primeira conta com lançamentos desse cartão ou a conta padrão do sistema)
+      const linkedAccountId = txList.find(t => t.accountId)?.accountId || accounts[0]?.id;
+
+      aggregatedCardItems.push({
+        id: `grouped-card-${cardId}-${currentPeriodKey}`,
+        description: card ? `Cartão ${card.name}` : 'Cartão de Crédito',
+        amount: totalAmount,
+        date: dueDateStr,
+        invoiceDate: dueDateStr,
+        type: 'expense',
+        categoryId: 'grouped-card-category',
+        creditCardId: cardId,
+        accountId: linkedAccountId,
+        paid: isPaid,
+        createdAt: new Date().toISOString(),
+        notes: `${txList.length} compras agrupadas na fatura`,
+      });
+    });
+
+    return [...nonCardTransactions, ...aggregatedCardItems];
+  }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter, groupByCard, creditCards, accounts, selectedYear, selectedMonth]);
 
   // Exclusão
   const handleConfirmDelete = () => {

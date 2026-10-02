@@ -26,7 +26,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   onAttach,
   onConvertTransfer,
 }) => {
-  const { categories, accounts, creditCards, updateTransaction } = useFinance();
+  const { categories, accounts, creditCards, updateTransaction, updateCreditCard, transactions: allTransactions } = useFinance();
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [rowsPerPage, setRowsPerPage] = useState<number>(25);
@@ -93,7 +93,37 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
 
-  const togglePaid = (id: string, currentPaid: boolean) => {
+  const togglePaid = (id: string, currentPaid: boolean, txItem?: Transaction) => {
+    // Se for uma linha sintética de fatura agrupada: grouped-card-${cardId}-${currentPeriodKey}
+    if (id.startsWith('grouped-card-')) {
+      const parts = id.replace('grouped-card-', '').split('-');
+      const cardId = parts[0];
+      const periodKey = `${parts[1]}-${parts[2]}`;
+      const card = creditCards.find(c => c.id === cardId);
+      if (card) {
+        const nextPaidStatus = !currentPaid;
+        const newInvoiceStatus: 'open' | 'paid' = nextPaidStatus ? 'paid' : 'open';
+        const updatedManual = {
+          ...(card.manualInvoiceStatus || {}),
+          [periodKey]: newInvoiceStatus,
+        };
+        updateCreditCard(card.id, {
+          manualInvoiceStatus: updatedManual,
+        });
+
+        // Atualizar todas as compras vinculadas a esta fatura
+        allTransactions.forEach(tx => {
+          if (tx.creditCardId === card.id) {
+            const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(tx, card);
+            if (txPeriodKey === periodKey && tx.paid !== nextPaidStatus) {
+              updateTransaction(tx.id, { paid: nextPaidStatus });
+            }
+          }
+        });
+      }
+      return;
+    }
+
     updateTransaction(id, { paid: !currentPaid });
   };
 
@@ -146,12 +176,14 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                   const isTransfer = tx.type === 'transfer';
                   const isSelected = selectedIds.includes(tx.id);
 
+                  const isGroupedCard = tx.id.startsWith('grouped-card-') || tx.categoryId === 'grouped-card-category';
+
                   return (
                     <tr
                       key={tx.id}
                       className={`hover:bg-[#1e2330]/70 transition-colors ${
                         isSelected ? 'bg-indigo-950/20' : ''
-                      }`}
+                      } ${isGroupedCard ? 'bg-[#151921]/60' : ''}`}
                     >
                       {/* Checkbox */}
                       <td className="py-3 px-4">
@@ -165,15 +197,33 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
                       {/* Situação */}
                       <td className="py-3 px-3">
-                        <div
-                          className={`w-6 h-6 rounded-full flex items-center justify-center transition-all select-none ${
-                            isEffectivelyPaid
-                              ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                              : 'bg-slate-800 border border-slate-700 text-slate-400'
-                          }`}
-                          title={isEffectivelyPaid ? 'Efetivado' : 'Pendente'}
-                        >
-                          {isEffectivelyPaid ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <Clock className="w-3 h-3" />}
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => togglePaid(tx.id, isEffectivelyPaid)}
+                            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all select-none cursor-pointer ${
+                              isEffectivelyPaid
+                                ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                : 'bg-[#ef4444] text-white shadow-sm'
+                            }`}
+                            title={isEffectivelyPaid ? 'Efetivado / Pago' : 'Pendente de pagamento'}
+                          >
+                            {isEffectivelyPaid ? (
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            ) : (
+                              <span className="text-xs font-black leading-none">!</span>
+                            )}
+                          </button>
+
+                          {/* Mini badge teal de cartão quando a linha for agrupada */}
+                          {isGroupedCard && (
+                            <div
+                              className="w-6 h-6 rounded-full bg-[#14b8a6] text-slate-950 flex items-center justify-center shadow-sm shrink-0"
+                              title="Fatura de Cartão de Crédito Agrupada"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" />
+                            </div>
+                          )}
                         </div>
                       </td>
 
@@ -248,21 +298,32 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
                       {/* Categoria */}
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-6 h-6 rounded-full flex items-center justify-center text-white shrink-0"
-                            style={{ backgroundColor: cat?.color || '#6B7280' }}
-                          >
-                            <CategoryIcon name={cat?.icon || 'Tag'} size={12} />
+                        {isGroupedCard ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-[#0d9488] text-white flex items-center justify-center font-bold text-[10px] tracking-tight shrink-0 shadow-sm">
+                              AG
+                            </div>
+                            <span className="text-slate-300 truncate font-normal">Agrupada cartão</span>
                           </div>
-                          <span className="text-slate-300 truncate">{cat?.name || 'Geral'}</span>
-                        </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-6 h-6 rounded-full flex items-center justify-center text-white shrink-0"
+                              style={{ backgroundColor: cat?.color || '#6B7280' }}
+                            >
+                              <CategoryIcon name={cat?.icon || 'Tag'} size={12} />
+                            </div>
+                            <span className="text-slate-300 truncate">{cat?.name || 'Geral'}</span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Conta / Cartão */}
                       <td className="py-3 px-4 text-slate-300 whitespace-nowrap">
                         {isTransfer ? (
                           <span>{acc?.name || 'Conta'} ➔ {destAcc?.name || 'Conta'}</span>
+                        ) : isGroupedCard ? (
+                          <span>{acc?.name || (card ? `Cartão ${card.name}` : 'Conta')}</span>
                         ) : card ? (
                           <div className="inline-flex items-center gap-1.5 text-cyan-300 font-medium">
                             <CreditCard className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
@@ -288,23 +349,36 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
                       {/* Ações */}
                       <td className="py-3 px-4 text-center relative">
-                        <button
-                          type="button"
-                          onClick={() => setOpenMenuTxId(openMenuTxId === tx.id ? null : tx.id)}
-                          className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-xl transition-colors cursor-pointer"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
+                        {isGroupedCard ? (
+                          <button
+                            type="button"
+                            onClick={() => togglePaid(tx.id, isEffectivelyPaid)}
+                            className="p-1.5 text-slate-500 hover:text-teal-400 hover:bg-slate-700/60 rounded-xl transition-colors cursor-pointer"
+                            title={isEffectivelyPaid ? 'Marcar fatura como pendente' : 'Marcar fatura como paga'}
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setOpenMenuTxId(openMenuTxId === tx.id ? null : tx.id)}
+                              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-xl transition-colors cursor-pointer"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
 
-                        <TransactionRowMenu
-                          transaction={tx}
-                          isOpen={openMenuTxId === tx.id}
-                          onClose={() => setOpenMenuTxId(null)}
-                          onEdit={onEdit}
-                          onDelete={onDelete}
-                          onAttach={onAttach || (() => {})}
-                          onConvertTransfer={onConvertTransfer || (() => {})}
-                        />
+                            <TransactionRowMenu
+                              transaction={tx}
+                              isOpen={openMenuTxId === tx.id}
+                              onClose={() => setOpenMenuTxId(null)}
+                              onEdit={onEdit}
+                              onDelete={onDelete}
+                              onAttach={onAttach || (() => {})}
+                              onConvertTransfer={onConvertTransfer || (() => {})}
+                            />
+                          </>
+                        )}
                       </td>
                     </tr>
                   );

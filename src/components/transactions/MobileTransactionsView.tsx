@@ -54,6 +54,8 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     isPrivacyMode,
     updateTransaction,
     deleteTransaction,
+    updateCreditCard,
+    transactions: allTransactions,
     categories,
     accounts,
     creditCards,
@@ -156,7 +158,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
   // Filtragem Dinâmica
   const displayedTransactions = useMemo(() => {
-    return filteredTransactions.filter((tx) => {
+    const filtered = filteredTransactions.filter((tx) => {
       if (activeTypeFilter !== 'all' && tx.type !== activeTypeFilter) return false;
 
       if (searchQuery.trim()) {
@@ -178,7 +180,55 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
       return true;
     });
-  }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter, creditCards]);
+
+    if (!groupByCard) {
+      return filtered;
+    }
+
+    // Se estiver agrupando por cartão:
+    // 1. Manter todas as transações que NÃO são de cartão
+    const nonCardTransactions = filtered.filter(tx => !tx.creditCardId);
+
+    // 2. Agrupar transações por cada cartão de crédito presente
+    const cardGroupsMap = new Map<string, Transaction[]>();
+    filtered.forEach(tx => {
+      if (tx.creditCardId) {
+        const list = cardGroupsMap.get(tx.creditCardId) || [];
+        list.push(tx);
+        cardGroupsMap.set(tx.creditCardId, list);
+      }
+    });
+
+    const currentPeriodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+
+    // 3. Gerar item sintético de fatura para cada cartão com compras
+    const aggregatedCardItems: Transaction[] = [];
+    cardGroupsMap.forEach((txList, cardId) => {
+      const card = creditCards.find(c => c.id === cardId);
+      const totalAmount = txList.reduce((acc, t) => acc + t.amount, 0);
+      const isPaid = card?.manualInvoiceStatus?.[currentPeriodKey] === 'paid' || txList.every(t => t.paid);
+      
+      const dueDateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(card?.dueDay || 10).padStart(2, '0')}`;
+      const linkedAccountId = txList.find(t => t.accountId)?.accountId || accounts[0]?.id;
+
+      aggregatedCardItems.push({
+        id: `grouped-card-${cardId}-${currentPeriodKey}`,
+        description: card ? `Cartão ${card.name}` : 'Cartão de Crédito',
+        amount: totalAmount,
+        date: dueDateStr,
+        invoiceDate: dueDateStr,
+        type: 'expense',
+        categoryId: 'grouped-card-category',
+        creditCardId: cardId,
+        accountId: linkedAccountId,
+        paid: isPaid,
+        createdAt: new Date().toISOString(),
+        notes: `${txList.length} compras agrupadas na fatura`,
+      });
+    });
+
+    return [...nonCardTransactions, ...aggregatedCardItems];
+  }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter, groupByCard, creditCards, accounts, selectedYear, selectedMonth]);
 
   // Agrupamento por Dias no padrão Mobills: "Ontem", "Hoje", "Segunda, 21", etc.
   const groupedByDate = useMemo(() => {
@@ -226,6 +276,37 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
   const togglePaid = (e: React.MouseEvent, id: string, currentPaid: boolean) => {
     e.stopPropagation();
+
+    // Se for fatura sintética de cartão
+    if (id.startsWith('grouped-card-')) {
+      const parts = id.replace('grouped-card-', '').split('-');
+      const cardId = parts[0];
+      const periodKey = `${parts[1]}-${parts[2]}`;
+      const card = creditCards.find(c => c.id === cardId);
+      if (card) {
+        const nextPaidStatus = !currentPaid;
+        const newInvoiceStatus: 'open' | 'paid' = nextPaidStatus ? 'paid' : 'open';
+        const updatedManual = {
+          ...(card.manualInvoiceStatus || {}),
+          [periodKey]: newInvoiceStatus,
+        };
+        updateCreditCard(card.id, {
+          manualInvoiceStatus: updatedManual,
+        });
+
+        // Atualizar todas as compras vinculadas a esta fatura
+        allTransactions.forEach(tx => {
+          if (tx.creditCardId === card.id) {
+            const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(tx, card);
+            if (txPeriodKey === periodKey && tx.paid !== nextPaidStatus) {
+              updateTransaction(tx.id, { paid: nextPaidStatus });
+            }
+          }
+        });
+      }
+      return;
+    }
+
     updateTransaction(id, { paid: !currentPaid });
   };
 
@@ -650,31 +731,43 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                       ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
                       : false);
 
+                  const isGroupedCard = tx.id.startsWith('grouped-card-') || tx.categoryId === 'grouped-card-category';
+
                   const accountName =
                     tx.type === 'transfer'
                       ? `${acc?.name || 'Conta'} ➔ ${destAcc?.name || 'Conta'}`
+                      : isGroupedCard
+                      ? acc?.name || (card ? `Cartão ${card.name}` : 'Conta')
                       : card
                       ? card.name
                       : acc?.name || 'Conta';
-                  const categoryName = cat?.name || 'Geral';
+                  const categoryName = isGroupedCard ? 'Agrupada cartão' : (cat?.name || 'Geral');
 
                   return (
                     <div
                       key={tx.id}
-                      onClick={() => setSelectedTxDetail(tx)}
-                      className="flex items-center justify-between p-3.5 bg-[#242732]/90 border border-slate-800/70 hover:border-slate-700 rounded-2xl transition-all active:scale-[0.99] cursor-pointer"
+                      onClick={() => !isGroupedCard && setSelectedTxDetail(tx)}
+                      className={`flex items-center justify-between p-3.5 bg-[#242732]/90 border border-slate-800/70 hover:border-slate-700 rounded-2xl transition-all active:scale-[0.99] cursor-pointer ${
+                        isGroupedCard ? 'border-teal-500/30 bg-[#1d2729]/60' : ''
+                      }`}
                     >
                       {/* Ícone e Descrição */}
                       <div className="flex items-start gap-3 min-w-0 flex-1">
-                        <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 shadow-md mt-0.5"
-                          style={{
-                            backgroundColor:
-                              cat?.color || (tx.type === 'transfer' ? '#3B82F6' : isExpense ? '#f97316' : '#84cc16'),
-                          }}
-                        >
-                          <CategoryIcon name={cat?.icon || 'Tag'} size={18} />
-                        </div>
+                        {isGroupedCard ? (
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#0d9488] text-white font-bold text-xs shrink-0 shadow-md mt-0.5">
+                            AG
+                          </div>
+                        ) : (
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 shadow-md mt-0.5"
+                            style={{
+                              backgroundColor:
+                                cat?.color || (tx.type === 'transfer' ? '#3B82F6' : isExpense ? '#f97316' : '#84cc16'),
+                            }}
+                          >
+                            <CategoryIcon name={cat?.icon || 'Tag'} size={18} />
+                          </div>
+                        )}
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
@@ -690,7 +783,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                           <div className="text-[11px] text-slate-400 flex items-center gap-1.5 truncate mt-0.5">
                             <span className="truncate">{categoryName}</span>
                             <span className="text-slate-600">|</span>
-                            {card ? (
+                            {card && !isGroupedCard ? (
                               <span className="inline-flex items-center gap-1 text-cyan-300 truncate">
                                 <CreditCard className="w-3 h-3 shrink-0" />
                                 <span className="truncate">{accountName}</span>
@@ -737,15 +830,33 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                           {formatCurrency(tx.amount)}
                         </span>
 
-                        <div
-                          className={`w-5 h-5 rounded-full flex items-center justify-center transition-all select-none shrink-0 ${
-                            isEffectivelyPaid
-                              ? 'bg-[#22c55e] text-slate-950'
-                              : 'border border-slate-600 bg-slate-800 text-slate-500'
-                          }`}
-                          title={isEffectivelyPaid ? 'Efetivado' : 'Pendente'}
-                        >
-                          {isEffectivelyPaid ? <Check className="w-3 h-3 stroke-[3]" /> : <Clock className="w-2.5 h-2.5" />}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => togglePaid(e, tx.id, isEffectivelyPaid)}
+                            className={`w-5 h-5 rounded-full flex items-center justify-center transition-all select-none shrink-0 cursor-pointer ${
+                              isEffectivelyPaid
+                                ? 'bg-[#22c55e] text-slate-950 shadow-sm'
+                                : 'bg-[#ef4444] text-white shadow-sm'
+                            }`}
+                            title={isEffectivelyPaid ? 'Efetivado / Pago' : 'Pendente de pagamento'}
+                          >
+                            {isEffectivelyPaid ? (
+                              <Check className="w-3 h-3 stroke-[3]" />
+                            ) : (
+                              <span className="text-[10px] font-black leading-none">!</span>
+                            )}
+                          </button>
+
+                          {/* Mini ícone de cartão para itens agrupados */}
+                          {isGroupedCard && (
+                            <div
+                              className="w-5 h-5 rounded-full bg-[#14b8a6] text-slate-950 flex items-center justify-center shadow-sm shrink-0"
+                              title="Fatura de Cartão de Crédito Agrupada"
+                            >
+                              <CreditCard className="w-3 h-3" />
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
