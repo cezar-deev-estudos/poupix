@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FinanceProvider, useFinance } from '@/context/FinanceContext';
 import { Sidebar, ActiveTab } from '@/components/layout/Sidebar';
 import { MonthSelector } from '@/components/layout/MonthSelector';
@@ -73,10 +73,114 @@ function DashboardContent() {
     }
   }, [activeTab]);
 
+  // Pilha de histórico de abas navegadas
+  const [tabHistory, setTabHistory] = useState<ActiveTab[]>(['dashboard']);
+  const [exitToastVisible, setExitToastVisible] = useState(false);
+  const lastBackPressTimeRef = useRef<number>(0);
+  const exitToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Mantém refs dos estados para o listener global de popstate sem recriá-lo
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+
+  const tabHistoryRef = useRef(tabHistory);
+  tabHistoryRef.current = tabHistory;
+
+  const modalsOpenRef = useRef({
+    isNewTxModalOpen,
+    isImporterOpen,
+    isAlertsDrawerOpen,
+    selectedDetailCardId,
+  });
+  modalsOpenRef.current = {
+    isNewTxModalOpen,
+    isImporterOpen,
+    isAlertsDrawerOpen,
+    selectedDetailCardId,
+  };
+
+  // Garante que o histórico do navegador tenha pelo menos uma entrada nossa para interceptar o popstate
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Inicia com um estado Poupix se ainda não houver
+      if (!window.history.state?.poupix) {
+        window.history.replaceState({ poupix: true, tab: 'dashboard' }, '');
+      }
+    }
+  }, []);
+
+  // Interceptador global do botão "Voltar" nativo do celular (popstate)
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      // 1. Se houver modal ou drawer aberto, fecha o modal primeiro
+      const { isNewTxModalOpen, isImporterOpen, isAlertsDrawerOpen, selectedDetailCardId } = modalsOpenRef.current;
+      if (isNewTxModalOpen || isImporterOpen || isAlertsDrawerOpen || selectedDetailCardId) {
+        if (isNewTxModalOpen) {
+          setIsNewTxModalOpen(false);
+          setTxModalCreditCardId(null);
+        }
+        if (isImporterOpen) setIsImporterOpen(false);
+        if (isAlertsDrawerOpen) setIsAlertsDrawerOpen(false);
+        if (selectedDetailCardId) setSelectedDetailCardId(null);
+
+        // Reinsere estado para manter o app vivo caso o usuário queira voltar de novo
+        window.history.pushState({ poupix: true, tab: activeTabRef.current }, '');
+        return;
+      }
+
+      // 2. Se não estiver na tela inicial (dashboard), volta para a tela anterior
+      const currentTab = activeTabRef.current;
+      const historyList = tabHistoryRef.current;
+
+      if (currentTab !== 'dashboard') {
+        // Encontra a tela anterior na pilha de histórico
+        const newHistory = [...historyList];
+        newHistory.pop(); // remove a tela atual
+        const prevTab = newHistory.length > 0 ? newHistory[newHistory.length - 1] : 'dashboard';
+
+        setTabHistory(newHistory.length > 0 ? newHistory : ['dashboard']);
+        setActiveTab(prevTab);
+
+        // Mantém a trava de navegação no histórico para continuar interceptando
+        window.history.pushState({ poupix: true, tab: prevTab }, '');
+        return;
+      }
+
+      // 3. Se JÁ ESTÁ NA TELA INICIAL (dashboard):
+      // Só fecha se clicar 2 vezes dentro de 2 segundos!
+      const now = Date.now();
+      if (now - lastBackPressTimeRef.current < 2000) {
+        // 2º clique dentro de 2s: permite sair (não reinsere no histórico e deixa o navegador/app fechar)
+        if (exitToastTimeoutRef.current) clearTimeout(exitToastTimeoutRef.current);
+        setExitToastVisible(false);
+        window.history.back();
+      } else {
+        // 1º clique: impede o fechamento, reinsere no histórico e exibe toast de aviso
+        lastBackPressTimeRef.current = now;
+        window.history.pushState({ poupix: true, tab: 'dashboard' }, '');
+
+        setExitToastVisible(true);
+        if (exitToastTimeoutRef.current) clearTimeout(exitToastTimeoutRef.current);
+        exitToastTimeoutRef.current = setTimeout(() => {
+          setExitToastVisible(false);
+        }, 2000);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (exitToastTimeoutRef.current) clearTimeout(exitToastTimeoutRef.current);
+    };
+  }, []);
+
   const handleOpenNewTransaction = (flow: TransactionFlowType = 'expense', defaultCardId?: string) => {
     setTxModalFlow(flow);
     setTxModalCreditCardId(defaultCardId || null);
     setIsNewTxModalOpen(true);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ poupix: true, modal: 'new-tx' }, '');
+    }
   };
 
   const handleNavigateTab = (
@@ -94,8 +198,21 @@ function DashboardContent() {
     } else if (tab !== 'cards') {
       setSelectedDetailCardId(null);
     }
-    setActiveTab(tab);
+
+    if (tab !== activeTab) {
+      setTabHistory(prev => [...prev, tab]);
+      setActiveTab(tab);
+      if (typeof window !== 'undefined') {
+        window.history.pushState({ poupix: true, tab }, '');
+      }
+    }
   };
+
+  const handleGoBack = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      window.history.back();
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row antialiased selection:bg-emerald-500 selection:text-slate-950 pb-20 md:pb-6">
@@ -300,6 +417,7 @@ function DashboardContent() {
             <div className="block md:hidden">
               <MobileCardsView
                 initialCardId={selectedDetailCardId}
+                onBack={handleGoBack}
                 onNavigateToTransactions={() => handleNavigateTab('transactions', 'all')}
               />
             </div>
@@ -314,7 +432,10 @@ function DashboardContent() {
         {activeTab === 'accounts' && (
           <>
             <div className="block md:hidden">
-              <MobileAccountsView onNavigateToTransactions={accId => handleNavigateTab('transactions', 'all')} />
+              <MobileAccountsView
+                onBack={handleGoBack}
+                onNavigateToTransactions={accId => handleNavigateTab('transactions', 'all')}
+              />
             </div>
             <div className="hidden md:block">
               <AccountsView onNavigateToTransactions={accId => handleNavigateTab('transactions', 'all')} />
@@ -355,6 +476,14 @@ function DashboardContent() {
           setIsAlertsDrawerOpen(false);
         }}
       />
+
+      {/* Toast Informativo para saída em 2 cliques na Home (Mobile) */}
+      {exitToastVisible && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-slate-900/95 border border-slate-700/80 text-white text-xs font-semibold rounded-full shadow-2xl backdrop-blur-md animate-fadeIn flex items-center gap-2 pointer-events-none">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          <span>Pressione voltar novamente para sair</span>
+        </div>
+      )}
     </div>
   );
 }
