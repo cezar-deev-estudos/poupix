@@ -15,7 +15,10 @@ import {
   Banknote,
   Scale,
   Calendar,
+  Plus,
 } from 'lucide-react';
+import { NewTransactionPopover } from '../layout/NewTransactionPopover';
+import { TransactionFlowType } from '../transactions/modal/TransactionModal';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -25,11 +28,13 @@ const MONTH_NAMES = [
 interface DesktopMonthlyBalanceViewProps {
   onBack: () => void;
   onEditTransaction?: (tx: Transaction) => void;
+  onOpenNewTransaction?: (flowType?: TransactionFlowType) => void;
 }
 
 export const DesktopMonthlyBalanceView: React.FC<DesktopMonthlyBalanceViewProps> = ({
   onBack,
   onEditTransaction,
+  onOpenNewTransaction,
 }) => {
   const {
     filteredTransactions,
@@ -42,6 +47,7 @@ export const DesktopMonthlyBalanceView: React.FC<DesktopMonthlyBalanceViewProps>
 
   const [activeTabType, setActiveTabType] = useState<'category' | 'account'>('category');
   const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
 
   const handlePrevMonth = () => {
@@ -151,32 +157,54 @@ export const DesktopMonthlyBalanceView: React.FC<DesktopMonthlyBalanceViewProps>
           </div>
         </div>
 
-        {/* Controles de Mês */}
-        <div className="flex items-center gap-2 bg-slate-950/60 border border-slate-800/80 rounded-2xl px-3 py-1.5 self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={handlePrevMonth}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-            title="Mês anterior"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsMonthModalOpen(true)}
-            className="flex items-center gap-2 px-2 py-1 text-sm font-bold text-white hover:text-emerald-400 transition-colors cursor-pointer"
-          >
-            <Calendar className="w-4 h-4 text-purple-400" />
-            <span>{MONTH_NAMES[selectedMonth]} {selectedYear}</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleNextMonth}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-            title="Próximo mês"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+        {/* Ações e Controles de Mês */}
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+          {/* Botão + Novo */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsPopoverOpen(!isPopoverOpen)}
+              className="px-5 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold rounded-2xl shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.02] text-xs"
+              title="Novo Lançamento"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>Novo</span>
+            </button>
+
+            <NewTransactionPopover
+              isOpen={isPopoverOpen}
+              onClose={() => setIsPopoverOpen(false)}
+              onSelectFlow={flow => onOpenNewTransaction?.(flow)}
+            />
+          </div>
+
+          {/* Controles de Mês */}
+          <div className="flex items-center gap-2 bg-slate-950/60 border border-slate-800/80 rounded-2xl px-3 py-1.5">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              title="Mês anterior"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsMonthModalOpen(true)}
+              className="flex items-center gap-2 px-2 py-1 text-sm font-bold text-white hover:text-emerald-400 transition-colors cursor-pointer"
+            >
+              <Calendar className="w-4 h-4 text-purple-400" />
+              <span>{MONTH_NAMES[selectedMonth]} {selectedYear}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              title="Próximo mês"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 

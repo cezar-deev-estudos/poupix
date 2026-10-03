@@ -452,7 +452,17 @@ function DashboardContent() {
         {activeTab === 'tags' && <TagsView />}
         {activeTab === 'projections' && <CashFlowProjectionView />}
         {activeTab === 'openfinance' && <OpenFinanceView />}
-        {activeTab === 'reports' && <ReportsView />}
+        {activeTab === 'reports' && (
+          <ReportsView
+            onBack={handleGoBack}
+            onOpenNewTransaction={handleOpenNewTransaction}
+            onEditTransaction={tx => {
+              setEditingTx(tx);
+              setTxModalFlow(tx.type === 'transfer' ? 'transfer' : tx.creditCardId ? 'creditCard' : tx.type);
+              setIsNewTxModalOpen(true);
+            }}
+          />
+        )}
         {activeTab === 'users' && <UsersManagementView />}
         {activeTab === 'settings' && <SettingsView />}
         {activeTab === 'monthly-balance' && (
@@ -470,6 +480,7 @@ function DashboardContent() {
             <div className="hidden md:block">
               <DesktopMonthlyBalanceView
                 onBack={handleGoBack}
+                onOpenNewTransaction={handleOpenNewTransaction}
                 onEditTransaction={tx => {
                   setEditingTx(tx);
                   setTxModalFlow(tx.type === 'transfer' ? 'transfer' : tx.creditCardId ? 'creditCard' : tx.type);

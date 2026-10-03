@@ -2,6 +2,10 @@
 
 import React, { useState } from 'react';
 import { useFinance } from '@/context/FinanceContext';
+import { Transaction } from '@/types/finance';
+import { TransactionFlowType } from '../transactions/modal/TransactionModal';
+import { DesktopMonthlyBalanceView } from '../dashboard/DesktopMonthlyBalanceView';
+import { MobileMonthlyBalanceView } from '../dashboard/MobileMonthlyBalanceView';
 import {
   FileText,
   Download,
@@ -11,11 +15,24 @@ import {
   Layers,
   ArrowDownLeft,
   ArrowUpRight,
-  Printer
+  Printer,
+  Scale,
+  BarChart3,
 } from 'lucide-react';
 
-export const ReportsView: React.FC = () => {
+interface ReportsViewProps {
+  onEditTransaction?: (tx: Transaction) => void;
+  onOpenNewTransaction?: (flowType?: TransactionFlowType) => void;
+  onBack?: () => void;
+}
+
+export const ReportsView: React.FC<ReportsViewProps> = ({
+  onEditTransaction,
+  onOpenNewTransaction,
+  onBack,
+}) => {
   const { summary, filteredTransactions, selectedMonth, selectedYear, categories, accounts, exportDatabaseBackup } = useFinance();
+  const [activeTab, setActiveTab] = useState<'balance' | 'statement'>('balance');
   const [reportType, setReportType] = useState<'monthly' | 'categories' | 'accounts'>('monthly');
 
   const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -67,18 +84,81 @@ export const ReportsView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Banner de Relatórios */}
-      <div className="bg-gradient-to-r from-teal-950/40 via-emerald-950/30 to-slate-900 border border-teal-500/20 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-teal-400 font-semibold text-xs uppercase tracking-wider">
-            <FileText className="w-4 h-4" />
-            <span>Central de Exportação & Auditoria</span>
+      {/* 1. Barra de Abas Superiores do Módulo de Relatórios */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 border border-slate-800/80 rounded-3xl p-3 shadow-lg">
+        <div className="flex items-center gap-2">
+          <div className="p-2 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-teal-400">
+            <BarChart3 className="w-5 h-5" />
           </div>
-          <h2 className="text-2xl font-black text-white">Relatórios Financeiros Consolidados</h2>
-          <p className="text-xs text-slate-400 max-w-xl">
-            Exporte demonstrativos analíticos completos em formato Excel/CSV, gere PDFs para impressão ou faça backup total dos seus dados.
-          </p>
+          <div>
+            <h2 className="text-base font-bold text-white tracking-tight">Central de Relatórios</h2>
+            <p className="text-[11px] text-slate-400">Análise de balanço mensal, fluxo e exportações</p>
+          </div>
         </div>
+
+        {/* Alternador de Abas Superiores */}
+        <div className="flex items-center bg-slate-950/80 border border-slate-800 p-1 rounded-2xl text-xs self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab('balance')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
+              activeTab === 'balance'
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-md shadow-emerald-500/20 font-bold'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Scale className="w-4 h-4" />
+            <span>Balanço Mensal</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('statement')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
+              activeTab === 'statement'
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-md shadow-emerald-500/20 font-bold'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Demonstrativo & Exportação</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Conteúdo da Aba 1: Balanço Mensal */}
+      {activeTab === 'balance' && (
+        <div>
+          <div className="block md:hidden">
+            <MobileMonthlyBalanceView
+              onBack={onBack || (() => {})}
+              onEditTransaction={onEditTransaction}
+            />
+          </div>
+          <div className="hidden md:block">
+            <DesktopMonthlyBalanceView
+              onBack={onBack || (() => {})}
+              onEditTransaction={onEditTransaction}
+              onOpenNewTransaction={onOpenNewTransaction}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Conteúdo da Aba 2: Demonstrativo & Exportação (Tela Original Preservada) */}
+      {activeTab === 'statement' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Top Banner de Relatórios */}
+          <div className="bg-gradient-to-r from-teal-950/40 via-emerald-950/30 to-slate-900 border border-teal-500/20 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-teal-400 font-semibold text-xs uppercase tracking-wider">
+                <FileText className="w-4 h-4" />
+                <span>Central de Exportação & Auditoria</span>
+              </div>
+              <h2 className="text-2xl font-black text-white">Relatórios Financeiros Consolidados</h2>
+              <p className="text-xs text-slate-400 max-w-xl">
+                Exporte demonstrativos analíticos completos em formato Excel/CSV, gere PDFs para impressão ou faça backup total dos seus dados.
+              </p>
+            </div>
 
         <div className="flex items-center gap-3">
           <button
@@ -191,5 +271,7 @@ export const ReportsView: React.FC = () => {
         </div>
       </div>
     </div>
+  )}
+</div>
   );
 };

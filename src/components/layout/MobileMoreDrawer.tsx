@@ -95,7 +95,7 @@ export const MobileMoreDrawer: React.FC<MobileMoreDrawerProps> = ({
     },
     {
       id: 'reports',
-      label: 'Relatórios & PDF',
+      label: 'Relatórios',
       icon: <ArrowLeftRight className="w-5 h-5 text-teal-400" />,
       color: 'bg-teal-500/10 border-teal-500/20',
       desc: 'Exportação completa de dados e relatórios',

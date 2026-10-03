@@ -378,19 +378,29 @@ export const deleteTransactionFromSupabase = async (
   recurringGroupId?: string,
   installmentGroupId?: string,
   mode: 'single' | 'following' | 'all' = 'single',
-  userId?: string
+  userId?: string,
+  deletedIds?: string[]
 ) => {
   const supabase = getSupabaseClient()
   if (!supabase) return
 
   try {
-    const uuid = ensureValidUUID(txId)
     const effectiveUserId = userId ? ensureValidUUID(userId) : undefined
+
+    // Se temos uma lista explícita de IDs a excluir, apaga todos via 'in'
+    if (deletedIds && deletedIds.length > 0) {
+      const allUuids = Array.from(new Set(deletedIds.flatMap(id => [id, ensureValidUUID(id)])))
+      let query = supabase.from('transactions').delete()
+      if (effectiveUserId) query = query.eq('user_id', effectiveUserId)
+      await query.in('id', allUuids)
+      return
+    }
+
+    const uuid = ensureValidUUID(txId)
 
     if (mode === 'single' || (!recurringGroupId && !installmentGroupId)) {
       let query = supabase.from('transactions').delete()
       if (effectiveUserId) query = query.eq('user_id', effectiveUserId)
-      // Tenta deletar tanto pelo UUID gerado quanto pelo txId original
       if (uuid === txId) {
         await query.eq('id', uuid)
       } else {

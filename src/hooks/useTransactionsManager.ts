@@ -312,7 +312,7 @@ export const transactionManager: TransactionManagerActions = {
       const deletedIds: string[] = [id];
 
       if (!target || mode === 'single' || (!target.recurringGroupId && !target.installmentGroupId)) {
-        deleteTransactionFromSupabase(id, target?.recurringGroupId, target?.installmentGroupId, 'single');
+        deleteTransactionFromSupabase(id, target?.recurringGroupId, target?.installmentGroupId, 'single', undefined, deletedIds);
         onTransactionDeleted?.(deletedIds);
         return prev.filter(t => t.id !== id);
       }
@@ -340,7 +340,7 @@ export const transactionManager: TransactionManagerActions = {
               )
           );
         }
-        deleteTransactionFromSupabase(id, target.recurringGroupId, target.installmentGroupId, 'following');
+        deleteTransactionFromSupabase(id, target.recurringGroupId, target.installmentGroupId, 'following', undefined, deletedIds);
         onTransactionDeleted?.(deletedIds);
         return remaining;
       }
@@ -356,12 +356,12 @@ export const transactionManager: TransactionManagerActions = {
           removed.forEach(t => deletedIds.push(t.id));
           remaining = prev.filter(t => t.installmentGroupId !== target.installmentGroupId);
         }
-        deleteTransactionFromSupabase(id, target.recurringGroupId, target.installmentGroupId, 'all');
+        deleteTransactionFromSupabase(id, target.recurringGroupId, target.installmentGroupId, 'all', undefined, deletedIds);
         onTransactionDeleted?.(deletedIds);
         return remaining;
       }
 
-      deleteTransactionFromSupabase(id, target?.recurringGroupId, target?.installmentGroupId, mode);
+      deleteTransactionFromSupabase(id, target?.recurringGroupId, target?.installmentGroupId, mode, undefined, deletedIds);
       onTransactionDeleted?.(deletedIds);
       return prev.filter(t => t.id !== id);
     });
