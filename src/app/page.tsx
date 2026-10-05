@@ -214,6 +214,11 @@ function DashboardContent() {
       setSelectedDetailCardId(null);
     }
 
+    if (tab === 'dashboard' && typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
     if (tab !== activeTab) {
       setTabHistory(prev => [...prev, tab]);
       setActiveTab(tab);

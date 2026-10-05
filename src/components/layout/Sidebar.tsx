@@ -156,7 +156,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* 1. Principal */}
         <button
           type="button"
-          onClick={() => setActiveTab('dashboard')}
+          onClick={() => {
+            setActiveTab('dashboard');
+            if (typeof window !== 'undefined') {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }}
           className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-all cursor-pointer ${
             activeTab === 'dashboard' ? 'text-purple-400 font-bold' : 'text-slate-500 hover:text-slate-300'
           }`}
