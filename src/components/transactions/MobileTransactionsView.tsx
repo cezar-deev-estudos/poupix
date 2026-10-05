@@ -39,10 +39,12 @@ const WEEKDAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 interface MobileTransactionsViewProps {
   initialTypeFilter?: 'all' | 'income' | 'expense' | 'transfer';
+  initialStatusFilter?: 'all' | 'pending' | 'paid';
 }
 
 export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
   initialTypeFilter = 'all',
+  initialStatusFilter = 'all',
 }) => {
   const {
     filteredTransactions,
@@ -93,10 +95,16 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     categoryId: '',
     accountId: '',
     tag: '',
-    status: 'all',
+    status: initialStatusFilter || 'all',
     type: 'all',
     saveFilter: false,
   });
+
+  React.useEffect(() => {
+    if (initialStatusFilter) {
+      setAdvancedFilter(prev => ({ ...prev, status: initialStatusFilter }));
+    }
+  }, [initialStatusFilter]);
 
   const displayVal = (amount: number) => {
     if (isPrivacyMode) return 'R$ ••••••';
@@ -244,12 +252,22 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     return [...nonCardTransactions, ...aggregatedCardItems];
   }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter, groupByCard, creditCards, accounts, categories, selectedYear, selectedMonth]);
 
+  // Helper para obter YYYY-MM-DD em horário local (evita bug de UTC no timezone brasileiro)
+  const getLocalDateString = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Agrupamento por Dias no padrão Mobills: "Ontem", "Hoje", "Segunda, 21", etc.
   const groupedByDate = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = getLocalDateString(now);
+
     const yesterdayDate = new Date();
     yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-    const yesterday = yesterdayDate.toISOString().split('T')[0];
+    const yesterday = getLocalDateString(yesterdayDate);
 
     const sorted = [...displayedTransactions].sort((a, b) => {
       const dateA = getTxDate(a);
@@ -257,7 +275,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
       return new Date(dateB).getTime() - new Date(dateA).getTime();
     });
 
-    const groups: { dateKey: string; label: string; items: Transaction[] }[] = [];
+    const groups: { dateKey: string; label: string; items: Transaction[]; isToday?: boolean; isYesterday?: boolean }[] = [];
 
     sorted.forEach((tx) => {
       const effectiveDate = getTxDate(tx);
@@ -266,9 +284,12 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
         existing.items.push(tx);
       } else {
         let label = '';
-        if (effectiveDate === today) {
+        const isToday = effectiveDate === today;
+        const isYesterday = effectiveDate === yesterday;
+
+        if (isToday) {
           label = 'Hoje';
-        } else if (effectiveDate === yesterday) {
+        } else if (isYesterday) {
           label = 'Ontem';
         } else {
           const [y, m, d] = effectiveDate.split('-').map(Number);
@@ -281,12 +302,34 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
           dateKey: effectiveDate,
           label,
           items: [tx],
+          isToday,
+          isYesterday,
         });
       }
     });
 
     return groups;
   }, [displayedTransactions, creditCards]);
+
+  // Auto-scroll inicial: ao abrir a tela de transações no mobile, rola para "Hoje", ou "Ontem" se não houver "Hoje"
+  const hasAutoScrolledRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (hasAutoScrolledRef.current || groupedByDate.length === 0) return;
+
+    const timer = setTimeout(() => {
+      const todayEl = document.getElementById('tx-group-hoje');
+      const yesterdayEl = document.getElementById('tx-group-ontem');
+
+      const targetEl = todayEl || yesterdayEl;
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        hasAutoScrolledRef.current = true;
+      }
+    }, 120);
+
+    return () => clearTimeout(timer);
+  }, [groupedByDate]);
 
   const togglePaid = (e: React.MouseEvent, id: string, currentPaid: boolean) => {
     e.stopPropagation();
@@ -723,7 +766,11 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
       ) : (
         <div className="space-y-4">
           {groupedByDate.map((group) => (
-            <div key={group.dateKey} className="space-y-2">
+            <div
+              key={group.dateKey}
+              id={group.isToday ? 'tx-group-hoje' : group.isYesterday ? 'tx-group-ontem' : undefined}
+              className="space-y-2 scroll-mt-2"
+            >
               {/* Título do Dia */}
               <h4 className="text-sm font-bold text-slate-200 px-1">{group.label}</h4>
 

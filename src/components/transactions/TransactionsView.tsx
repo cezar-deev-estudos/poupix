@@ -28,10 +28,12 @@ const MONTH_NAMES = [
 
 interface TransactionsViewProps {
   initialTypeFilter?: 'all' | 'income' | 'expense' | 'transfer';
+  initialStatusFilter?: 'all' | 'pending' | 'paid';
 }
 
 export const TransactionsView: React.FC<TransactionsViewProps> = ({
   initialTypeFilter = 'all',
+  initialStatusFilter = 'all',
 }) => {
   const {
     filteredTransactions,
@@ -76,10 +78,16 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     categoryId: '',
     accountId: '',
     tag: '',
-    status: 'all',
+    status: initialStatusFilter || 'all',
     type: 'all',
     saveFilter: false,
   });
+
+  React.useEffect(() => {
+    if (initialStatusFilter) {
+      setAdvancedFilter(prev => ({ ...prev, status: initialStatusFilter }));
+    }
+  }, [initialStatusFilter]);
 
   // Navegação de Mês
   const handlePrevMonth = () => {

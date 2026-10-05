@@ -22,6 +22,7 @@ import {
 import { ActiveTab } from '../layout/Sidebar';
 import { TransactionFlowType } from '../transactions/modal/TransactionModal';
 import { MonthDropdownModal } from '../layout/MonthDropdownModal';
+import { PendingAlertsCards } from './PendingAlertsCards';
 import { useAuth } from '@/context/AuthContext';
 import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
 
@@ -31,7 +32,12 @@ const MONTH_NAMES = [
 ];
 
 interface MobillsMobileHomeProps {
-  onNavigateTab: (tab: ActiveTab, filterType?: 'all' | 'income' | 'expense' | 'transfer', cardId?: string) => void;
+  onNavigateTab: (
+    tab: ActiveTab,
+    filterType?: 'all' | 'income' | 'expense' | 'transfer',
+    cardId?: string,
+    statusFilter?: 'all' | 'pending' | 'paid'
+  ) => void;
   onOpenNewTransaction: (flowType?: TransactionFlowType) => void;
   onOpenAlerts?: () => void;
 }
@@ -310,7 +316,10 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
         onClose={() => setIsMonthModalOpen(false)}
       />
 
-      {/* 2. CARD: BALANÇO MENSAL */}
+      {/* 2. PENDÊNCIAS E ALERTAS (CARROSSEL DINÂMICO) */}
+      <PendingAlertsCards onNavigateTab={onNavigateTab} />
+
+      {/* 3. CARD: BALANÇO MENSAL */}
       <div className="space-y-2">
         <h4 className="text-sm font-bold text-slate-300 px-1">Balanço mensal</h4>
         <div

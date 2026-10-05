@@ -33,6 +33,7 @@ import { DesktopMonthlyBalanceView } from '@/components/dashboard/DesktopMonthly
 import { CreditCardsDashboardCard } from '@/components/dashboard/CreditCardsDashboardCard';
 import { CategoryIncomeChart } from '@/components/dashboard/CategoryIncomeChart';
 import { MonthlyBalanceCard } from '@/components/dashboard/MonthlyBalanceCard';
+import { PendingAlertsCards } from '@/components/dashboard/PendingAlertsCards';
 import {
   DashboardLayoutPreferences,
   DEFAULT_DASHBOARD_LAYOUT,
@@ -44,6 +45,7 @@ import { Plus, ArrowRight, UploadCloud, Bell } from 'lucide-react';
 function DashboardContent() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [selectedTxFilter, setSelectedTxFilter] = useState<'all' | 'income' | 'expense' | 'transfer'>('all');
+  const [selectedTxStatusFilter, setSelectedTxStatusFilter] = useState<'all' | 'pending' | 'paid'>('all');
   const [selectedDetailCardId, setSelectedDetailCardId] = useState<string | null>(null);
   const [isNewTxModalOpen, setIsNewTxModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -191,13 +193,21 @@ function DashboardContent() {
   const handleNavigateTab = (
     tab: ActiveTab,
     filterType?: 'all' | 'income' | 'expense' | 'transfer',
-    cardId?: string
+    cardId?: string,
+    statusFilter?: 'all' | 'pending' | 'paid'
   ) => {
     if (filterType) {
       setSelectedTxFilter(filterType);
     } else if (tab === 'transactions') {
       setSelectedTxFilter('all');
     }
+
+    if (statusFilter) {
+      setSelectedTxStatusFilter(statusFilter);
+    } else if (tab === 'transactions' && !statusFilter) {
+      setSelectedTxStatusFilter('all');
+    }
+
     if (cardId) {
       setSelectedDetailCardId(cardId);
     } else if (tab !== 'cards') {
@@ -296,6 +306,9 @@ function DashboardContent() {
             <div className="hidden md:block space-y-6">
               {/* Cards de Métricas Principais com Navegação Rápida */}
               <SummaryCards onNavigateTab={handleNavigateTab} />
+
+              {/* Cards de Pendências e Alertas no Desktop */}
+              <PendingAlertsCards onNavigateTab={handleNavigateTab} />
 
               {/* Gráficos e Cards em Grid de 2 Colunas com Ordem Customizada */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -409,10 +422,16 @@ function DashboardContent() {
         {activeTab === 'transactions' && (
           <>
             <div className="block md:hidden">
-              <MobileTransactionsView initialTypeFilter={selectedTxFilter} />
+              <MobileTransactionsView
+                initialTypeFilter={selectedTxFilter}
+                initialStatusFilter={selectedTxStatusFilter}
+              />
             </div>
             <div className="hidden md:block">
-              <TransactionsView initialTypeFilter={selectedTxFilter} />
+              <TransactionsView
+                initialTypeFilter={selectedTxFilter}
+                initialStatusFilter={selectedTxStatusFilter}
+              />
             </div>
           </>
         )}
