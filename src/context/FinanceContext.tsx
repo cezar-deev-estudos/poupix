@@ -266,21 +266,49 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const creditCardsRef = useRef(creditCards);
   creditCardsRef.current = creditCards;
 
-  // Tombstones de IDs excluídos recentemente para evitar que buscas em nuvem ressuscitem transações apagadas
-  const deletedTransactionIdsRef = useRef<Set<string>>(new Set());
+  // Tombstones de IDs excluídos recentemente persistidos no localStorage para evitar que buscas em nuvem ressuscitem transações apagadas
+  const deletedTransactionIdsRef = useRef<Set<string>>(
+    (() => {
+      if (typeof window !== 'undefined') {
+        try {
+          const saved = localStorage.getItem('mobills_deleted_tx_ids');
+          if (saved) return new Set<string>(JSON.parse(saved));
+        } catch {}
+      }
+      return new Set<string>();
+    })()
+  );
 
   const handleTransactionDeleted = useCallback((deletedIds: string[]) => {
     deletedIds.forEach(id => {
       deletedTransactionIdsRef.current.add(id);
       deletedTransactionIdsRef.current.add(ensureValidUUID(id));
     });
-    // Limpa os tombstones após 10 minutos
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(
+          'mobills_deleted_tx_ids',
+          JSON.stringify(Array.from(deletedTransactionIdsRef.current))
+        );
+      } catch {}
+    }
+
+    // Limpa os tombstones após 30 minutos
     setTimeout(() => {
       deletedIds.forEach(id => {
         deletedTransactionIdsRef.current.delete(id);
         deletedTransactionIdsRef.current.delete(ensureValidUUID(id));
       });
-    }, 10 * 60 * 1000);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(
+            'mobills_deleted_tx_ids',
+            JSON.stringify(Array.from(deletedTransactionIdsRef.current))
+          );
+        } catch {}
+      }
+    }, 30 * 60 * 1000);
   }, []);
 
   // 3. Callback de dados vindos da nuvem (Supabase)
@@ -449,7 +477,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addTransaction: tx => transactionManager.addTransaction(tx, setTransactions, setAccounts),
         importTransactions: txs => transactionManager.importTransactions(txs, setTransactions, setAccounts),
         updateTransaction: (id, up, mode = 'single') => transactionManager.updateTransaction(id, up, mode, transactions, setTransactions),
-        deleteTransaction: (id, mode = 'single') => transactionManager.deleteTransaction(id, mode, transactions, setTransactions, handleTransactionDeleted),
+        deleteTransaction: (id, mode = 'single') => transactionManager.deleteTransaction(id, mode, transactions, setTransactions, handleTransactionDeleted, currentUserId),
         addAccount: acc => entityManager.addAccount(acc, setAccounts),
         updateAccount: (id, up) => entityManager.updateAccount(id, up, setAccounts),
         deleteAccount: id => entityManager.deleteAccount(id, setAccounts),

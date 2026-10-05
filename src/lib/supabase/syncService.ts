@@ -385,14 +385,23 @@ export const deleteTransactionFromSupabase = async (
   if (!supabase) return
 
   try {
-    const effectiveUserId = userId ? ensureValidUUID(userId) : undefined
+    let effectiveUserId = userId ? ensureValidUUID(userId) : undefined
+
+    // Se o userId não veio passado, tenta obter o ID do usuário autenticado atual na sessão Supabase
+    if (!effectiveUserId) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user?.id) {
+        effectiveUserId = ensureValidUUID(user.id)
+      }
+    }
 
     // Se temos uma lista explícita de IDs a excluir, apaga todos via 'in'
     if (deletedIds && deletedIds.length > 0) {
       const allUuids = Array.from(new Set(deletedIds.flatMap(id => [id, ensureValidUUID(id)])))
       let query = supabase.from('transactions').delete()
       if (effectiveUserId) query = query.eq('user_id', effectiveUserId)
-      await query.in('id', allUuids)
+      const { error: delErr } = await query.in('id', allUuids)
+      if (delErr) console.error('[Supabase Delete Tx In Error]:', delErr)
       return
     }
 
@@ -401,11 +410,10 @@ export const deleteTransactionFromSupabase = async (
     if (mode === 'single' || (!recurringGroupId && !installmentGroupId)) {
       let query = supabase.from('transactions').delete()
       if (effectiveUserId) query = query.eq('user_id', effectiveUserId)
-      if (uuid === txId) {
-        await query.eq('id', uuid)
-      } else {
-        await query.or(`id.eq.${uuid},id.eq.${txId}`)
-      }
+      const { error: delErr } = uuid === txId 
+        ? await query.eq('id', uuid)
+        : await query.or(`id.eq.${uuid},id.eq.${txId}`)
+      if (delErr) console.error('[Supabase Delete Tx Single Error]:', delErr)
       return
     }
 
@@ -414,9 +422,11 @@ export const deleteTransactionFromSupabase = async (
       if (effectiveUserId) query = query.eq('user_id', effectiveUserId)
 
       if (recurringGroupId) {
-        await query.eq('recurring_group_id', recurringGroupId)
+        const { error: delErr } = await query.eq('recurring_group_id', recurringGroupId)
+        if (delErr) console.error('[Supabase Delete Tx Recurring All Error]:', delErr)
       } else if (installmentGroupId) {
-        await query.eq('installment_group_id', installmentGroupId)
+        const { error: delErr } = await query.eq('installment_group_id', installmentGroupId)
+        if (delErr) console.error('[Supabase Delete Tx Installment All Error]:', delErr)
       }
       return
     }
@@ -424,13 +434,12 @@ export const deleteTransactionFromSupabase = async (
     // following mode
     let query = supabase.from('transactions').delete()
     if (effectiveUserId) query = query.eq('user_id', effectiveUserId)
-    if (uuid === txId) {
-      await query.eq('id', uuid)
-    } else {
-      await query.or(`id.eq.${uuid},id.eq.${txId}`)
-    }
+    const { error: delErr } = uuid === txId
+      ? await query.eq('id', uuid)
+      : await query.or(`id.eq.${uuid},id.eq.${txId}`)
+    if (delErr) console.error('[Supabase Delete Tx Following Error]:', delErr)
   } catch (err) {
-    console.error('[Supabase Delete Tx Error]', err)
+    console.error('[Supabase Delete Tx Exception]', err)
   }
 }
 

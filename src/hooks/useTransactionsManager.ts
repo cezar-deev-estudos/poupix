@@ -38,7 +38,8 @@ export interface TransactionManagerActions {
     mode: 'single' | 'following' | 'all',
     transactions: Transaction[],
     setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>,
-    onTransactionDeleted?: (deletedIds: string[]) => void
+    onTransactionDeleted?: (deletedIds: string[]) => void,
+    userId?: string
   ) => void;
 }
 
@@ -306,13 +307,13 @@ export const transactionManager: TransactionManagerActions = {
     });
   },
 
-  deleteTransaction: (id, mode, transactions, setTransactions, onTransactionDeleted) => {
+  deleteTransaction: (id, mode, transactions, setTransactions, onTransactionDeleted, userId) => {
     setTransactions(prev => {
       const target = prev.find(t => t.id === id) || transactions.find(t => t.id === id);
       const deletedIds: string[] = [id];
 
       if (!target || mode === 'single' || (!target.recurringGroupId && !target.installmentGroupId)) {
-        deleteTransactionFromSupabase(id, target?.recurringGroupId, target?.installmentGroupId, 'single', undefined, deletedIds);
+        deleteTransactionFromSupabase(id, target?.recurringGroupId, target?.installmentGroupId, 'single', userId, deletedIds);
         onTransactionDeleted?.(deletedIds);
         return prev.filter(t => t.id !== id);
       }
@@ -340,7 +341,7 @@ export const transactionManager: TransactionManagerActions = {
               )
           );
         }
-        deleteTransactionFromSupabase(id, target.recurringGroupId, target.installmentGroupId, 'following', undefined, deletedIds);
+        deleteTransactionFromSupabase(id, target.recurringGroupId, target.installmentGroupId, 'following', userId, deletedIds);
         onTransactionDeleted?.(deletedIds);
         return remaining;
       }
@@ -356,12 +357,12 @@ export const transactionManager: TransactionManagerActions = {
           removed.forEach(t => deletedIds.push(t.id));
           remaining = prev.filter(t => t.installmentGroupId !== target.installmentGroupId);
         }
-        deleteTransactionFromSupabase(id, target.recurringGroupId, target.installmentGroupId, 'all', undefined, deletedIds);
+        deleteTransactionFromSupabase(id, target.recurringGroupId, target.installmentGroupId, 'all', userId, deletedIds);
         onTransactionDeleted?.(deletedIds);
         return remaining;
       }
 
-      deleteTransactionFromSupabase(id, target?.recurringGroupId, target?.installmentGroupId, mode, undefined, deletedIds);
+      deleteTransactionFromSupabase(id, target?.recurringGroupId, target?.installmentGroupId, mode, userId, deletedIds);
       onTransactionDeleted?.(deletedIds);
       return prev.filter(t => t.id !== id);
     });
