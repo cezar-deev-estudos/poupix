@@ -1,9 +1,10 @@
-'use client';
-
 import React, { useState } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { SUPPORTED_INSTITUTIONS } from '@/lib/openFinance';
-import { BankInstitution } from '@/types/finance';
+import { BankInstitution, OpenFinanceConnection } from '@/types/finance';
+import { BankSyncSettingsModal } from './BankSyncSettingsModal';
+import { BankReconciliationDrawer } from './BankReconciliationDrawer';
+import { PluggyConnectWidget } from './PluggyConnectWidget';
 import {
   Building2,
   Plus,
@@ -15,14 +16,27 @@ import {
   Trash2,
   ArrowRight,
   Zap,
-  Lock
+  Lock,
+  SlidersHorizontal,
+  Inbox
 } from 'lucide-react';
 
 export const OpenFinanceView: React.FC = () => {
-  const { openFinanceConnections, connectBank, syncBankConnection, disconnectBank } = useFinance();
+  const {
+    openFinanceConnections,
+    pendingBankTransactions,
+    connectBank,
+    syncBankConnection,
+    disconnectBank,
+    updateBankSyncSettings,
+  } = useFinance();
+
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
+  const [isPluggyWidgetOpen, setIsPluggyWidgetOpen] = useState(false);
   const [selectedInstitution, setSelectedInstitution] = useState<BankInstitution | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isReconciliationOpen, setIsReconciliationOpen] = useState(false);
+  const [settingsModalConnection, setSettingsModalConnection] = useState<OpenFinanceConnection | null>(null);
 
   const handleOpenConnect = (inst: BankInstitution) => {
     setSelectedInstitution(inst);
@@ -56,17 +70,29 @@ export const OpenFinanceView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Botão de Conciliação / Inbox de Transações com Badge */}
+          <button
+            onClick={() => setIsReconciliationOpen(true)}
+            className="relative flex items-center gap-2 px-4 py-3.5 bg-slate-900/90 hover:bg-slate-800 border border-purple-500/30 text-white font-bold rounded-2xl text-xs shadow-lg transition-all cursor-pointer hover:scale-102"
+          >
+            <Inbox className="w-4 h-4 text-purple-400" />
+            <span>Fila de Conciliação</span>
+            {pendingBankTransactions.length > 0 && (
+              <span className="w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center animate-pulse">
+                {pendingBankTransactions.length}
+              </span>
+            )}
+          </button>
+
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl px-4 py-3 text-center">
             <span className="text-[10px] text-slate-400 block">Conexões Ativas</span>
             <span className="text-lg font-black text-purple-400">{openFinanceConnections.length}</span>
           </div>
+
           <button
-            onClick={() => {
-              setSelectedInstitution(SUPPORTED_INSTITUTIONS[0]);
-              setIsConnectModalOpen(true);
-            }}
-            className="flex items-center gap-2 px-5 py-4 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white font-bold rounded-2xl text-xs shadow-lg shadow-purple-500/20 transition-all cursor-pointer hover:scale-105 shrink-0"
+            onClick={() => setIsPluggyWidgetOpen(true)}
+            className="flex items-center gap-2 px-5 py-3.5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white font-bold rounded-2xl text-xs shadow-lg shadow-purple-500/20 transition-all cursor-pointer hover:scale-105 shrink-0"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
             <span>Conectar Nova Instituição</span>
@@ -99,29 +125,38 @@ export const OpenFinanceView: React.FC = () => {
                   key={conn.id}
                   className="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-5 shadow-xl flex items-center justify-between gap-4"
                 >
-                  <div className="flex items-center gap-3.5">
+                  <div className="flex items-center gap-3.5 min-w-0">
                     <div
-                      className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-lg border border-slate-700/50"
+                      className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-lg border border-slate-700/50 shrink-0"
                       style={{ backgroundColor: `${inst?.primaryColor || '#8B5CF6'}25` }}
                     >
                       {inst?.logo || '🏦'}
                     </div>
 
-                    <div className="space-y-1">
+                    <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-white text-sm">{conn.institutionName}</h4>
-                        <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold">
+                        <h4 className="font-bold text-white text-sm truncate">{conn.institutionName}</h4>
+                        <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold shrink-0">
                           <CheckCircle2 className="w-3 h-3" />
                           Ativo
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[11px] text-slate-400 truncate">
                         Última sincronização: {new Date(conn.lastSyncAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Botão de Preferências de Sincronização */}
+                    <button
+                      onClick={() => setSettingsModalConnection(conn)}
+                      className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                      title="Configurar o que sincronizar"
+                    >
+                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                    </button>
+
                     <button
                       onClick={() => syncBankConnection(conn.id)}
                       disabled={conn.status === 'syncing'}
@@ -135,9 +170,7 @@ export const OpenFinanceView: React.FC = () => {
                     </button>
                     <button
                       onClick={() => {
-                        if (confirm(`Revogar consentimento e desconectar ${conn.institutionName}?`)) {
-                          disconnectBank(conn.id);
-                        }
+                        disconnectBank(conn.id);
                       }}
                       className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl transition-colors cursor-pointer"
                       title="Desconectar"
@@ -257,6 +290,30 @@ export const OpenFinanceView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Preferências de Sincronização por Instituição */}
+      <BankSyncSettingsModal
+        isOpen={Boolean(settingsModalConnection)}
+        onClose={() => setSettingsModalConnection(null)}
+        connection={settingsModalConnection}
+        onSaveSettings={(connId, settings) => updateBankSyncSettings(connId, settings)}
+      />
+
+      {/* Drawer / Modal de Conciliação Bancária (Aprovação Rápida) */}
+      <BankReconciliationDrawer
+        isOpen={isReconciliationOpen}
+        onClose={() => setIsReconciliationOpen(false)}
+      />
+
+      {/* Widget Oficial Pluggy Connect (Open Finance Real) */}
+      <PluggyConnectWidget
+        isOpen={isPluggyWidgetOpen}
+        onClose={() => setIsPluggyWidgetOpen(false)}
+        onSuccess={({ itemId, institutionName }) => {
+          connectBank(`pluggy-${itemId}`, institutionName);
+          // Opcionalmente, pode disparar a primeira sincronização instantaneamente
+        }}
+      />
     </div>
   );
 };

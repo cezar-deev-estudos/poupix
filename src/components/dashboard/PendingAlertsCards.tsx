@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency } from '@/lib/utils';
 import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
-import { ArrowDown, ArrowUp, FileText } from 'lucide-react';
+import { ArrowDown, ArrowUp, FileText, Building2 } from 'lucide-react';
 import { ActiveTab } from '../layout/Sidebar';
 
 interface PendingAlertsCardsProps {
@@ -21,6 +21,7 @@ export const PendingAlertsCards: React.FC<PendingAlertsCardsProps> = ({ onNaviga
     filteredTransactions,
     transactions,
     creditCards,
+    pendingBankTransactions,
     selectedMonth,
     selectedYear,
     isPrivacyMode,
@@ -152,8 +153,22 @@ export const PendingAlertsCards: React.FC<PendingAlertsCardsProps> = ({ onNaviga
       });
     }
 
+    if (pendingBankTransactions && pendingBankTransactions.length > 0) {
+      const totalAmount = pendingBankTransactions.reduce((acc, p) => acc + p.amount, 0);
+      list.push({
+        id: 'open-finance-reconciliation',
+        title: 'Conciliação Bancária',
+        count: pendingBankTransactions.length,
+        amount: totalAmount,
+        amountColor: 'text-purple-400',
+        badgeBg: 'bg-purple-600',
+        icon: <Building2 className="w-4 h-4 stroke-[2]" />,
+        onClick: () => onNavigateTab('openfinance'),
+      });
+    }
+
     return list;
-  }, [pendingExpensesData, pendingIncomesData, invoiceAlertsData, onNavigateTab]);
+  }, [pendingExpensesData, pendingIncomesData, invoiceAlertsData, pendingBankTransactions, onNavigateTab]);
 
   // Se não houver itens pendentes, o bloco fica totalmente oculto
   if (items.length === 0) {

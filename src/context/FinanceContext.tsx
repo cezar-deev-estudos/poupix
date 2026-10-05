@@ -23,7 +23,13 @@ import {
   INITIAL_USERS,
 } from '@/data/initialData';
 import { generateSmartAlerts } from '@/lib/alerts';
-import { INITIAL_OPEN_FINANCE_CONNECTIONS, simulateOpenFinanceSyncTransactions } from '@/lib/openFinance';
+import {
+  INITIAL_OPEN_FINANCE_CONNECTIONS,
+  simulateOpenFinanceSyncTransactions,
+  simulatePendingBankTransactions,
+  DEFAULT_SYNC_SETTINGS,
+} from '@/lib/openFinance';
+import { PendingBankTransaction, OpenFinanceSyncSettings } from '@/types/finance';
 import { useAuth } from './AuthContext';
 import { useFinanceCloudSync } from '@/hooks/useFinanceCloudSync';
 import { transactionManager } from '@/hooks/useTransactionsManager';
@@ -47,6 +53,7 @@ interface FinanceContextType {
   goals: Goal[];
   alerts: AlertNotification[];
   openFinanceConnections: OpenFinanceConnection[];
+  pendingBankTransactions: import('@/types/finance').PendingBankTransaction[];
   theme: 'dark' | 'light';
   toggleTheme: () => void;
   isPrivacyMode: boolean;
@@ -81,6 +88,11 @@ interface FinanceContextType {
   connectBank: (institutionId: string, institutionName: string) => void;
   syncBankConnection: (connectionId: string) => void;
   disconnectBank: (connectionId: string) => void;
+  updateBankSyncSettings: (connectionId: string, settings: Partial<import('@/types/finance').OpenFinanceSyncSettings>) => void;
+  approveBankTransaction: (pendingId: string, overrides?: Partial<Transaction>) => void;
+  discardBankTransaction: (pendingId: string) => void;
+  linkBankTransaction: (pendingId: string, existingTxId: string) => void;
+  approveAllBankTransactions: () => void;
   exportDatabaseBackup: () => string;
   importDatabaseBackup: (jsonString: string) => boolean;
   markAlertAsRead: (alertId: string) => void;
@@ -107,6 +119,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [openFinanceConnections, setOpenFinanceConnections] = useState<OpenFinanceConnection[]>([]);
+  const [pendingBankTransactions, setPendingBankTransactions] = useState<PendingBankTransaction[]>([]);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [isPrivacyMode, setIsPrivacyMode] = useState<boolean>(false);
   const [groupByCard, setGroupByCard] = useState<boolean>(false);
@@ -126,6 +139,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const savedGoals = localStorage.getItem(`${userStoragePrefix}goals`);
       const savedReadAlerts = localStorage.getItem(`${userStoragePrefix}read_alerts`);
       const savedOpenFinance = localStorage.getItem(`${userStoragePrefix}open_finance`);
+      const savedPendingBank = localStorage.getItem(`${userStoragePrefix}pending_bank_txs`);
       const savedPrivacy = localStorage.getItem('mobills_privacy_mode');
       const savedTheme = localStorage.getItem('mobills_theme') as 'dark' | 'light' | null;
 
@@ -173,11 +187,17 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setTransactions(normalizedTxs);
         setGoals(savedGoals ? JSON.parse(savedGoals) : INITIAL_GOALS);
         setOpenFinanceConnections(savedOpenFinance ? JSON.parse(savedOpenFinance) : INITIAL_OPEN_FINANCE_CONNECTIONS);
+        if (savedPendingBank) {
+          setPendingBankTransactions(JSON.parse(savedPendingBank));
+        }
         if (savedGroupByCard !== null) {
           setGroupByCard(JSON.parse(savedGroupByCard));
         }
       }
 
+      if (savedPendingBank) {
+        setPendingBankTransactions(JSON.parse(savedPendingBank));
+      }
       setReadAlertIds(savedReadAlerts ? JSON.parse(savedReadAlerts) : []);
       setIsPrivacyMode(savedPrivacy ? JSON.parse(savedPrivacy) : false);
       if (savedTheme) setTheme(savedTheme);
@@ -199,6 +219,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem(`${userStoragePrefix}goals`, JSON.stringify(goals));
     localStorage.setItem(`${userStoragePrefix}read_alerts`, JSON.stringify(readAlertIds));
     localStorage.setItem(`${userStoragePrefix}open_finance`, JSON.stringify(openFinanceConnections));
+    localStorage.setItem(`${userStoragePrefix}pending_bank_txs`, JSON.stringify(pendingBankTransactions));
     localStorage.setItem(`${userStoragePrefix}group_by_card`, JSON.stringify(groupByCard));
     localStorage.setItem('mobills_privacy_mode', JSON.stringify(isPrivacyMode));
     localStorage.setItem('mobills_theme', theme);
@@ -450,20 +471,190 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             setAccounts(prev => prev.map(acc => (acc.id === sourceAccountId ? { ...acc, balance: acc.balance - amount } : acc)));
           }
         },
+        pendingBankTransactions,
         connectBank: (id, name) => {
-          setOpenFinanceConnections(prev => [...prev, { id: 'of-conn-' + Date.now(), institutionId: id, institutionName: name, status: 'connected', lastSyncAt: new Date().toISOString(), consentExpiresAt: new Date(Date.now() + 365 * 864e5).toISOString(), syncedAccountsCount: 1, syncedCardsCount: 1, autoSync: true, createdAt: new Date().toISOString() }]);
+          setOpenFinanceConnections(prev => [
+            ...prev,
+            {
+              id: 'of-conn-' + Date.now(),
+              institutionId: id,
+              institutionName: name,
+              status: 'connected',
+              lastSyncAt: new Date().toISOString(),
+              consentExpiresAt: new Date(Date.now() + 365 * 864e5).toISOString(),
+              syncedAccountsCount: 1,
+              syncedCardsCount: 1,
+              autoSync: true,
+              settings: { ...DEFAULT_SYNC_SETTINGS },
+              createdAt: new Date().toISOString(),
+            },
+          ]);
         },
-        syncBankConnection: id => {
+        updateBankSyncSettings: (connId, newSettings) => {
+          setOpenFinanceConnections(prev =>
+            prev.map(c =>
+              c.id === connId
+                ? { ...c, settings: { ...(c.settings || DEFAULT_SYNC_SETTINGS), ...newSettings } }
+                : c
+            )
+          );
+        },
+        syncBankConnection: async id => {
           setOpenFinanceConnections(prev => prev.map(c => (c.id === id ? { ...c, status: 'syncing' } : c)));
+
+          const conn = openFinanceConnections.find(c => c.id === id);
+          if (!conn) return;
+
+          const settings = conn.settings || DEFAULT_SYNC_SETTINGS;
+          const targetAcc = accounts.find(a => a.name.toLowerCase().includes(conn.institutionName.toLowerCase())) || accounts[0];
+          const targetCard = creditCards.find(c => c.name.toLowerCase().includes(conn.institutionName.toLowerCase())) || creditCards[0];
+
+          // Se for uma conexão real Pluggy (id prefixado com 'pluggy-')
+          if (conn.institutionId.startsWith('pluggy-')) {
+            const rawItemId = conn.institutionId.replace('pluggy-', '');
+            try {
+              const res = await fetch('/api/openfinance/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  itemId: rawItemId,
+                  connectionId: conn.id,
+                  institutionName: conn.institutionName,
+                  targetAccountId: targetAcc?.id,
+                  targetCardId: targetCard?.id,
+                }),
+              });
+
+              if (res.ok) {
+                const data = await res.json();
+                if (data.pendingTransactions && data.pendingTransactions.length > 0) {
+                  if (settings.requireApproval) {
+                    setPendingBankTransactions(prev => {
+                      const existingIds = new Set(prev.map(p => p.bankTransactionId));
+                      const newItems = data.pendingTransactions.filter((p: PendingBankTransaction) => !existingIds.has(p.bankTransactionId));
+                      return [...newItems, ...prev];
+                    });
+                  } else {
+                    const toImport = data.pendingTransactions.map((p: PendingBankTransaction) => ({
+                      description: p.description,
+                      amount: p.amount,
+                      date: p.date,
+                      type: p.type,
+                      categoryId: p.suggestedCategoryId,
+                      accountId: p.accountId,
+                      creditCardId: p.creditCardId,
+                      paid: true,
+                      notes: `Importado via Open Finance (${p.institutionName})`,
+                      tags: ['open-finance', 'pluggy'],
+                    }));
+                    transactionManager.importTransactions(toImport, setTransactions, setAccounts);
+                  }
+                }
+
+                if (settings.syncBalance && typeof data.updatedBalance === 'number' && targetAcc) {
+                  setAccounts(prev =>
+                    prev.map(a => (a.id === targetAcc.id ? { ...a, balance: data.updatedBalance } : a))
+                  );
+                }
+              }
+            } catch (err) {
+              console.error('[OpenFinance Real Sync Error]:', err);
+            }
+
+            setOpenFinanceConnections(prev =>
+              prev.map(c => (c.id === id ? { ...c, status: 'connected', lastSyncAt: new Date().toISOString() } : c))
+            );
+            return;
+          }
+
+          // Fallback para conexões simuladas
           setTimeout(() => {
-            const conn = openFinanceConnections.find(c => c.id === id);
-            if (conn) {
-              const targetAcc = accounts.find(a => a.name.toLowerCase().includes(conn.institutionName.toLowerCase())) || accounts[0];
+            if (settings.requireApproval) {
+              const pendingItems = simulatePendingBankTransactions(conn, targetAcc?.id, targetCard?.id);
+              setPendingBankTransactions(prev => {
+                const existingIds = new Set(prev.map(p => p.bankTransactionId));
+                const newItems = pendingItems.filter(p => !existingIds.has(p.bankTransactionId));
+                return [...newItems, ...prev];
+              });
+            } else {
               const simTxs = simulateOpenFinanceSyncTransactions(conn.institutionName, targetAcc?.id);
               transactionManager.importTransactions(simTxs, setTransactions, setAccounts);
-              setOpenFinanceConnections(prev => prev.map(c => (c.id === id ? { ...c, status: 'connected', lastSyncAt: new Date().toISOString() } : c)));
             }
+
+            if (settings.syncBalance && targetAcc) {
+              setAccounts(prev =>
+                prev.map(a =>
+                  a.id === targetAcc.id
+                    ? { ...a, balance: a.balance + (Math.floor(Math.random() * 50) + 10) }
+                    : a
+                )
+              );
+            }
+
+            setOpenFinanceConnections(prev =>
+              prev.map(c => (c.id === id ? { ...c, status: 'connected', lastSyncAt: new Date().toISOString() } : c))
+            );
           }, 1200);
+        },
+        approveBankTransaction: (pendingId, overrides) => {
+          const item = pendingBankTransactions.find(p => p.id === pendingId);
+          if (!item) return;
+
+          const newTx: Omit<Transaction, 'id' | 'createdAt'> = {
+            description: overrides?.description || item.description,
+            amount: overrides?.amount !== undefined ? overrides.amount : item.amount,
+            date: overrides?.date || item.date,
+            type: overrides?.type || item.type,
+            categoryId: overrides?.categoryId || item.suggestedCategoryId,
+            accountId: overrides?.accountId || item.accountId,
+            creditCardId: overrides?.creditCardId || item.creditCardId,
+            paid: true,
+            notes: `Importado via Open Finance (${item.institutionName})`,
+            tags: ['open-finance', 'conciliado'],
+          };
+
+          transactionManager.addTransaction(newTx, setTransactions, setAccounts);
+          setPendingBankTransactions(prev => prev.filter(p => p.id !== pendingId));
+        },
+        discardBankTransaction: pendingId => {
+          setPendingBankTransactions(prev => prev.filter(p => p.id !== pendingId));
+        },
+        linkBankTransaction: (pendingId, existingTxId) => {
+          const item = pendingBankTransactions.find(p => p.id === pendingId);
+          if (!item) return;
+
+          // Marca a transação manual existente como conciliada via nota/tag
+          transactionManager.updateTransaction(
+            existingTxId,
+            {
+              paid: true,
+              notes: `Conciliado com extrato Open Finance (${item.institutionName})`,
+            },
+            'single',
+            transactions,
+            setTransactions
+          );
+
+          setPendingBankTransactions(prev => prev.filter(p => p.id !== pendingId));
+        },
+        approveAllBankTransactions: () => {
+          if (pendingBankTransactions.length === 0) return;
+
+          const txsToImport: Omit<Transaction, 'id' | 'createdAt'>[] = pendingBankTransactions.map(item => ({
+            description: item.description,
+            amount: item.amount,
+            date: item.date,
+            type: item.type,
+            categoryId: item.suggestedCategoryId,
+            accountId: item.accountId,
+            creditCardId: item.creditCardId,
+            paid: true,
+            notes: `Importado via Open Finance (${item.institutionName})`,
+            tags: ['open-finance', 'conciliado'],
+          }));
+
+          transactionManager.importTransactions(txsToImport, setTransactions, setAccounts);
+          setPendingBankTransactions([]);
         },
         disconnectBank: id => setOpenFinanceConnections(prev => prev.filter(c => c.id !== id)),
         exportDatabaseBackup: () => JSON.stringify({ version: '3.0.0', exportedAt: new Date().toISOString(), accounts, creditCards, categories, transactions, goals, openFinanceConnections }, null, 2),

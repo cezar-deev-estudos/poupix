@@ -160,6 +160,13 @@ export interface BankInstitution {
   supportsInvestments: boolean;
 }
 
+export interface OpenFinanceSyncSettings {
+  syncBalance: boolean;
+  syncTransactions: boolean;
+  syncCreditCard: boolean;
+  requireApproval: boolean; // se true, vai para a fila de conciliação antes de efetivar
+}
+
 export interface OpenFinanceConnection {
   id: string;
   institutionId: string;
@@ -170,6 +177,26 @@ export interface OpenFinanceConnection {
   syncedAccountsCount: number;
   syncedCardsCount: number;
   autoSync: boolean;
+  settings?: OpenFinanceSyncSettings;
+  createdAt: string;
+}
+
+export interface PendingBankTransaction {
+  id: string;
+  connectionId: string;
+  institutionId: string;
+  institutionName: string;
+  bankTransactionId: string; // ID único do banco para idempotência
+  date: string; // YYYY-MM-DD
+  description: string;
+  amount: number;
+  type: TransactionType;
+  suggestedCategoryId: string;
+  categoryConfidence?: 'high' | 'medium' | 'low';
+  accountId?: string;
+  creditCardId?: string;
+  status: 'pending_review' | 'approved' | 'discarded';
+  matchedExistingTxId?: string; // Se o sistema detectou uma transação manual equivalente
   createdAt: string;
 }
 
