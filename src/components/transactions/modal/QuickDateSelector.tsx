@@ -3,6 +3,8 @@
 import React, { useRef } from 'react';
 import { Calendar } from 'lucide-react';
 
+import { getLocalDateString } from '@/lib/utils';
+
 export type DateVariant = 'rose' | 'emerald' | 'cyan' | 'blue';
 
 interface QuickDateSelectorProps {
@@ -18,10 +20,10 @@ export const QuickDateSelector: React.FC<QuickDateSelectorProps> = ({
 }) => {
   const dateInputRef = useRef<HTMLInputElement>(null);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateString();
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  const yesterdayStr = getLocalDateString(yesterday);
 
   const isToday = value === todayStr;
   const isYesterday = value === yesterdayStr;

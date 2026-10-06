@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { Transaction } from '@/types/finance';
+import { getLocalDateString } from '@/lib/utils';
 import { calculateDefaultInvoiceDueDate } from '@/lib/invoiceHelpers';
 import { MoneyInput } from './MoneyInput';
 import { QuickDateSelector } from './QuickDateSelector';
@@ -36,7 +37,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
   const initialSelectedCardId = initialData?.creditCardId || defaultCreditCardId || creditCards[0]?.id || '';
 
   const [amount, setAmount] = useState(initialData?.amount ? initialData.amount.toString() : '');
-  const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(initialData?.date || getLocalDateString());
   const [description, setDescription] = useState(initialData?.description || '');
   const [isFavorite, setIsFavorite] = useState(initialData?.isFavorite ?? false);
   const [categoryId, setCategoryId] = useState(initialData?.categoryId || defaultCatId);
@@ -52,6 +53,23 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
   const [installmentTotal, setInstallmentTotal] = useState(initialData?.installmentTotal || 2);
 
   const [showValidation, setShowValidation] = useState(false);
+
+  useEffect(() => {
+    if (initialData) {
+      setAmount(initialData.amount ? initialData.amount.toString() : '');
+      setDate(initialData.date || getLocalDateString());
+      setDescription(initialData.description || '');
+      setIsFavorite(Boolean(initialData.isFavorite));
+      setCategoryId(initialData.categoryId || defaultCatId);
+      setCreditCardId(initialData.creditCardId || initialSelectedCardId);
+      setIgnoreInTotals(Boolean(initialData.ignoreInTotals));
+      setTags(initialData.tags || []);
+      setNotes(initialData.notes || '');
+      setIsRecurring(Boolean(initialData.isRecurring));
+      setIsInstallment(Boolean(initialData.installmentTotal));
+      setInstallmentTotal(initialData.installmentTotal || 2);
+    }
+  }, [initialData, defaultCatId, initialSelectedCardId]);
 
   const selectedCard = creditCards.find(c => c.id === creditCardId) || creditCards[0];
 

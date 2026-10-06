@@ -319,8 +319,6 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                       <td className="py-3 px-4 text-slate-300 whitespace-nowrap">
                         {isTransfer ? (
                           <span>{acc?.name || 'Conta'} ➔ {destAcc?.name || 'Conta'}</span>
-                        ) : isGroupedCard ? (
-                          <span>{acc?.name || (card ? `Cartão ${card.name}` : 'Conta')}</span>
                         ) : card ? (
                           <div className="inline-flex items-center gap-1.5 text-cyan-300 font-medium">
                             <CreditCard className="w-3.5 h-3.5 text-cyan-400 shrink-0" />

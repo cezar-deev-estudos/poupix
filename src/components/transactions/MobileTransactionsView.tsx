@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction } from '@/types/finance';
 import { useFinance } from '@/context/FinanceContext';
-import { formatCurrency, formatDateBR } from '@/lib/utils';
+import { formatCurrency, formatDateBR, getLocalDateString } from '@/lib/utils';
 import { getTransactionInvoicePeriod, getEffectiveTransactionDate } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { MobileTransactionDetailDrawer } from './MobileTransactionDetailDrawer';
@@ -252,13 +252,6 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     return [...nonCardTransactions, ...aggregatedCardItems];
   }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter, groupByCard, creditCards, accounts, categories, selectedYear, selectedMonth]);
 
-  // Helper para obter YYYY-MM-DD em horário local (evita bug de UTC no timezone brasileiro)
-  const getLocalDateString = (d: Date) => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
 
   // Agrupamento por Dias no padrão Mobills: "Ontem", "Hoje", "Segunda, 21", etc.
   const groupedByDate = useMemo(() => {
@@ -799,8 +792,6 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                   const accountName =
                     tx.type === 'transfer'
                       ? `${acc?.name || 'Conta'} ➔ ${destAcc?.name || 'Conta'}`
-                      : isGroupedCard
-                      ? acc?.name || (card ? `Cartão ${card.name}` : 'Conta')
                       : card
                       ? card.name
                       : acc?.name || 'Conta';
@@ -846,9 +837,9 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                           <div className="text-[11px] text-slate-400 flex items-center gap-1.5 truncate mt-0.5">
                             <span className="truncate">{categoryName}</span>
                             <span className="text-slate-600">|</span>
-                            {card && !isGroupedCard ? (
+                            {card ? (
                               <span className="inline-flex items-center gap-1 text-cyan-300 truncate">
-                                <CreditCard className="w-3 h-3 shrink-0" />
+                                <CreditCard className="w-3 h-3 shrink-0 text-cyan-400" />
                                 <span className="truncate">{accountName}</span>
                               </span>
                             ) : (

@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { Transaction } from '@/types/finance';
+import { getLocalDateString } from '@/lib/utils';
 import { MoneyInput } from './MoneyInput';
 import { QuickDateSelector } from './QuickDateSelector';
 import { TagsChipSelector } from './TagsChipSelector';
@@ -33,7 +34,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   const defaultAccId = accounts[0]?.id || '';
 
   const [amount, setAmount] = useState(initialData?.amount ? initialData.amount.toString() : '');
-  const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(initialData?.date || getLocalDateString());
   const [paid, setPaid] = useState(initialData?.paid ?? true);
   const [description, setDescription] = useState(initialData?.description || '');
   const [isFavorite, setIsFavorite] = useState(initialData?.isFavorite ?? false);
@@ -51,6 +52,24 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   const [repeatPeriod, setRepeatPeriod] = useState<'monthly' | 'weekly' | 'yearly'>('monthly');
 
   const [showValidation, setShowValidation] = useState(false);
+
+  useEffect(() => {
+    if (initialData) {
+      setAmount(initialData.amount ? initialData.amount.toString() : '');
+      setDate(initialData.date || getLocalDateString());
+      setPaid(initialData.paid ?? true);
+      setDescription(initialData.description || '');
+      setIsFavorite(Boolean(initialData.isFavorite));
+      setCategoryId(initialData.categoryId || defaultCatId);
+      setAccountId(initialData.accountId || defaultAccId);
+      setIgnoreInTotals(Boolean(initialData.ignoreInTotals));
+      setTags(initialData.tags || []);
+      setNotes(initialData.notes || '');
+      setIsRecurring(Boolean(initialData.isRecurring));
+      setIsRepeat(Boolean(initialData.installmentTotal));
+      setRepeatCount(initialData.installmentTotal || 2);
+    }
+  }, [initialData, defaultCatId, defaultAccId]);
 
   const toggleDetails = () => {
     const nextState = !showMoreDetails;

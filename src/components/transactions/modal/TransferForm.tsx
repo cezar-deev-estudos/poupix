@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { Transaction } from '@/types/finance';
+import { getLocalDateString } from '@/lib/utils';
 import { MoneyInput } from './MoneyInput';
 import { QuickDateSelector } from './QuickDateSelector';
 import { TagsChipSelector } from './TagsChipSelector';
@@ -27,7 +28,7 @@ export const TransferForm: React.FC<TransferFormProps> = ({
   const { accounts } = useFinance();
 
   const [amount, setAmount] = useState(initialData?.amount ? initialData.amount.toString() : '');
-  const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(initialData?.date || getLocalDateString());
   const [accountId, setAccountId] = useState(initialData?.accountId || accounts[0]?.id || '');
   const [destinationAccountId, setDestinationAccountId] = useState(
     initialData?.destinationAccountId || accounts.find(a => a.id !== accounts[0]?.id)?.id || accounts[1]?.id || ''
@@ -40,6 +41,18 @@ export const TransferForm: React.FC<TransferFormProps> = ({
   const [isRecurring, setIsRecurring] = useState(initialData?.isRecurring ?? false);
 
   const [showValidation, setShowValidation] = useState(false);
+
+  useEffect(() => {
+    if (initialData) {
+      setAmount(initialData.amount ? initialData.amount.toString() : '');
+      setDate(initialData.date || getLocalDateString());
+      setAccountId(initialData.accountId || accounts[0]?.id || '');
+      setDestinationAccountId(initialData.destinationAccountId || accounts.find(a => a.id !== accounts[0]?.id)?.id || accounts[1]?.id || '');
+      setTags(initialData.tags || []);
+      setNotes(initialData.notes || '');
+      setIsRecurring(Boolean(initialData.isRecurring));
+    }
+  }, [initialData, accounts]);
 
   const toggleDetails = () => {
     const nextState = !showMoreDetails;

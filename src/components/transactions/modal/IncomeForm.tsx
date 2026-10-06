@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { Transaction } from '@/types/finance';
+import { getLocalDateString } from '@/lib/utils';
 import { MoneyInput } from './MoneyInput';
 import { QuickDateSelector } from './QuickDateSelector';
 import { TagsChipSelector } from './TagsChipSelector';
@@ -33,7 +34,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
   const defaultAccId = accounts[0]?.id || '';
 
   const [amount, setAmount] = useState(initialData?.amount ? initialData.amount.toString() : '');
-  const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(initialData?.date || getLocalDateString());
   const [paid, setPaid] = useState(initialData?.paid ?? true);
   const [description, setDescription] = useState(initialData?.description || '');
   const [isFavorite, setIsFavorite] = useState(initialData?.isFavorite ?? false);
@@ -55,7 +56,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
   useEffect(() => {
     if (initialData) {
       setAmount(initialData.amount ? initialData.amount.toString() : '');
-      setDate(initialData.date || new Date().toISOString().split('T')[0]);
+      setDate(initialData.date || getLocalDateString());
       setPaid(initialData.paid ?? true);
       setDescription(initialData.description || '');
       setIsFavorite(Boolean(initialData.isFavorite));
