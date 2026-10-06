@@ -78,6 +78,10 @@ interface FinanceContextType {
   addCategory: (cat: Omit<Category, 'id'>) => void;
   updateCategory: (id: string, cat: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
+  reorderCategories: (orderedCategories: Category[]) => void;
+  setCategoryMonthlyBudget: (categoryId: string, year: number, month: number, amount: number) => void;
+  applyDefaultBudgetsToMonth: (year: number, month: number) => void;
+  replicateBudgetsToYear: (sourceYear: number, sourceMonth: number, targetYear: number) => void;
   addTag: (tag: Omit<Tag, 'id' | 'createdAt'>) => void;
   updateTag: (id: string, tag: Partial<Tag>) => void;
   deleteTag: (id: string) => void;
@@ -505,6 +509,61 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addCategory: cat => entityManager.addCategory(cat, setCategories),
         updateCategory: (id, up) => entityManager.updateCategory(id, up, setCategories),
         deleteCategory: id => entityManager.deleteCategory(id, setCategories),
+        reorderCategories: orderedCategories => setCategories(orderedCategories),
+        setCategoryMonthlyBudget: (categoryId, year, month, amount) => {
+          const periodKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+          setCategories(prev =>
+            prev.map(c => {
+              if (c.id !== categoryId) return c;
+              const nextMonthly = { ...(c.monthlyBudgets || {}) };
+              if (amount <= 0) {
+                delete nextMonthly[periodKey];
+              } else {
+                nextMonthly[periodKey] = amount;
+              }
+              return { ...c, monthlyBudgets: nextMonthly };
+            })
+          );
+        },
+        applyDefaultBudgetsToMonth: (year, month) => {
+          const periodKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+          setCategories(prev =>
+            prev.map(c => {
+              if (c.type !== 'expense') return c;
+              const defaultBudget = c.budgetLimit || 0;
+              const nextMonthly = { ...(c.monthlyBudgets || {}) };
+              if (defaultBudget > 0) {
+                nextMonthly[periodKey] = defaultBudget;
+              } else {
+                delete nextMonthly[periodKey];
+              }
+              return { ...c, monthlyBudgets: nextMonthly };
+            })
+          );
+        },
+        replicateBudgetsToYear: (sourceYear, sourceMonth, targetYear) => {
+          const sourceKey = `${sourceYear}-${String(sourceMonth + 1).padStart(2, '0')}`;
+          setCategories(prev =>
+            prev.map(c => {
+              if (c.type !== 'expense') return c;
+              const sourceAmount =
+                c.monthlyBudgets && typeof c.monthlyBudgets[sourceKey] === 'number'
+                  ? c.monthlyBudgets[sourceKey]
+                  : c.budgetLimit || 0;
+
+              const nextMonthly = { ...(c.monthlyBudgets || {}) };
+              for (let m = 1; m <= 12; m++) {
+                const targetKey = `${targetYear}-${String(m).padStart(2, '0')}`;
+                if (sourceAmount > 0) {
+                  nextMonthly[targetKey] = sourceAmount;
+                } else {
+                  delete nextMonthly[targetKey];
+                }
+              }
+              return { ...c, monthlyBudgets: nextMonthly };
+            })
+          );
+        },
         addTag: tag => entityManager.addTag(tag, setTags),
         updateTag: (id, up) => entityManager.updateTag(id, up, tags, setTags, setTransactions),
         deleteTag: id => entityManager.deleteTag(id, tags, setTags, setTransactions),

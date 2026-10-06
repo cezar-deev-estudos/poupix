@@ -35,10 +35,27 @@ export interface Category {
   type: 'expense' | 'income';
   icon: string;
   color: string;
-  budgetLimit?: number; // Teto de gastos mensal
+  budgetLimit?: number; // Teto de gastos mensal padrão recorrente
+  monthlyBudgets?: Record<string, number>; // Tetos específicos por mês no formato "YYYY-MM": valor
   parentId?: string; // ID da categoria pai para subcategorias
   isDefault?: boolean;
   isArchived?: boolean;
+}
+
+/**
+ * Retorna o teto de gastos efetivo de uma categoria para um determinado mês e ano.
+ * Prioriza o teto específico do mês ("YYYY-MM"); caso não haja, faz fallback para o padrão (budgetLimit).
+ */
+export function getCategoryBudgetForPeriod(
+  cat: Category,
+  year: number,
+  month: number
+): { amount: number; isCustomMonth: boolean } {
+  const periodKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+  if (cat.monthlyBudgets && typeof cat.monthlyBudgets[periodKey] === 'number') {
+    return { amount: cat.monthlyBudgets[periodKey], isCustomMonth: true };
+  }
+  return { amount: cat.budgetLimit || 0, isCustomMonth: false };
 }
 
 export interface Tag {

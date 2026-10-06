@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { useFinance } from '@/context/FinanceContext';
-import { Category, Transaction } from '@/types/finance';
-import { formatCurrency } from '@/lib/utils';
+import { Category, Transaction, getCategoryBudgetForPeriod } from '@/types/finance';
+import { formatCurrency, getMonthName } from '@/lib/utils';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { MobileCategoryDetailDrawer } from '../dashboard/MobileCategoryDetailDrawer';
@@ -26,6 +26,13 @@ import {
   ListFilter,
   Archive,
   MoreVertical,
+  GripVertical,
+  LayoutGrid,
+  StretchHorizontal,
+  Copy,
+  CalendarSync,
+  Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
 
 const COLOR_PALETTE = [
@@ -49,10 +56,136 @@ const AVAILABLE_ICONS = [
 ];
 
 export const BudgetsView: React.FC = () => {
-  const { categories, filteredTransactions, addCategory, updateCategory, deleteCategory } = useFinance();
+  const {
+    categories,
+    filteredTransactions,
+    selectedMonth,
+    selectedYear,
+    setSelectedMonth,
+    setSelectedYear,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    reorderCategories,
+    setCategoryMonthlyBudget,
+    applyDefaultBudgetsToMonth,
+    replicateBudgetsToYear,
+  } = useFinance();
 
   const [activeTab, setActiveTab] = useState<'budgets' | 'categories'>('budgets');
   const [filterType, setFilterType] = useState<'all' | 'expense' | 'income'>('all');
+
+  // Modo de visualização de colunas no Desktop (1 coluna ou 2 colunas)
+  const [layoutColumns, setLayoutColumns] = useState<'1col' | '2col'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('mobills_budgets_layout_columns');
+      if (saved === '1col' || saved === '2col') return saved;
+    }
+    return '2col';
+  });
+
+  const toggleLayoutColumns = (mode: '1col' | '2col') => {
+    setLayoutColumns(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('mobills_budgets_layout_columns', mode);
+    }
+  };
+
+  // Estados de Drag & Drop para Categorias Principais (Pais) e Subcategorias (Filhas)
+  const [draggedParentId, setDraggedParentId] = useState<string | null>(null);
+  const [dragOverParentId, setDragOverParentId] = useState<string | null>(null);
+
+  const [draggedSubId, setDraggedSubId] = useState<string | null>(null);
+  const [dragOverSubId, setDragOverSubId] = useState<string | null>(null);
+
+  // Reordenação de categorias pai
+  const handleDropParentCategory = (targetParentId: string) => {
+    if (!draggedParentId || draggedParentId === targetParentId) {
+      setDraggedParentId(null);
+      setDragOverParentId(null);
+      return;
+    }
+
+    const currentParents = parentCategories.filter(c => c.type === 'expense');
+    const sourceIdx = currentParents.findIndex(c => c.id === draggedParentId);
+    const targetIdx = currentParents.findIndex(c => c.id === targetParentId);
+
+    if (sourceIdx === -1 || targetIdx === -1) {
+      setDraggedParentId(null);
+      setDragOverParentId(null);
+      return;
+    }
+
+    // Criar nova ordem dos pais
+    const newParents = [...currentParents];
+    const [moved] = newParents.splice(sourceIdx, 1);
+    newParents.splice(targetIdx, 0, moved);
+
+    // Reconstruir o array completo de categorias mantendo as subcategorias logo após cada pai
+    const reorderedList: Category[] = [];
+    const usedIds = new Set<string>();
+
+    newParents.forEach(p => {
+      reorderedList.push(p);
+      usedIds.add(p.id);
+      const subs = categories.filter(c => c.parentId === p.id);
+      subs.forEach(s => {
+        reorderedList.push(s);
+        usedIds.add(s.id);
+      });
+    });
+
+    // Inclui categorias restantes (receitas, arquivadas ou órfãs)
+    categories.forEach(c => {
+      if (!usedIds.has(c.id)) {
+        reorderedList.push(c);
+      }
+    });
+
+    reorderCategories(reorderedList);
+    setDraggedParentId(null);
+    setDragOverParentId(null);
+  };
+
+  // Reordenação de subcategorias
+  const handleDropSubCategory = (parentCatId: string, targetSubId: string) => {
+    if (!draggedSubId || draggedSubId === targetSubId) {
+      setDraggedSubId(null);
+      setDragOverSubId(null);
+      return;
+    }
+
+    const currentSubs = categories.filter(c => c.parentId === parentCatId);
+    const sourceIdx = currentSubs.findIndex(s => s.id === draggedSubId);
+    const targetIdx = currentSubs.findIndex(s => s.id === targetSubId);
+
+    if (sourceIdx === -1 || targetIdx === -1) {
+      setDraggedSubId(null);
+      setDragOverSubId(null);
+      return;
+    }
+
+    const newSubs = [...currentSubs];
+    const [moved] = newSubs.splice(sourceIdx, 1);
+    newSubs.splice(targetIdx, 0, moved);
+
+    // Reconstruir a lista geral preservando a nova ordem interna das subcategorias
+    const reorderedList: Category[] = [];
+    const newSubIds = new Set(newSubs.map(s => s.id));
+
+    categories.forEach(c => {
+      if (c.id === parentCatId) {
+        reorderedList.push(c);
+        newSubs.forEach(s => reorderedList.push(s));
+      } else if (!newSubIds.has(c.id)) {
+        reorderedList.push(c);
+      }
+    });
+
+    reorderCategories(reorderedList);
+    setDraggedSubId(null);
+    setDragOverSubId(null);
+  };
 
   // Estado para Modal de Criação / Edição de Categoria
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -75,6 +208,22 @@ export const BudgetsView: React.FC = () => {
 
   // Estado para Edição da Transação a partir do modal/drawer de detalhe
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+
+  // Estado para Edição Rápida de Orçamento do Mês Atual
+  const [editingMonthlyBudgetCat, setEditingMonthlyBudgetCat] = useState<Category | null>(null);
+  const [monthlyBudgetInput, setMonthlyBudgetInput] = useState('');
+
+  // Modais de Confirmação para Ações em Lote de Orçamentos
+  const [isApplyDefaultsConfirmOpen, setIsApplyDefaultsConfirmOpen] = useState(false);
+  const [isReplicateYearConfirmOpen, setIsReplicateYearConfirmOpen] = useState(false);
+  const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setFeedbackToast(msg);
+    setTimeout(() => {
+      setFeedbackToast(null);
+    }, 3500);
+  };
 
   // Categorias expandidas na visualização de orçamento
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
@@ -190,14 +339,80 @@ export const BudgetsView: React.FC = () => {
       .reduce((sum, t) => sum + t.amount, 0);
   };
 
-  // Cálculo de teto efetivo da categoria pai (se as subcategorias tiverem tetos preenchidos, soma-os; senão usa o teto da pai)
+  // Cálculo de teto efetivo da categoria pai no período selecionado (se as subcategorias tiverem tetos preenchidos, soma-os; senão usa o teto da pai)
   const getEffectiveCategoryBudget = (cat: Category) => {
     const subs = getSubcategories(cat.id);
-    const subsBudgetSum = subs.reduce((sum, s) => sum + (s.budgetLimit || 0), 0);
-    if (subsBudgetSum > 0) {
-      return subsBudgetSum;
+    let subsSum = 0;
+    let anySubHasCustom = false;
+    let anySubHasBudget = false;
+
+    subs.forEach(s => {
+      const budgetInfo = getCategoryBudgetForPeriod(s, selectedYear, selectedMonth);
+      if (budgetInfo.amount > 0) {
+        subsSum += budgetInfo.amount;
+        anySubHasBudget = true;
+      }
+      if (budgetInfo.isCustomMonth) {
+        anySubHasCustom = true;
+      }
+    });
+
+    if (anySubHasBudget && subsSum > 0) {
+      return {
+        amount: subsSum,
+        isCustomMonth: anySubHasCustom,
+        isSummedFromSubs: true,
+      };
     }
-    return cat.budgetLimit || 0;
+
+    const parentBudget = getCategoryBudgetForPeriod(cat, selectedYear, selectedMonth);
+    return {
+      amount: parentBudget.amount,
+      isCustomMonth: parentBudget.isCustomMonth,
+      isSummedFromSubs: false,
+    };
+  };
+
+  // Abrir modal de edição rápida de teto do mês
+  const handleOpenMonthlyBudgetEdit = (cat: Category) => {
+    setEditingMonthlyBudgetCat(cat);
+    const budgetInfo = getCategoryBudgetForPeriod(cat, selectedYear, selectedMonth);
+    setMonthlyBudgetInput(budgetInfo.amount > 0 ? String(budgetInfo.amount) : '');
+  };
+
+  // Salvar teto específico deste mês para a categoria
+  const handleSaveMonthlyBudget = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMonthlyBudgetCat) return;
+
+    const parsed = monthlyBudgetInput ? parseFloat(monthlyBudgetInput.replace(',', '.')) : 0;
+    const finalAmount = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+
+    setCategoryMonthlyBudget(editingMonthlyBudgetCat.id, selectedYear, selectedMonth, finalAmount);
+    setEditingMonthlyBudgetCat(null);
+    showToast(`Orçamento de "${editingMonthlyBudgetCat.name}" atualizado para ${getMonthName(selectedMonth)}/${selectedYear}!`);
+  };
+
+  // Restaurar para teto padrão nesta categoria neste mês
+  const handleResetToDefaultBudget = () => {
+    if (!editingMonthlyBudgetCat) return;
+    setCategoryMonthlyBudget(editingMonthlyBudgetCat.id, selectedYear, selectedMonth, 0);
+    setEditingMonthlyBudgetCat(null);
+    showToast(`Teto de "${editingMonthlyBudgetCat.name}" voltou ao valor padrão das configurações.`);
+  };
+
+  // Ação em Lote: Aplicar tetos padrão a este mês
+  const handleConfirmApplyDefaults = () => {
+    applyDefaultBudgetsToMonth(selectedYear, selectedMonth);
+    setIsApplyDefaultsConfirmOpen(false);
+    showToast(`Tetos padrão preenchidos com sucesso para ${getMonthName(selectedMonth)}/${selectedYear}!`);
+  };
+
+  // Ação em Lote: Replicar orçamentos deste mês para todos os meses do ano selecionado
+  const handleConfirmReplicateYear = () => {
+    replicateBudgetsToYear(selectedYear, selectedMonth, selectedYear);
+    setIsReplicateYearConfirmOpen(false);
+    showToast(`Orçamentos de ${getMonthName(selectedMonth)} replicados para todos os meses de ${selectedYear}!`);
   };
 
   // Categorias de despesa para o planejamento orçamentário
@@ -259,11 +474,74 @@ export const BudgetsView: React.FC = () => {
       {/* ABA 1: PLANEJAMENTO ORÇAMENTÁRIO */}
       {activeTab === 'budgets' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <span className="text-xs text-slate-400">
-              Acompanhamento de consumo por categoria e subcategorias no período selecionado.
-            </span>
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-slate-900/40 p-3.5 rounded-2xl border border-slate-800/80">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-200">
+                  Período: <strong className="text-emerald-400">{getMonthName(selectedMonth)} de {selectedYear}</strong>
+                </span>
+                <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-medium">
+                  {budgetExpenseCategories.length} categorias de despesa
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Você pode definir orçamentos específicos para cada mês ou reutilizar os tetos padrão cadastrados.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Botão Copiar Tetos Padrão */}
+              <button
+                type="button"
+                onClick={() => setIsApplyDefaultsConfirmOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-semibold border border-slate-700/80 transition-all cursor-pointer shadow-sm"
+                title={`Preenche todos os orçamentos de ${getMonthName(selectedMonth)}/${selectedYear} com os valores padrão cadastrados nas Categorias`}
+              >
+                <Copy className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Preencher Tetos Padrão</span>
+              </button>
+
+              {/* Botão Replicar para o Ano Todo */}
+              <button
+                type="button"
+                onClick={() => setIsReplicateYearConfirmOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 hover:text-purple-200 rounded-xl text-xs font-semibold border border-purple-500/40 transition-all cursor-pointer shadow-sm"
+                title={`Copia os orçamentos definidos em ${getMonthName(selectedMonth)} para todos os 12 meses de ${selectedYear}`}
+              >
+                <CalendarSync className="w-3.5 h-3.5 text-purple-400" />
+                <span>Replicar para Ano {selectedYear}</span>
+              </button>
+
+              {/* Alternador de Layout de Colunas (Apenas Desktop) */}
+              <div className="hidden md:flex items-center bg-slate-900 border border-slate-800 p-0.5 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => toggleLayoutColumns('1col')}
+                  className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                    layoutColumns === '1col'
+                      ? 'bg-slate-800 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Exibir 1 card por linha (1 coluna inteira)"
+                >
+                  <StretchHorizontal className="w-4 h-4" />
+                  <span className="text-[11px]">1 Coluna</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleLayoutColumns('2col')}
+                  className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                    layoutColumns === '2col'
+                      ? 'bg-slate-800 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Exibir em 2 colunas lado a lado"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                  <span className="text-[11px]">2 Colunas</span>
+                </button>
+              </div>
+
               {archivedCategories.length > 0 && (
                 <button
                   onClick={() => setIsArchivedModalOpen(true)}
@@ -274,31 +552,57 @@ export const BudgetsView: React.FC = () => {
                   <span>Arquivadas ({archivedCategories.length})</span>
                 </button>
               )}
+
               <button
                 onClick={() => handleOpenCreate(undefined, 'expense')}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-md transition-all cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Novo Teto / Categoria</span>
+                <span>Nova Categoria</span>
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className={`grid gap-4 ${layoutColumns === '1col' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
             {budgetExpenseCategories.map(cat => {
               const subs = getSubcategories(cat.id);
               const totalSpent = calculateCategorySpent(cat);
-              const budget = getEffectiveCategoryBudget(cat);
+              const budgetInfo = getEffectiveCategoryBudget(cat);
+              const budget = budgetInfo.amount;
               const percentage = budget > 0 ? (totalSpent / budget) * 100 : 0;
               const isOverBudget = budget > 0 && totalSpent > budget;
               const isExpanded = Boolean(expandedCats[cat.id]);
-              const subsWithBudget = subs.filter(s => s.budgetLimit && s.budgetLimit > 0);
-              const isSummedFromSubs = subsWithBudget.length > 0;
+              const subsWithBudget = subs.filter(s => {
+                const sBudget = getCategoryBudgetForPeriod(s, selectedYear, selectedMonth);
+                return sBudget.amount > 0;
+              });
+              const isSummedFromSubs = budgetInfo.isSummedFromSubs;
+              const isDragging = draggedParentId === cat.id;
+              const isOver = dragOverParentId === cat.id;
 
               return (
                 <div
                   key={cat.id}
-                  className="bg-slate-900/60 border border-slate-800 hover:border-slate-700/80 p-5 rounded-3xl shadow-xl flex flex-col justify-between transition-all"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (draggedParentId && draggedParentId !== cat.id) {
+                      setDragOverParentId(cat.id);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverParentId === cat.id) setDragOverParentId(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleDropParentCategory(cat.id);
+                  }}
+                  className={`bg-slate-900/60 border p-5 rounded-3xl shadow-xl flex flex-col justify-between transition-all ${
+                    isOver
+                      ? 'border-emerald-500 ring-2 ring-emerald-500/30 scale-[1.01]'
+                      : isDragging
+                      ? 'border-dashed border-slate-600 opacity-40'
+                      : 'border-slate-800 hover:border-slate-700/80'
+                  }`}
                 >
                   <div>
                     {/* Linha Superior: Ícone, Nome, Teto e Ações */}
@@ -318,25 +622,78 @@ export const BudgetsView: React.FC = () => {
                                 {subs.length} sub
                               </span>
                             )}
+                            {budgetInfo.isCustomMonth ? (
+                              <span
+                                className="text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded-md font-medium flex items-center gap-1"
+                                title="Este valor foi definido especificamente para este mês"
+                              >
+                                <Sparkles className="w-2.5 h-2.5" />
+                                Mês {getMonthName(selectedMonth).slice(0, 3)}
+                              </span>
+                            ) : budget > 0 ? (
+                              <span
+                                className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-md font-medium"
+                                title="Usando valor padrão recorrente da categoria"
+                              >
+                                Teto padrão
+                              </span>
+                            ) : null}
                           </div>
-                          <span className="text-[11px] text-slate-400">
-                            Teto: <strong className="text-slate-200">{budget > 0 ? formatCurrency(budget) : 'Sem teto definido'}</strong>
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
+                            <span>Teto:</span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenMonthlyBudgetEdit(cat)}
+                              className="font-bold text-slate-200 hover:text-emerald-400 hover:underline cursor-pointer transition-colors"
+                              title="Clique para ajustar o teto deste mês"
+                            >
+                              {budget > 0 ? formatCurrency(budget) : 'Sem teto definido (clique p/ definir)'}
+                            </button>
                             {isSummedFromSubs && (
-                              <span className="text-[9px] text-emerald-400/90 font-medium ml-1">
+                              <span className="text-[9px] text-emerald-400/90 font-medium ml-0.5">
                                 (soma subs)
                               </span>
                             )}
-                          </span>
+                          </div>
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => handleOpenEdit(cat)}
-                        title="Opções da Categoria"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                      >
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        {/* Botão de Edição Rápida do Teto Mensal */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenMonthlyBudgetEdit(cat)}
+                          title="Alterar teto para este mês"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Alça de Arrastar Categoria Pai */}
+                        <div
+                          draggable
+                          onDragStart={(e) => {
+                            e.stopPropagation();
+                            setDraggedParentId(cat.id);
+                          }}
+                          onDragEnd={() => {
+                            setDraggedParentId(null);
+                            setDragOverParentId(null);
+                          }}
+                          className="p-1.5 text-slate-500 hover:text-slate-300 rounded-lg hover:bg-slate-800 cursor-grab active:cursor-grabbing transition-colors"
+                          title="Arrastar para reordenar categoria"
+                        >
+                          <GripVertical className="w-4 h-4" />
+                        </div>
+
+                        <button
+                          onClick={() => handleOpenEdit(cat)}
+                          title="Opções da Categoria"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Barra de Progresso Consolidada */}
@@ -390,19 +747,61 @@ export const BudgetsView: React.FC = () => {
                             const subSpent = filteredTransactions
                               .filter(t => t.categoryId === sub.id && t.type === 'expense')
                               .reduce((sum, t) => sum + t.amount, 0);
-                            const subBudget = sub.budgetLimit || 0;
+                            const subBudgetInfo = getCategoryBudgetForPeriod(sub, selectedYear, selectedMonth);
+                            const subBudget = subBudgetInfo.amount;
                             const subPercent = subBudget > 0 ? (subSpent / subBudget) * 100 : 0;
                             const isSubOver = subBudget > 0 && subSpent > subBudget;
+                            const isSubDragging = draggedSubId === sub.id;
+                            const isSubOverDrag = dragOverSubId === sub.id;
 
                             return (
                               <div
                                 key={sub.id}
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (draggedSubId && draggedSubId !== sub.id) {
+                                    setDragOverSubId(sub.id);
+                                  }
+                                }}
+                                onDragLeave={() => {
+                                  if (dragOverSubId === sub.id) setDragOverSubId(null);
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDropSubCategory(cat.id, sub.id);
+                                }}
                                 onClick={() => setSelectedCategoryForDetails(sub)}
-                                className="p-2.5 bg-slate-950/60 hover:bg-slate-900/90 border border-slate-800/40 hover:border-slate-700/70 rounded-xl text-xs space-y-1.5 transition-all cursor-pointer group select-none"
+                                className={`p-2.5 bg-slate-950/60 hover:bg-slate-900/90 border rounded-xl text-xs space-y-1.5 transition-all cursor-pointer group select-none ${
+                                  isSubOverDrag
+                                    ? 'border-emerald-500 ring-1 ring-emerald-500/40 bg-slate-900'
+                                    : isSubDragging
+                                    ? 'border-dashed border-slate-600 opacity-40'
+                                    : 'border-slate-800/40 hover:border-slate-700/70'
+                                }`}
                                 title="Clique para ver os lançamentos desta subcategoria"
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2 min-w-0">
+                                    {/* Alça de Arrastar Subcategoria */}
+                                    <div
+                                      draggable
+                                      onClick={(e) => e.stopPropagation()}
+                                      onDragStart={(e) => {
+                                        e.stopPropagation();
+                                        setDraggedSubId(sub.id);
+                                      }}
+                                      onDragEnd={() => {
+                                        setDraggedSubId(null);
+                                        setDragOverSubId(null);
+                                      }}
+                                      className="p-1 -ml-1 text-slate-600 hover:text-slate-300 rounded cursor-grab active:cursor-grabbing transition-colors"
+                                      title="Arrastar para reordenar subcategoria"
+                                    >
+                                      <GripVertical className="w-3.5 h-3.5" />
+                                    </div>
+
                                     <div
                                       className="w-2.5 h-2.5 rounded-full shrink-0 group-hover:scale-125 transition-transform"
                                       style={{ backgroundColor: sub.color }}
@@ -410,9 +809,34 @@ export const BudgetsView: React.FC = () => {
                                     <span className="font-medium text-slate-300 group-hover:text-white transition-colors truncate">
                                       {sub.name}
                                     </span>
-                                    {subBudget > 0 && (
-                                      <span className="text-[10px] text-slate-500 font-normal shrink-0">
+                                    {subBudget > 0 ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenMonthlyBudgetEdit(sub);
+                                        }}
+                                        className="text-[10px] text-slate-400 hover:text-emerald-400 font-normal shrink-0 transition-colors"
+                                        title="Clique para alterar o teto da subcategoria deste mês"
+                                      >
                                         ({formatCurrency(subBudget)})
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenMonthlyBudgetEdit(sub);
+                                        }}
+                                        className="text-[10px] text-slate-600 hover:text-emerald-400 font-normal shrink-0 transition-colors"
+                                        title="Definir teto para esta subcategoria neste mês"
+                                      >
+                                        + teto
+                                      </button>
+                                    )}
+                                    {subBudgetInfo.isCustomMonth && (
+                                      <span className="text-[8px] bg-purple-500/20 text-purple-300 px-1 py-0.2 rounded font-medium">
+                                        mês
                                       </span>
                                     )}
                                   </div>
@@ -420,6 +844,16 @@ export const BudgetsView: React.FC = () => {
                                     <span className={`font-semibold ${isSubOver ? 'text-rose-400' : 'text-white'}`}>
                                       {formatCurrency(subSpent)}
                                     </span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenMonthlyBudgetEdit(sub);
+                                      }}
+                                      className="text-slate-500 hover:text-emerald-400 p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                                      title="Ajustar teto deste mês"
+                                    >
+                                      <Edit2 className="w-3 h-3" />
+                                    </button>
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -859,6 +1293,111 @@ export const BudgetsView: React.FC = () => {
         onUnarchive={handleUnarchiveCategory}
         onDelete={(cat) => setDeletingCategory(cat)}
       />
+
+      {/* MODAL DE EDIÇÃO DE TETO ESPECÍFICO DO MÊS */}
+      {editingMonthlyBudgetCat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs shadow-md"
+                  style={{ backgroundColor: editingMonthlyBudgetCat.color }}
+                >
+                  <CategoryIcon name={editingMonthlyBudgetCat.icon} size={15} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white leading-tight">
+                    Teto para {getMonthName(selectedMonth)}/{selectedYear}
+                  </h3>
+                  <span className="text-[11px] text-slate-400">
+                    {editingMonthlyBudgetCat.name}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingMonthlyBudgetCat(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveMonthlyBudget} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Valor do Teto para este mês (R$)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  autoFocus
+                  placeholder="Ex: 1200.00"
+                  value={monthlyBudgetInput}
+                  onChange={e => setMonthlyBudgetInput(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 text-sm"
+                />
+                <span className="text-[10px] text-slate-500 block mt-1">
+                  Teto padrão cadastrado na categoria: <strong className="text-slate-300">{editingMonthlyBudgetCat.budgetLimit ? formatCurrency(editingMonthlyBudgetCat.budgetLimit) : 'Não definido'}</strong>
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Salvar Teto deste Mês</span>
+                </button>
+
+                {editingMonthlyBudgetCat.monthlyBudgets?.[`${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`] !== undefined && (
+                  <button
+                    type="button"
+                    onClick={handleResetToDefaultBudget}
+                    className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-[11px] transition-colors cursor-pointer"
+                  >
+                    Restaurar para Teto Padrão
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMAÇÃO: APLICAR TETOS PADRÃO NESTE MÊS */}
+      <ConfirmModal
+        isOpen={isApplyDefaultsConfirmOpen}
+        title={`Preencher Tetos Padrão em ${getMonthName(selectedMonth)}/${selectedYear}?`}
+        message="Esta ação irá preencher o orçamento de todas as categorias de despesa deste mês utilizando o teto padrão cadastrado em cada uma delas na aba Gerenciar Categorias."
+        variant="warning"
+        confirmLabel="Sim, Preencher Tetos"
+        cancelLabel="Cancelar"
+        onConfirm={handleConfirmApplyDefaults}
+        onCancel={() => setIsApplyDefaultsConfirmOpen(false)}
+      />
+
+      {/* CONFIRMAÇÃO: REPLICAR ORÇAMENTOS PARA O ANO INTEIRO */}
+      <ConfirmModal
+        isOpen={isReplicateYearConfirmOpen}
+        title={`Replicar Orçamentos para Todo o Ano de ${selectedYear}?`}
+        message={`Esta ação irá copiar os tetos de gastos atualmente definidos em ${getMonthName(selectedMonth)}/${selectedYear} para TODOS os 12 meses do ano de ${selectedYear}. Deseja continuar?`}
+        variant="primary"
+        confirmLabel="Sim, Replicar para o Ano"
+        cancelLabel="Cancelar"
+        onConfirm={handleConfirmReplicateYear}
+        onCancel={() => setIsReplicateYearConfirmOpen(false)}
+      />
+
+      {/* FEEDBACK TOAST */}
+      {feedbackToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 border border-emerald-500/50 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-fadeIn">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span className="text-xs font-medium text-slate-200">{feedbackToast}</span>
+        </div>
+      )}
     </div>
   );
 };

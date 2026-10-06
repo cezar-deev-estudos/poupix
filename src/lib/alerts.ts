@@ -88,39 +88,42 @@ export function generateSmartAlerts(
 
   // 3. Alertas de Teto de Orçamento de Categorias
   categories.forEach(cat => {
-    if (cat.type === 'expense' && cat.budgetLimit && cat.budgetLimit > 0) {
-      const spent = transactions
-        .filter(t => {
-          if (!t.date || t.categoryId !== cat.id || t.type !== 'expense') return false;
-          const [y, m] = t.date.split('-').map(Number);
-          return y === currentYear && (m - 1) === currentMonth;
-        })
-        .reduce((sum, t) => sum + t.amount, 0);
+    if (cat.type === 'expense') {
+      const budgetForMonth = cat.monthlyBudgets?.[`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`] ?? (cat.budgetLimit || 0);
+      if (budgetForMonth > 0) {
+        const spent = transactions
+          .filter(t => {
+            if (!t.date || t.categoryId !== cat.id || t.type !== 'expense') return false;
+            const [y, m] = t.date.split('-').map(Number);
+            return y === currentYear && (m - 1) === currentMonth;
+          })
+          .reduce((sum, t) => sum + t.amount, 0);
 
-      const percent = (spent / cat.budgetLimit) * 100;
+        const percent = (spent / budgetForMonth) * 100;
 
-      if (percent >= 100) {
-        alerts.push({
-          id: `alert-budget-exceeded-${cat.id}-${currentYear}-${currentMonth}`,
-          type: 'budget_exceeded',
-          title: `Orçamento Estourado: ${cat.name}`,
-          message: `Você ultrapassou o teto definido (${percent.toFixed(0)}% gasto de R$ ${cat.budgetLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`,
-          severity: 'danger',
-          date: today.toISOString(),
-          isRead: false,
-          relatedId: cat.id,
-        });
-      } else if (percent >= 80) {
-        alerts.push({
-          id: `alert-budget-warn-${cat.id}-${currentYear}-${currentMonth}`,
-          type: 'budget_warning',
-          title: `Atenção ao Orçamento: ${cat.name}`,
-          message: `Você já utilizou ${percent.toFixed(0)}% do orçamento estipulado para este mês.`,
-          severity: 'warning',
-          date: today.toISOString(),
-          isRead: false,
-          relatedId: cat.id,
-        });
+        if (percent >= 100) {
+          alerts.push({
+            id: `alert-budget-exceeded-${cat.id}-${currentYear}-${currentMonth}`,
+            type: 'budget_exceeded',
+            title: `Orçamento Estourado: ${cat.name}`,
+            message: `Você ultrapassou o teto definido (${percent.toFixed(0)}% gasto de R$ ${budgetForMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`,
+            severity: 'danger',
+            date: today.toISOString(),
+            isRead: false,
+            relatedId: cat.id,
+          });
+        } else if (percent >= 80) {
+          alerts.push({
+            id: `alert-budget-warn-${cat.id}-${currentYear}-${currentMonth}`,
+            type: 'budget_warning',
+            title: `Atenção ao Orçamento: ${cat.name}`,
+            message: `Você já utilizou ${percent.toFixed(0)}% do orçamento estipulado para este mês.`,
+            severity: 'warning',
+            date: today.toISOString(),
+            isRead: false,
+            relatedId: cat.id,
+          });
+        }
       }
     }
   });
