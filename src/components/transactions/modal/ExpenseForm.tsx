@@ -146,7 +146,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
               type="button"
               onClick={() => setPaid(!paid)}
               className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                paid ? 'bg-rose-500' : 'bg-slate-800'
+                paid ? 'bg-emerald-500' : 'bg-slate-800'
               }`}
             >
               <span

@@ -23,9 +23,13 @@ export const DesktopCategoryDetailModal: React.FC<DesktopCategoryDetailModalProp
   transactions,
   onEditTransaction,
 }) => {
-  const { updateTransaction, accounts, creditCards } = useFinance();
+  const { updateTransaction, accounts, creditCards, categories } = useFinance();
 
   if (!isOpen) return null;
+
+  const parentCat = category.parentId ? categories.find(c => c.id === category.parentId) : null;
+  const fullTitle = parentCat ? `${parentCat.name} / ${category.name}` : category.name;
+  const totalAmount = transactions.reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
   const handleTogglePaid = (e: React.MouseEvent, tx: Transaction, currentEffectivelyPaid: boolean) => {
     e.stopPropagation();
@@ -73,29 +77,41 @@ export const DesktopCategoryDetailModal: React.FC<DesktopCategoryDetailModalProp
         className="relative w-full max-w-2xl bg-[#1e222d] text-white rounded-3xl shadow-2xl border border-slate-800 p-6 space-y-4 max-h-[85vh] flex flex-col z-10 animate-scaleUp"
       >
         {/* Header do Modal */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-800 gap-4">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div
               className="w-11 h-11 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-md"
               style={{ backgroundColor: category.color || '#3B82F6' }}
             >
               <CategoryIcon name={category.icon || 'Tag'} size={22} />
             </div>
-            <div className="min-w-0">
-              <h3 className="text-lg font-bold text-white truncate">{category.name}</h3>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base font-bold text-white truncate" title={fullTitle}>
+                {fullTitle}
+              </h3>
               <span className="text-xs text-slate-400">
                 {transactions.length} {transactions.length === 1 ? 'lançamento' : 'lançamentos'}
               </span>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-4 shrink-0">
+            {/* Valor da Soma dos Itens no Canto Superior Direito */}
+            <div className="text-right">
+              <span className="text-[10px] text-slate-400 block font-medium">Total</span>
+              <span className="text-base font-bold text-rose-400 block">
+                {formatCurrency(totalAmount)}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-9 h-9 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Lista de Transações */}

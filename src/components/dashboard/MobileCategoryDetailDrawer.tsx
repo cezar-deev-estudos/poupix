@@ -24,10 +24,14 @@ export const MobileCategoryDetailDrawer: React.FC<MobileCategoryDetailDrawerProp
   transactions,
   onEditTransaction,
 }) => {
-  const { updateTransaction, deleteTransaction, accounts, creditCards } = useFinance();
+  const { updateTransaction, deleteTransaction, accounts, creditCards, categories } = useFinance();
   const [selectedTxDetail, setSelectedTxDetail] = useState<Transaction | null>(null);
 
   if (!isOpen) return null;
+
+  const parentCat = category.parentId ? categories.find(c => c.id === category.parentId) : null;
+  const fullTitle = parentCat ? `${parentCat.name} / ${category.name}` : category.name;
+  const totalAmount = transactions.reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
   // Alterna status de pago/pendente
   const handleTogglePaid = (e: React.MouseEvent, tx: Transaction, currentEffectivelyPaid: boolean) => {
@@ -81,18 +85,30 @@ export const MobileCategoryDetailDrawer: React.FC<MobileCategoryDetailDrawerProp
         {/* Handle de fechamento */}
         <div className="w-12 h-1.5 bg-slate-600 rounded-full mx-auto cursor-pointer" onClick={onClose} />
 
-        {/* Título da Categoria */}
-        <div className="flex items-center gap-3 pt-1">
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 shadow-md"
-            style={{ backgroundColor: category.color || '#3B82F6' }}
-          >
-            <CategoryIcon name={category.icon || 'Tag'} size={20} />
+        {/* Título da Categoria e Valor Total */}
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 shadow-md"
+              style={{ backgroundColor: category.color || '#3B82F6' }}
+            >
+              <CategoryIcon name={category.icon || 'Tag'} size={20} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-bold text-white truncate" title={fullTitle}>
+                {fullTitle}
+              </h3>
+              <span className="text-xs text-slate-400">
+                {transactions.length} {transactions.length === 1 ? 'lançamento' : 'lançamentos'}
+              </span>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h3 className="text-base font-bold text-white truncate">{category.name}</h3>
-            <span className="text-xs text-slate-400">
-              {transactions.length} {transactions.length === 1 ? 'lançamento' : 'lançamentos'}
+
+          {/* Valor Total da Soma dos Itens no Canto Superior Direito */}
+          <div className="text-right shrink-0">
+            <span className="text-[10px] text-slate-400 block font-medium">Total</span>
+            <span className="text-sm font-bold text-rose-400 block">
+              {formatCurrency(totalAmount)}
             </span>
           </div>
         </div>

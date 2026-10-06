@@ -296,6 +296,7 @@ export const fetchAllFromSupabase = async (userId: string) => {
       parentId: cat.parent_id || undefined,
       budgetLimit: cat.budget_limit ? Number(cat.budget_limit) : undefined,
       isDefault: cat.is_default ?? false,
+      isArchived: cat.is_archived ?? false,
     }))
 
     const tags: Tag[] = getResData(tagRes).map((t: any) => ({

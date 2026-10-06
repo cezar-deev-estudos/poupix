@@ -2,10 +2,14 @@
 
 import React, { useState } from 'react';
 import { useFinance } from '@/context/FinanceContext';
-import { Category } from '@/types/finance';
+import { Category, Transaction } from '@/types/finance';
 import { formatCurrency } from '@/lib/utils';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { ConfirmModal } from '../ui/ConfirmModal';
+import { MobileCategoryDetailDrawer } from '../dashboard/MobileCategoryDetailDrawer';
+import { DesktopCategoryDetailModal } from '../dashboard/DesktopCategoryDetailModal';
+import { NewTransactionModal } from '../transactions/NewTransactionModal';
+import { ArchivedCategoriesModal } from './ArchivedCategoriesModal';
 import {
   Plus,
   Edit2,
@@ -19,6 +23,8 @@ import {
   Check,
   X,
   Layers,
+  ListFilter,
+  Archive,
 } from 'lucide-react';
 
 const COLOR_PALETTE = [
@@ -60,6 +66,15 @@ export const BudgetsView: React.FC = () => {
   // Estado para Modal de Exclusão
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
 
+  // Estado para Modal de Categorias Arquivadas
+  const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
+
+  // Estado para Visualização Detalhada dos Itens/Transações da Subcategoria (Mobile e Desktop)
+  const [selectedCategoryForDetails, setSelectedCategoryForDetails] = useState<Category | null>(null);
+
+  // Estado para Edição da Transação a partir do modal/drawer de detalhe
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+
   // Categorias expandidas na visualização de orçamento
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
 
@@ -67,12 +82,39 @@ export const BudgetsView: React.FC = () => {
     setExpandedCats(prev => ({ ...prev, [catId]: !prev[catId] }));
   };
 
-  // Separação de Categorias Principais (Pais) e Subcategorias
-  const parentCategories = categories.filter(c => !c.parentId);
-  const getSubcategories = (parentCatId: string) => categories.filter(c => c.parentId === parentCatId);
+  // Separação de Categorias Ativas e Arquivadas
+  const activeCategories = categories.filter(c => !c.isArchived);
+  const archivedCategories = categories.filter(c => !!c.isArchived);
+
+  // Separação de Categorias Principais (Pais) e Subcategorias ATIVAS
+  const parentCategories = activeCategories.filter(c => !c.parentId);
+  const getSubcategories = (parentCatId: string) => activeCategories.filter(c => c.parentId === parentCatId);
 
   // Categorias elegíveis para serem Pai no formulário
-  const eligibleParentCategories = categories.filter(c => !c.parentId && c.type === type && (!editingCategory || c.id !== editingCategory.id));
+  const eligibleParentCategories = activeCategories.filter(c => !c.parentId && c.type === type && (!editingCategory || c.id !== editingCategory.id));
+
+  // Handlers para Arquivar / Desarquivar
+  const handleArchiveCategory = (cat: Category) => {
+    // Se for categoria pai, arquiva ela e suas subcategorias
+    updateCategory(cat.id, { isArchived: true });
+    if (!cat.parentId) {
+      const subs = categories.filter(c => c.parentId === cat.id);
+      subs.forEach(s => updateCategory(s.id, { isArchived: true }));
+    }
+    if (selectedCategoryForDetails?.id === cat.id) {
+      setSelectedCategoryForDetails(null);
+    }
+  };
+
+  const handleUnarchiveCategory = (catId: string) => {
+    const target = categories.find(c => c.id === catId);
+    if (!target) return;
+    updateCategory(catId, { isArchived: false });
+    // Se for subcategoria, certifica-se de desarquivar também a pai se estiver arquivada
+    if (target.parentId) {
+      updateCategory(target.parentId, { isArchived: false });
+    }
+  };
 
   // Abrir modal de criação
   const handleOpenCreate = (suggestedParentId?: string, suggestedType?: 'expense' | 'income') => {
@@ -147,6 +189,16 @@ export const BudgetsView: React.FC = () => {
       .reduce((sum, t) => sum + t.amount, 0);
   };
 
+  // Cálculo de teto efetivo da categoria pai (se as subcategorias tiverem tetos preenchidos, soma-os; senão usa o teto da pai)
+  const getEffectiveCategoryBudget = (cat: Category) => {
+    const subs = getSubcategories(cat.id);
+    const subsBudgetSum = subs.reduce((sum, s) => sum + (s.budgetLimit || 0), 0);
+    if (subsBudgetSum > 0) {
+      return subsBudgetSum;
+    }
+    return cat.budgetLimit || 0;
+  };
+
   // Categorias de despesa para o planejamento orçamentário
   const budgetExpenseCategories = parentCategories.filter(c => c.type === 'expense');
 
@@ -195,27 +247,41 @@ export const BudgetsView: React.FC = () => {
       {/* ABA 1: PLANEJAMENTO ORÇAMENTÁRIO */}
       {activeTab === 'budgets' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <span className="text-xs text-slate-400">
               Acompanhamento de consumo por categoria e subcategorias no período selecionado.
             </span>
-            <button
-              onClick={() => handleOpenCreate(undefined, 'expense')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-md transition-all cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Novo Teto / Categoria</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {archivedCategories.length > 0 && (
+                <button
+                  onClick={() => setIsArchivedModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700/60 transition-all cursor-pointer"
+                  title="Ver categorias e subcategorias arquivadas"
+                >
+                  <Archive className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Arquivadas ({archivedCategories.length})</span>
+                </button>
+              )}
+              <button
+                onClick={() => handleOpenCreate(undefined, 'expense')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-md transition-all cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Novo Teto / Categoria</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {budgetExpenseCategories.map(cat => {
               const subs = getSubcategories(cat.id);
               const totalSpent = calculateCategorySpent(cat);
-              const budget = cat.budgetLimit || 0;
+              const budget = getEffectiveCategoryBudget(cat);
               const percentage = budget > 0 ? (totalSpent / budget) * 100 : 0;
               const isOverBudget = budget > 0 && totalSpent > budget;
               const isExpanded = Boolean(expandedCats[cat.id]);
+              const subsWithBudget = subs.filter(s => s.budgetLimit && s.budgetLimit > 0);
+              const isSummedFromSubs = subsWithBudget.length > 0;
 
               return (
                 <div
@@ -243,11 +309,23 @@ export const BudgetsView: React.FC = () => {
                           </div>
                           <span className="text-[11px] text-slate-400">
                             Teto: <strong className="text-slate-200">{budget > 0 ? formatCurrency(budget) : 'Sem teto definido'}</strong>
+                            {isSummedFromSubs && (
+                              <span className="text-[9px] text-emerald-400/90 font-medium ml-1">
+                                (soma subs)
+                              </span>
+                            )}
                           </span>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleArchiveCategory(cat)}
+                          title="Arquivar Categoria"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           onClick={() => handleOpenEdit(cat)}
                           title="Editar Categoria"
@@ -281,9 +359,9 @@ export const BudgetsView: React.FC = () => {
                         <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden p-0.5 border border-slate-800">
                           <div
                             className={`h-full rounded-full transition-all ${
-                              percentage > 100
+                              percentage > 150
                                 ? 'bg-rose-500'
-                                : percentage > 80
+                                : percentage > 100
                                 ? 'bg-amber-400'
                                 : 'bg-emerald-400'
                             }`}
@@ -316,29 +394,73 @@ export const BudgetsView: React.FC = () => {
                             const subSpent = filteredTransactions
                               .filter(t => t.categoryId === sub.id && t.type === 'expense')
                               .reduce((sum, t) => sum + t.amount, 0);
+                            const subBudget = sub.budgetLimit || 0;
+                            const subPercent = subBudget > 0 ? (subSpent / subBudget) * 100 : 0;
+                            const isSubOver = subBudget > 0 && subSpent > subBudget;
 
                             return (
                               <div
                                 key={sub.id}
-                                className="flex items-center justify-between p-2 bg-slate-950/60 rounded-xl text-xs"
+                                onClick={() => setSelectedCategoryForDetails(sub)}
+                                className="p-2.5 bg-slate-950/60 hover:bg-slate-900/90 border border-slate-800/40 hover:border-slate-700/70 rounded-xl text-xs space-y-1.5 transition-all cursor-pointer group select-none"
+                                title="Clique para ver os lançamentos desta subcategoria"
                               >
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className="w-2.5 h-2.5 rounded-full"
-                                    style={{ backgroundColor: sub.color }}
-                                  />
-                                  <span className="font-medium text-slate-300">{sub.name}</span>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div
+                                      className="w-2.5 h-2.5 rounded-full shrink-0 group-hover:scale-125 transition-transform"
+                                      style={{ backgroundColor: sub.color }}
+                                    />
+                                    <span className="font-medium text-slate-300 group-hover:text-white transition-colors truncate">
+                                      {sub.name}
+                                    </span>
+                                    {subBudget > 0 && (
+                                      <span className="text-[10px] text-slate-500 font-normal shrink-0">
+                                        ({formatCurrency(subBudget)})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <span className={`font-semibold ${isSubOver ? 'text-rose-400' : 'text-white'}`}>
+                                      {formatCurrency(subSpent)}
+                                    </span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleArchiveCategory(sub);
+                                      }}
+                                      className="text-slate-500 hover:text-amber-400 p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                                      title="Arquivar Subcategoria"
+                                    >
+                                      <Archive className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenEdit(sub);
+                                      }}
+                                      className="text-slate-500 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                                      title="Editar Subcategoria"
+                                    >
+                                      <Edit2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-semibold text-white">{formatCurrency(subSpent)}</span>
-                                  <button
-                                    onClick={() => handleOpenEdit(sub)}
-                                    className="text-slate-500 hover:text-white p-1"
-                                    title="Editar Subcategoria"
-                                  >
-                                    <Edit2 className="w-3 h-3" />
-                                  </button>
-                                </div>
+
+                                {subBudget > 0 && (
+                                  <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden p-0.2 border border-slate-800">
+                                    <div
+                                      className={`h-full rounded-full transition-all ${
+                                        subPercent > 150
+                                          ? 'bg-rose-500'
+                                          : subPercent > 100
+                                          ? 'bg-amber-400'
+                                          : 'bg-emerald-400'
+                                      }`}
+                                      style={{ width: `${Math.min(100, subPercent)}%` }}
+                                    />
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -392,7 +514,17 @@ export const BudgetsView: React.FC = () => {
             </div>
 
             {/* Botão de Adicionar Categoria */}
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              {archivedCategories.length > 0 && (
+                <button
+                  onClick={() => setIsArchivedModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700/60 transition-all cursor-pointer"
+                  title="Ver categorias arquivadas"
+                >
+                  <Archive className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Arquivadas ({archivedCategories.length})</span>
+                </button>
+              )}
               <button
                 onClick={() => handleOpenCreate()}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
@@ -456,6 +588,14 @@ export const BudgetsView: React.FC = () => {
                         </button>
 
                         <button
+                          onClick={() => handleArchiveCategory(parentCat)}
+                          className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                          title="Arquivar Categoria"
+                        >
+                          <Archive className="w-4 h-4" />
+                        </button>
+
+                        <button
                           onClick={() => handleOpenEdit(parentCat)}
                           className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                           title="Editar"
@@ -489,10 +629,21 @@ export const BudgetsView: React.FC = () => {
                                 <CategoryIcon name={sub.icon} size={12} />
                               </div>
                               <span className="font-semibold text-slate-200 text-xs">{sub.name}</span>
-                              <span className="text-[10px] text-slate-500">(Subcategoria)</span>
+                              {sub.budgetLimit && sub.budgetLimit > 0 && (
+                                <span className="text-[10px] text-slate-400 font-normal">
+                                  • Teto: {formatCurrency(sub.budgetLimit)}
+                                </span>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleArchiveCategory(sub)}
+                                className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                title="Arquivar Subcategoria"
+                              >
+                                <Archive className="w-3.5 h-3.5" />
+                              </button>
                               <button
                                 onClick={() => handleOpenEdit(sub)}
                                 className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
@@ -580,8 +731,8 @@ export const BudgetsView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Teto Orçamentário (Apenas para Categoria Principal de Despesa) */}
-              {type === 'expense' && !parentId && (
+              {/* Teto Orçamentário (Para Categoria Principal ou Subcategoria de Despesa) */}
+              {type === 'expense' && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
                     Teto Orçamentário Mensal (R$)
@@ -673,6 +824,55 @@ export const BudgetsView: React.FC = () => {
         cancelLabel="Cancelar"
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeletingCategory(null)}
+      />
+
+      {/* DETALHAMENTO DE ITENS DA SUBCATEGORIA (MOBILE DRAWER) */}
+      {selectedCategoryForDetails && (
+        <div className="block sm:hidden">
+          <MobileCategoryDetailDrawer
+            isOpen={Boolean(selectedCategoryForDetails)}
+            onClose={() => setSelectedCategoryForDetails(null)}
+            category={selectedCategoryForDetails}
+            transactions={filteredTransactions.filter(
+              t => t.categoryId === selectedCategoryForDetails.id && t.type === 'expense'
+            )}
+            onEditTransaction={setEditingTransaction}
+          />
+        </div>
+      )}
+
+      {/* DETALHAMENTO DE ITENS DA SUBCATEGORIA (DESKTOP MODAL) */}
+      {selectedCategoryForDetails && (
+        <div className="hidden sm:block">
+          <DesktopCategoryDetailModal
+            isOpen={Boolean(selectedCategoryForDetails)}
+            onClose={() => setSelectedCategoryForDetails(null)}
+            category={selectedCategoryForDetails}
+            transactions={filteredTransactions.filter(
+              t => t.categoryId === selectedCategoryForDetails.id && t.type === 'expense'
+            )}
+            onEditTransaction={setEditingTransaction}
+          />
+        </div>
+      )}
+
+      {/* MODAL DE EDIÇÃO DE TRANSAÇÃO */}
+      {editingTransaction && (
+        <NewTransactionModal
+          isOpen={Boolean(editingTransaction)}
+          onClose={() => setEditingTransaction(null)}
+          transactionToEdit={editingTransaction}
+        />
+      )}
+
+      {/* MODAL DE CATEGORIAS ARQUIVADAS */}
+      <ArchivedCategoriesModal
+        isOpen={isArchivedModalOpen}
+        onClose={() => setIsArchivedModalOpen(false)}
+        archivedCategories={archivedCategories}
+        allCategories={categories}
+        onUnarchive={handleUnarchiveCategory}
+        onDelete={(cat) => setDeletingCategory(cat)}
       />
     </div>
   );

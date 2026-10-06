@@ -38,6 +38,7 @@ export interface Category {
   budgetLimit?: number; // Teto de gastos mensal
   parentId?: string; // ID da categoria pai para subcategorias
   isDefault?: boolean;
+  isArchived?: boolean;
 }
 
 export interface Tag {
