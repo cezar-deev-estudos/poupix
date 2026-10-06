@@ -499,6 +499,23 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
                   invoiceStatus = 'closed';
                 }
 
+                // Textos contextuais de Fechamento e Vencimento (sem a palavra "em" e formato DD/MM)
+                const dueDayStr = String(card.dueDay).padStart(2, '0');
+                const dueMonthStr = String(dueDate.getMonth() + 1).padStart(2, '0');
+                const dueDateFormatted = `${dueDayStr}/${dueMonthStr}`;
+
+                const closingDayStr = String(card.closingDay).padStart(2, '0');
+                const closingMonthStr = String(closingDate.getMonth() + 1).padStart(2, '0');
+                const closingDateFormatted = `${closingDayStr}/${closingMonthStr}`;
+
+                const hasClosed = today > closingDate;
+                const closingLabel = hasClosed ? `fechou ${closingDateFormatted}` : `fecha ${closingDateFormatted}`;
+
+                const isOverdue = invoiceStatus === 'overdue';
+                const dueLabel = isOverdue
+                  ? `Venceu ${dueDateFormatted}`
+                  : `Vence ${dueDateFormatted}`;
+
                 return (
                   <div
                     key={card.id}
@@ -512,7 +529,7 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
                     <div className="flex items-center gap-3 min-w-0">
                       {renderCardBrand(card.brand)}
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-semibold text-white block truncate group-hover:text-teal-300 transition-colors">
                             {card.name}
                           </span>
@@ -535,12 +552,15 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
                               ? 'Vencida'
                               : 'Fechada'}
                           </span>
+                          <span className="text-[10px] text-slate-500 font-normal whitespace-nowrap">
+                            • {closingLabel}
+                          </span>
                         </div>
-                        <span className="text-xs font-bold text-rose-400 block">
+                        <span className="text-xs font-bold text-rose-400 block mt-0.5">
                           {displayVal(cardTotal)}
                         </span>
-                        <span className="text-[10px] text-slate-500 block">
-                          • fecha em dia {card.closingDay}
+                        <span className={`text-[10px] block ${isOverdue ? 'text-rose-400 font-medium' : 'text-slate-400'}`}>
+                          • {dueLabel}
                         </span>
                       </div>
                     </div>
