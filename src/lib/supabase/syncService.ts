@@ -71,10 +71,17 @@ export const syncAllToSupabase = async (data: {
           parent_id: cat.parentId ? ensureValidUUID(cat.parentId) : null,
           budget_limit: cat.budgetLimit || null,
           is_default: cat.isDefault ?? false,
+          is_archived: cat.isArchived ?? false,
         }
       })
       const { error: catErr } = await supabase.from('categories').upsert(categoriesPayload as any)
-      if (catErr) console.warn('[Supabase Sync] Erro em categorias:', catErr.message)
+      if (catErr) {
+        console.warn('[Supabase Sync] Erro em categorias com is_archived, tentando fallback sem coluna:', catErr.message)
+        // Fallback sem is_archived caso a tabela no Supabase ainda não tenha a coluna
+        const fallbackPayload = categoriesPayload.map(({ is_archived, ...rest }) => rest)
+        const { error: fbErr } = await supabase.from('categories').upsert(fallbackPayload as any)
+        if (fbErr) console.warn('[Supabase Sync] Erro no fallback de categorias:', fbErr.message)
+      }
     }
 
     // 2.1. Sincronizar Tags

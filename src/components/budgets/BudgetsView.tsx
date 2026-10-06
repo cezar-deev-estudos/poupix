@@ -25,6 +25,7 @@ import {
   Layers,
   ListFilter,
   Archive,
+  MoreVertical,
 } from 'lucide-react';
 
 const COLOR_PALETTE = [
@@ -208,11 +209,22 @@ export const BudgetsView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-900">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Tag className="w-5 h-5 text-emerald-400" />
-            <span>Categorias & Planejamento Orçamentário</span>
+            {activeTab === 'budgets' ? (
+              <>
+                <PieChart className="w-5 h-5 text-emerald-400" />
+                <span>Orçamentos</span>
+              </>
+            ) : (
+              <>
+                <FolderTree className="w-5 h-5 text-emerald-400" />
+                <span>Categorias</span>
+              </>
+            )}
           </h2>
           <p className="text-xs text-slate-400">
-            Gerencie suas categorias, crie subcategorias e defina tetos de gastos mensais.
+            {activeTab === 'budgets'
+              ? 'Defina e acompanhe tetos de gastos mensais por categoria.'
+              : 'Gerencie categorias, subcategorias, ícones e cores do sistema.'}
           </p>
         </div>
 
@@ -318,29 +330,13 @@ export const BudgetsView: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleArchiveCategory(cat)}
-                          title="Arquivar Categoria"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
-                        >
-                          <Archive className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenEdit(cat)}
-                          title="Editar Categoria"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setDeletingCategory(cat)}
-                          title="Excluir Categoria"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handleOpenEdit(cat)}
+                        title="Opções da Categoria"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
                     </div>
 
                     {/* Barra de Progresso Consolidada */}
@@ -427,22 +423,12 @@ export const BudgetsView: React.FC = () => {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleArchiveCategory(sub);
-                                      }}
-                                      className="text-slate-500 hover:text-amber-400 p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
-                                      title="Arquivar Subcategoria"
-                                    >
-                                      <Archive className="w-3 h-3" />
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
                                         handleOpenEdit(sub);
                                       }}
                                       className="text-slate-500 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
-                                      title="Editar Subcategoria"
+                                      title="Opções da Subcategoria"
                                     >
-                                      <Edit2 className="w-3 h-3" />
+                                      <MoreVertical className="w-3.5 h-3.5" />
                                     </button>
                                   </div>
                                 </div>
@@ -588,27 +574,11 @@ export const BudgetsView: React.FC = () => {
                         </button>
 
                         <button
-                          onClick={() => handleArchiveCategory(parentCat)}
-                          className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                          title="Arquivar Categoria"
-                        >
-                          <Archive className="w-4 h-4" />
-                        </button>
-
-                        <button
                           onClick={() => handleOpenEdit(parentCat)}
                           className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                          title="Editar"
+                          title="Opções da Categoria"
                         >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={() => setDeletingCategory(parentCat)}
-                          className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-4 h-4" />
+                          <MoreVertical className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -636,29 +606,13 @@ export const BudgetsView: React.FC = () => {
                               )}
                             </div>
 
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => handleArchiveCategory(sub)}
-                                className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                                title="Arquivar Subcategoria"
-                              >
-                                <Archive className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleOpenEdit(sub)}
-                                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                                title="Editar Subcategoria"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setDeletingCategory(sub)}
-                                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                                title="Excluir Subcategoria"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                            <button
+                              onClick={() => handleOpenEdit(sub)}
+                              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                              title="Opções da Subcategoria"
+                            >
+                              <MoreVertical className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -679,12 +633,29 @@ export const BudgetsView: React.FC = () => {
                 <Tag className="w-4 h-4 text-emerald-400" />
                 <span>{editingCategory ? 'Editar Categoria' : parentId ? 'Nova Subcategoria' : 'Nova Categoria'}</span>
               </h3>
-              <button
-                onClick={() => setIsFormModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                {editingCategory && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleArchiveCategory(editingCategory);
+                      setIsFormModalOpen(false);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-amber-400 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                    title={editingCategory.isArchived ? 'Desarquivar Categoria' : 'Arquivar Categoria'}
+                  >
+                    <Archive className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsFormModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Fechar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             <form onSubmit={handleSaveCategory} className="space-y-4">
@@ -791,7 +762,21 @@ export const BudgetsView: React.FC = () => {
               </div>
 
               {/* Botões de Ação */}
-              <div className="flex gap-2 pt-3 border-t border-slate-800">
+              <div className="flex items-center gap-2 pt-3 border-t border-slate-800">
+                {editingCategory && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const toDelete = editingCategory;
+                      setIsFormModalOpen(false);
+                      setDeletingCategory(toDelete);
+                    }}
+                    className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 rounded-xl transition-colors cursor-pointer flex items-center justify-center shrink-0"
+                    title="Excluir Categoria"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setIsFormModalOpen(false)}

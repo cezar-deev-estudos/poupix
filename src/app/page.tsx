@@ -56,17 +56,7 @@ function DashboardContent() {
 
   const { unreadAlertsCount } = useFinance();
 
-  const [dashboardLayout, setDashboardLayout] = useState<DashboardLayoutPreferences>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('mobills_dashboard_layout');
-        if (saved) return mergeDashboardLayout(saved);
-      } catch {
-        // fallback
-      }
-    }
-    return DEFAULT_DASHBOARD_LAYOUT;
-  });
+  const [dashboardLayout, setDashboardLayout] = useState<DashboardLayoutPreferences>(DEFAULT_DASHBOARD_LAYOUT);
 
   useEffect(() => {
     try {
@@ -254,7 +244,7 @@ function DashboardContent() {
               {activeTab === 'transactions' && 'Extrato de Transações'}
               {activeTab === 'cards' && 'Cartões de Crédito'}
               {activeTab === 'accounts' && 'Contas & Carteiras'}
-              {activeTab === 'budgets' && 'Orçamentos & Categorias'}
+              {activeTab === 'budgets' && 'Planejamento'}
               {activeTab === 'goals' && 'Metas & Sonhos'}
               {activeTab === 'tags' && 'Tags & Etiquetas'}
               {activeTab === 'projections' && 'Projeção de Fluxo de Caixa'}

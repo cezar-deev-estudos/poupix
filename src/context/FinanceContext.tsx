@@ -343,7 +343,25 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
     }
     if (cloudData.categories !== undefined && cloudData.categories.length > 0) {
-      setCategories(cloudData.categories);
+      setCategories(prevLocalCats => {
+        const localArchivedMap = new Map<string, boolean>();
+        prevLocalCats.forEach(cat => {
+          if (cat.isArchived !== undefined) {
+            localArchivedMap.set(cat.id, cat.isArchived);
+            localArchivedMap.set(ensureValidUUID(cat.id), cat.isArchived);
+          }
+        });
+
+        return cloudData.categories!.map(cloudCat => {
+          // Se na nuvem for true, mantém true; se na nuvem for false mas localmente for true, preserva o true local
+          const localStatus = localArchivedMap.get(cloudCat.id) ?? localArchivedMap.get(ensureValidUUID(cloudCat.id));
+          const effectiveArchived = cloudCat.isArchived || (localStatus ?? false);
+          return {
+            ...cloudCat,
+            isArchived: effectiveArchived,
+          };
+        });
+      });
     }
     if (cloudData.tags !== undefined) setTags(cloudData.tags);
     if (cloudData.transactions !== undefined) {
