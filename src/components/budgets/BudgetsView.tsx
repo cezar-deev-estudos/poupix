@@ -576,6 +576,31 @@ export const BudgetsView: React.FC = () => {
   // Categorias de despesa para o planejamento orçamentário
   const budgetExpenseCategories = parentCategories.filter(c => c.type === 'expense');
 
+  // Cálculos Consolidados de Planejamento Orçamentário (Previsto, Gasto e Excedido)
+  const { totalBudget, totalSpentAll, totalExcessAll } = React.useMemo(() => {
+    let sumBudget = 0;
+    let sumSpent = 0;
+    let sumExcess = 0;
+
+    budgetExpenseCategories.forEach(cat => {
+      const spent = calculateCategorySpent(cat);
+      const budgetInfo = getEffectiveCategoryBudget(cat);
+      const budget = budgetInfo.amount;
+
+      sumBudget += budget;
+      sumSpent += spent;
+      if (budget > 0 && spent > budget) {
+        sumExcess += (spent - budget);
+      }
+    });
+
+    return {
+      totalBudget: sumBudget,
+      totalSpentAll: sumSpent,
+      totalExcessAll: sumExcess,
+    };
+  }, [budgetExpenseCategories, filteredTransactions, selectedYear, selectedMonth]);
+
   return (
     <div className="space-y-6">
       {/* Header com Alternador de Abas e Seletor de Mês (Sticky no Mobile ao Rolar) */}
@@ -631,73 +656,135 @@ export const BudgetsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Barra de Controles: Seletor de Mês e Ações de Orçamento (Exibida no topo quando na aba budgets) */}
+        {/* Barra de Controles: Seletor de Mês, Resumos e Ações (Exibida no topo quando na aba budgets) */}
         {activeTab === 'budgets' && (
-          <div className="flex items-center justify-between gap-2 bg-slate-900/60 p-2 sm:p-2.5 rounded-2xl border border-slate-800">
-            {/* Espaçador esquerdo invisível no mobile para manter o seletor perfeitamente centralizado */}
-            <div className="w-8 shrink-0 sm:hidden" aria-hidden="true" />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2.5 bg-slate-900/60 p-2 sm:p-2.5 rounded-2xl border border-slate-800">
+              {/* Espaçador esquerdo invisível no mobile para manter o seletor perfeitamente centralizado */}
+              <div className="w-8 shrink-0 sm:hidden" aria-hidden="true" />
 
-            {/* Seletor de Mês / Ano (centralizado no mobile, alinhado à esquerda no desktop) */}
-            <div className="flex-1 sm:flex-initial flex items-center justify-center sm:justify-start gap-2">
-              <MonthSelector compact={true} />
-              <span className="text-[11px] text-slate-400 hidden lg:inline">
-                ({budgetExpenseCategories.length} categorias)
-              </span>
-            </div>
-
-            {/* Ações de Orçamento e Layout */}
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              {/* Alternador de Layout de Colunas (Apenas Desktop) */}
-              <div className="hidden md:flex items-center bg-slate-900 border border-slate-800 p-0.5 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => toggleLayoutColumns('1col')}
-                  className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
-                    layoutColumns === '1col'
-                      ? 'bg-slate-800 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                  title="Exibir 1 card por linha (1 coluna inteira)"
-                >
-                  <StretchHorizontal className="w-3.5 h-3.5" />
-                  <span className="text-[10px]">1 Col</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleLayoutColumns('2col')}
-                  className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
-                    layoutColumns === '2col'
-                      ? 'bg-slate-800 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                  title="Exibir em 2 colunas lado a lado"
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                  <span className="text-[10px]">2 Col</span>
-                </button>
+              {/* Seletor de Mês / Ano (centralizado no mobile, alinhado à esquerda no desktop) */}
+              <div className="flex-1 sm:flex-initial flex items-center justify-center sm:justify-start gap-2">
+                <MonthSelector compact={true} />
+                <span className="text-[11px] text-slate-400 hidden lg:inline">
+                  ({budgetExpenseCategories.length} categorias)
+                </span>
               </div>
 
-              {archivedCategories.length > 0 && (
-                <button
-                  onClick={() => setIsArchivedModalOpen(true)}
-                  className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-[11px] font-semibold border border-slate-700/60 transition-all cursor-pointer"
-                  title="Ver categorias e subcategorias arquivadas"
-                >
-                  <Archive className="w-3 h-3 text-amber-400" />
-                  <span className="hidden sm:inline">Arquivadas</span>
-                  <span>({archivedCategories.length})</span>
-                </button>
-              )}
+              {/* Indicadores de Totais: Total Previsto | Total Gasto | Total Excedido (Apenas Desktop) */}
+              <div className="hidden md:flex items-center gap-2 flex-1 justify-center max-w-xl mx-2">
+                {/* Total Previsto */}
+                <div className="flex-1 bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-1.5 flex flex-col items-center justify-center min-w-0">
+                  <span className="text-[10px] font-medium text-slate-400 truncate">Total Previsto</span>
+                  <span className="text-xs font-bold text-white truncate">{formatCurrency(totalBudget)}</span>
+                </div>
 
-              {/* Botão Nova Categoria: Apenas '+' circular/arredondado no mobile, '+ Nova' no desktop */}
-              <button
-                onClick={() => handleOpenCreate(undefined, 'expense')}
-                className="w-8 h-8 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1.5 flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[11px] font-semibold shadow-md transition-all cursor-pointer"
-                title="Nova Categoria"
-              >
-                <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-                <span className="hidden sm:inline">Nova</span>
-              </button>
+                {/* Total Gasto */}
+                <div className="flex-1 bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-1.5 flex flex-col items-center justify-center min-w-0">
+                  <span className="text-[10px] font-medium text-slate-400 truncate">Total Gasto</span>
+                  <span className="text-xs font-bold text-white truncate">{formatCurrency(totalSpentAll)}</span>
+                </div>
+
+                {/* Total Excedido */}
+                <div className={`flex-1 bg-slate-950/70 border rounded-xl px-3 py-1.5 flex flex-col items-center justify-center min-w-0 transition-colors ${
+                  totalExcessAll > 0 ? 'border-rose-500/40 bg-rose-950/20' : 'border-slate-800'
+                }`}>
+                  <span className={`text-[10px] font-medium truncate ${totalExcessAll > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                    Total Excedido
+                  </span>
+                  <span className={`text-xs font-bold truncate ${totalExcessAll > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                    {totalExcessAll > 0 ? formatCurrency(totalExcessAll) : 'R$ 0,00'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Ações de Orçamento e Layout */}
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                {/* Alternador de Layout de Colunas (Apenas Desktop) */}
+                <div className="hidden md:flex items-center bg-slate-900 border border-slate-800 p-0.5 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => toggleLayoutColumns('1col')}
+                    className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                      layoutColumns === '1col'
+                        ? 'bg-slate-800 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Exibir 1 card por linha (1 coluna inteira)"
+                  >
+                    <StretchHorizontal className="w-3.5 h-3.5" />
+                    <span className="text-[10px]">1 Col</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleLayoutColumns('2col')}
+                    className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                      layoutColumns === '2col'
+                        ? 'bg-slate-800 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Exibir em 2 colunas lado a lado"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span className="text-[10px]">2 Col</span>
+                  </button>
+                </div>
+
+                {archivedCategories.length > 0 && (
+                  <button
+                    onClick={() => setIsArchivedModalOpen(true)}
+                    className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-[11px] font-semibold border border-slate-700/60 transition-all cursor-pointer"
+                    title="Ver categorias e subcategorias arquivadas"
+                  >
+                    <Archive className="w-3 h-3 text-amber-400" />
+                    <span className="hidden sm:inline">Arquivadas</span>
+                    <span>({archivedCategories.length})</span>
+                  </button>
+                )}
+
+                {/* Botão Nova Categoria: Apenas '+' circular/arredondado no mobile, '+ Nova' no desktop */}
+                <button
+                  onClick={() => handleOpenCreate(undefined, 'expense')}
+                  className="w-8 h-8 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1.5 flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[11px] font-semibold shadow-md transition-all cursor-pointer"
+                  title="Nova Categoria"
+                >
+                  <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                  <span className="hidden sm:inline">Nova</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Faixa Minimalista de Totais no Mobile (Grid com 3 colunas) */}
+            <div className="grid grid-cols-3 gap-1.5 md:hidden">
+              {/* Previsto */}
+              <div className="bg-slate-900/80 border border-slate-800/80 rounded-xl px-2 py-1.5 flex flex-col items-center justify-center text-center">
+                <span className="text-[9px] text-slate-400 font-medium leading-none mb-0.5">Previsto</span>
+                <span className="text-[11px] font-bold text-white leading-tight truncate w-full">
+                  {formatCurrency(totalBudget)}
+                </span>
+              </div>
+
+              {/* Gasto */}
+              <div className="bg-slate-900/80 border border-slate-800/80 rounded-xl px-2 py-1.5 flex flex-col items-center justify-center text-center">
+                <span className="text-[9px] text-slate-400 font-medium leading-none mb-0.5">Gasto</span>
+                <span className="text-[11px] font-bold text-white leading-tight truncate w-full">
+                  {formatCurrency(totalSpentAll)}
+                </span>
+              </div>
+
+              {/* Excedido */}
+              <div className={`border rounded-xl px-2 py-1.5 flex flex-col items-center justify-center text-center transition-colors ${
+                totalExcessAll > 0
+                  ? 'bg-rose-950/30 border-rose-500/40'
+                  : 'bg-slate-900/80 border-slate-800/80'
+              }`}>
+                <span className={`text-[9px] font-medium leading-none mb-0.5 ${totalExcessAll > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                  Excedido
+                </span>
+                <span className={`text-[11px] font-bold leading-tight truncate w-full ${totalExcessAll > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                  {totalExcessAll > 0 ? formatCurrency(totalExcessAll) : 'R$ 0,00'}
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -948,9 +1035,13 @@ export const BudgetsView: React.FC = () => {
                             const isSubOverDrag = dragOverSubId === sub.id;
 
                             const isSubExpanded = Boolean(expandedSubs[sub.id]);
-                            const subTransactions = filteredTransactions.filter(
-                              t => t.categoryId === sub.id && t.type === 'expense'
-                            );
+                            const subTransactions = filteredTransactions
+                              .filter(t => t.categoryId === sub.id && t.type === 'expense')
+                              .sort((a, b) => {
+                                const dateComparison = (b.date || '').localeCompare(a.date || '');
+                                if (dateComparison !== 0) return dateComparison;
+                                return b.amount - a.amount;
+                              });
 
                             return (
                               <div
@@ -1153,26 +1244,51 @@ export const BudgetsView: React.FC = () => {
                                         <div
                                           key={tx.id}
                                           onClick={() => setEditingTransaction(tx)}
-                                          className="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800/60 hover:border-slate-700 transition-colors cursor-pointer group/tx text-[11px]"
+                                          className={`flex items-center justify-between p-2 rounded-lg border transition-colors cursor-pointer group/tx text-[11px] ${
+                                            isEffectivelyPaid
+                                              ? 'bg-emerald-950/20 hover:bg-emerald-950/30 border-emerald-900/40 hover:border-emerald-700/60'
+                                              : 'bg-slate-900/60 hover:bg-slate-800/80 border-slate-800/60 hover:border-slate-700'
+                                          }`}
                                           title="Clique para editar lançamento"
                                         >
                                           <div className="flex items-center gap-2 min-w-0 flex-1">
-                                            <span className="text-slate-200 group-hover/tx:text-emerald-400 font-medium truncate">
+                                            <span className={`font-medium truncate transition-colors ${
+                                              isEffectivelyPaid
+                                                ? 'text-emerald-400'
+                                                : 'text-slate-200 group-hover/tx:text-emerald-400'
+                                            }`}>
                                               {tx.description}
                                             </span>
-                                            <span className="text-[10px] text-slate-500 shrink-0">
+                                            <span className={`text-[10px] shrink-0 ${
+                                              isEffectivelyPaid ? 'text-emerald-500/80' : 'text-slate-500'
+                                            }`}>
                                               {formatDateBR(tx.date)}
                                             </span>
                                             {card && (
-                                              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-cyan-400/80 shrink-0">
-                                                <CreditCard className="w-3 h-3" />
-                                                <span className="truncate max-w-[90px]">{accountLabel}</span>
-                                              </span>
+                                              <>
+                                                {/* Mobile: Apenas ícone de cartão azul sem nome */}
+                                                <span
+                                                  className="sm:hidden inline-flex items-center text-cyan-400 shrink-0"
+                                                  title={`Cartão: ${accountLabel}`}
+                                                >
+                                                  <CreditCard className="w-3 h-3" />
+                                                </span>
+
+                                                {/* Desktop: Ícone + Nome do cartão */}
+                                                <span className={`hidden sm:inline-flex items-center gap-1 text-[10px] shrink-0 ${
+                                                  isEffectivelyPaid ? 'text-emerald-400/90' : 'text-cyan-400/80'
+                                                }`}>
+                                                  <CreditCard className="w-3 h-3" />
+                                                  <span className="truncate max-w-[90px]">{accountLabel}</span>
+                                                </span>
+                                              </>
                                             )}
                                           </div>
 
                                           <div className="flex items-center gap-2.5 shrink-0 ml-2">
-                                            <span className="font-semibold text-rose-400 text-xs">
+                                            <span className={`font-semibold text-xs ${
+                                              isEffectivelyPaid ? 'text-emerald-400' : 'text-rose-400'
+                                            }`}>
                                               {formatCurrency(tx.amount)}
                                             </span>
                                             <button
