@@ -3,16 +3,19 @@
 import React, { useState } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { Category, Transaction, getCategoryBudgetForPeriod } from '@/types/finance';
-import { formatCurrency, getMonthName } from '@/lib/utils';
+import { formatCurrency, getMonthName, formatDateBR } from '@/lib/utils';
+import { getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { MobileCategoryDetailDrawer } from '../dashboard/MobileCategoryDetailDrawer';
 import { DesktopCategoryDetailModal } from '../dashboard/DesktopCategoryDetailModal';
 import { NewTransactionModal } from '../transactions/NewTransactionModal';
 import { ArchivedCategoriesModal } from './ArchivedCategoriesModal';
+import { MonthSelector } from '../layout/MonthSelector';
 import {
   Plus,
   Edit2,
+  Edit3,
   Trash2,
   AlertTriangle,
   ChevronDown,
@@ -33,6 +36,7 @@ import {
   CalendarSync,
   Sparkles,
   CheckCircle2,
+  CreditCard,
 } from 'lucide-react';
 
 const COLOR_PALETTE = [
@@ -70,6 +74,9 @@ export const BudgetsView: React.FC = () => {
     setCategoryMonthlyBudget,
     applyDefaultBudgetsToMonth,
     replicateBudgetsToYear,
+    updateTransaction,
+    accounts,
+    creditCards,
   } = useFinance();
 
   const [activeTab, setActiveTab] = useState<'budgets' | 'categories'>('budgets');
@@ -194,6 +201,8 @@ export const BudgetsView: React.FC = () => {
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [parentId, setParentId] = useState<string>('');
   const [budgetLimit, setBudgetLimit] = useState('');
+  const [budgetMode, setBudgetMode] = useState<'default' | 'month'>('default');
+  const [monthBudgetLimit, setMonthBudgetLimit] = useState('');
   const [icon, setIcon] = useState('Tag');
   const [color, setColor] = useState('#10B981');
 
@@ -209,10 +218,6 @@ export const BudgetsView: React.FC = () => {
   // Estado para Edição da Transação a partir do modal/drawer de detalhe
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
-  // Estado para Edição Rápida de Orçamento do Mês Atual
-  const [editingMonthlyBudgetCat, setEditingMonthlyBudgetCat] = useState<Category | null>(null);
-  const [monthlyBudgetInput, setMonthlyBudgetInput] = useState('');
-
   // Modais de Confirmação para Ações em Lote de Orçamentos
   const [isApplyDefaultsConfirmOpen, setIsApplyDefaultsConfirmOpen] = useState(false);
   const [isReplicateYearConfirmOpen, setIsReplicateYearConfirmOpen] = useState(false);
@@ -225,11 +230,16 @@ export const BudgetsView: React.FC = () => {
     }, 3500);
   };
 
-  // Categorias expandidas na visualização de orçamento
+  // Categorias e Subcategorias expandidas na visualização de orçamento
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
+  const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
 
   const toggleExpand = (catId: string) => {
     setExpandedCats(prev => ({ ...prev, [catId]: !prev[catId] }));
+  };
+
+  const toggleExpandSub = (subId: string) => {
+    setExpandedSubs(prev => ({ ...prev, [subId]: !prev[subId] }));
   };
 
   // Separação de Categorias Ativas e Arquivadas
@@ -273,6 +283,8 @@ export const BudgetsView: React.FC = () => {
     setType(suggestedType || 'expense');
     setParentId(suggestedParentId || '');
     setBudgetLimit('');
+    setMonthBudgetLimit('');
+    setBudgetMode('default');
     setIcon('Tag');
     setColor('#10B981');
     setIsFormModalOpen(true);
@@ -285,6 +297,17 @@ export const BudgetsView: React.FC = () => {
     setType(cat.type);
     setParentId(cat.parentId || '');
     setBudgetLimit(cat.budgetLimit ? String(cat.budgetLimit) : '');
+
+    const monthKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+    const customForMonth = cat.monthlyBudgets && typeof cat.monthlyBudgets[monthKey] === 'number';
+    if (customForMonth) {
+      setBudgetMode('month');
+      setMonthBudgetLimit(String(cat.monthlyBudgets![monthKey]));
+    } else {
+      setBudgetMode('default');
+      setMonthBudgetLimit('');
+    }
+
     setIcon(cat.icon);
     setColor(cat.color);
     setIsFormModalOpen(true);
@@ -295,23 +318,48 @@ export const BudgetsView: React.FC = () => {
     e.preventDefault();
     if (!name.trim()) return;
 
-    const numBudget = budgetLimit ? parseFloat(budgetLimit.replace(',', '.')) : undefined;
+    const numDefaultBudget = budgetLimit ? parseFloat(budgetLimit.replace(',', '.')) : undefined;
+    const cleanDefaultBudget = isNaN(Number(numDefaultBudget)) ? undefined : numDefaultBudget;
+
+    const numMonthBudget = monthBudgetLimit ? parseFloat(monthBudgetLimit.replace(',', '.')) : undefined;
+    const cleanMonthBudget = isNaN(Number(numMonthBudget)) ? undefined : numMonthBudget;
+
+    const monthKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
 
     if (editingCategory) {
+      const updatedMonthlyBudgets = { ...(editingCategory.monthlyBudgets || {}) };
+      if (budgetMode === 'month') {
+        if (cleanMonthBudget !== undefined && cleanMonthBudget > 0) {
+          updatedMonthlyBudgets[monthKey] = cleanMonthBudget;
+        } else {
+          delete updatedMonthlyBudgets[monthKey];
+        }
+      } else {
+        // Se voltou para o teto padrão, remove a personalização deste mês
+        delete updatedMonthlyBudgets[monthKey];
+      }
+
       updateCategory(editingCategory.id, {
         name: name.trim(),
         type,
         parentId: parentId || undefined,
-        budgetLimit: isNaN(Number(numBudget)) ? undefined : numBudget,
+        budgetLimit: cleanDefaultBudget,
+        monthlyBudgets: updatedMonthlyBudgets,
         icon,
         color,
       });
     } else {
+      const initialMonthlyBudgets: Record<string, number> = {};
+      if (budgetMode === 'month' && cleanMonthBudget !== undefined && cleanMonthBudget > 0) {
+        initialMonthlyBudgets[monthKey] = cleanMonthBudget;
+      }
+
       addCategory({
         name: name.trim(),
         type,
         parentId: parentId || undefined,
-        budgetLimit: isNaN(Number(numBudget)) ? undefined : numBudget,
+        budgetLimit: cleanDefaultBudget,
+        monthlyBudgets: Object.keys(initialMonthlyBudgets).length > 0 ? initialMonthlyBudgets : undefined,
         icon,
         color,
       });
@@ -373,33 +421,7 @@ export const BudgetsView: React.FC = () => {
     };
   };
 
-  // Abrir modal de edição rápida de teto do mês
-  const handleOpenMonthlyBudgetEdit = (cat: Category) => {
-    setEditingMonthlyBudgetCat(cat);
-    const budgetInfo = getCategoryBudgetForPeriod(cat, selectedYear, selectedMonth);
-    setMonthlyBudgetInput(budgetInfo.amount > 0 ? String(budgetInfo.amount) : '');
-  };
 
-  // Salvar teto específico deste mês para a categoria
-  const handleSaveMonthlyBudget = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingMonthlyBudgetCat) return;
-
-    const parsed = monthlyBudgetInput ? parseFloat(monthlyBudgetInput.replace(',', '.')) : 0;
-    const finalAmount = isNaN(parsed) || parsed < 0 ? 0 : parsed;
-
-    setCategoryMonthlyBudget(editingMonthlyBudgetCat.id, selectedYear, selectedMonth, finalAmount);
-    setEditingMonthlyBudgetCat(null);
-    showToast(`Orçamento de "${editingMonthlyBudgetCat.name}" atualizado para ${getMonthName(selectedMonth)}/${selectedYear}!`);
-  };
-
-  // Restaurar para teto padrão nesta categoria neste mês
-  const handleResetToDefaultBudget = () => {
-    if (!editingMonthlyBudgetCat) return;
-    setCategoryMonthlyBudget(editingMonthlyBudgetCat.id, selectedYear, selectedMonth, 0);
-    setEditingMonthlyBudgetCat(null);
-    showToast(`Teto de "${editingMonthlyBudgetCat.name}" voltou ao valor padrão das configurações.`);
-  };
 
   // Ação em Lote: Aplicar tetos padrão a este mês
   const handleConfirmApplyDefaults = () => {
@@ -474,42 +496,38 @@ export const BudgetsView: React.FC = () => {
       {/* ABA 1: PLANEJAMENTO ORÇAMENTÁRIO */}
       {activeTab === 'budgets' && (
         <div className="space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-slate-900/40 p-3.5 rounded-2xl border border-slate-800/80">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-200">
-                  Período: <strong className="text-emerald-400">{getMonthName(selectedMonth)} de {selectedYear}</strong>
-                </span>
-                <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-medium">
-                  {budgetExpenseCategories.length} categorias de despesa
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400">
-                Você pode definir orçamentos específicos para cada mês ou reutilizar os tetos padrão cadastrados.
-              </p>
+          {/* Barra de Controles: Seletor de Mês e Ações de Orçamento */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-900/60 p-2.5 rounded-2xl border border-slate-800">
+            {/* Seletor de Mês / Ano (compacto no mobile, alinhado e limpo) */}
+            <div className="flex items-center gap-2">
+              <MonthSelector compact={true} />
+              <span className="text-[11px] text-slate-400 hidden lg:inline">
+                ({budgetExpenseCategories.length} categorias)
+              </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            {/* Ações de Orçamento e Layout */}
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               {/* Botão Copiar Tetos Padrão */}
               <button
                 type="button"
                 onClick={() => setIsApplyDefaultsConfirmOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-semibold border border-slate-700/80 transition-all cursor-pointer shadow-sm"
-                title={`Preenche todos os orçamentos de ${getMonthName(selectedMonth)}/${selectedYear} com os valores padrão cadastrados nas Categorias`}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-[11px] font-semibold border border-slate-700/80 transition-all cursor-pointer shadow-sm"
+                title={`Preenche todos os orçamentos de ${getMonthName(selectedMonth)}/${selectedYear} com os valores padrão`}
               >
-                <Copy className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Preencher Tetos Padrão</span>
+                <Copy className="w-3 h-3 text-emerald-400" />
+                <span>Tetos Padrão</span>
               </button>
 
               {/* Botão Replicar para o Ano Todo */}
               <button
                 type="button"
                 onClick={() => setIsReplicateYearConfirmOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 hover:text-purple-200 rounded-xl text-xs font-semibold border border-purple-500/40 transition-all cursor-pointer shadow-sm"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 hover:text-purple-200 rounded-xl text-[11px] font-semibold border border-purple-500/40 transition-all cursor-pointer shadow-sm"
                 title={`Copia os orçamentos definidos em ${getMonthName(selectedMonth)} para todos os 12 meses de ${selectedYear}`}
               >
-                <CalendarSync className="w-3.5 h-3.5 text-purple-400" />
-                <span>Replicar para Ano {selectedYear}</span>
+                <CalendarSync className="w-3 h-3 text-purple-400" />
+                <span>Replicar Ano {selectedYear}</span>
               </button>
 
               {/* Alternador de Layout de Colunas (Apenas Desktop) */}
@@ -524,8 +542,8 @@ export const BudgetsView: React.FC = () => {
                   }`}
                   title="Exibir 1 card por linha (1 coluna inteira)"
                 >
-                  <StretchHorizontal className="w-4 h-4" />
-                  <span className="text-[11px]">1 Coluna</span>
+                  <StretchHorizontal className="w-3.5 h-3.5" />
+                  <span className="text-[10px]">1 Col</span>
                 </button>
                 <button
                   type="button"
@@ -537,28 +555,29 @@ export const BudgetsView: React.FC = () => {
                   }`}
                   title="Exibir em 2 colunas lado a lado"
                 >
-                  <LayoutGrid className="w-4 h-4" />
-                  <span className="text-[11px]">2 Colunas</span>
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span className="text-[10px]">2 Col</span>
                 </button>
               </div>
 
               {archivedCategories.length > 0 && (
                 <button
                   onClick={() => setIsArchivedModalOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700/60 transition-all cursor-pointer"
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-[11px] font-semibold border border-slate-700/60 transition-all cursor-pointer"
                   title="Ver categorias e subcategorias arquivadas"
                 >
-                  <Archive className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Arquivadas ({archivedCategories.length})</span>
+                  <Archive className="w-3 h-3 text-amber-400" />
+                  <span className="hidden sm:inline">Arquivadas</span>
+                  <span>({archivedCategories.length})</span>
                 </button>
               )}
 
               <button
                 onClick={() => handleOpenCreate(undefined, 'expense')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-md transition-all cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[11px] font-semibold shadow-md transition-all cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Nova Categoria</span>
+                <span>Nova</span>
               </button>
             </div>
           </div>
@@ -571,6 +590,7 @@ export const BudgetsView: React.FC = () => {
               const budget = budgetInfo.amount;
               const percentage = budget > 0 ? (totalSpent / budget) * 100 : 0;
               const isOverBudget = budget > 0 && totalSpent > budget;
+              const excessAmount = isOverBudget && budget > 0 ? totalSpent - budget : 0;
               const isExpanded = Boolean(expandedCats[cat.id]);
               const subsWithBudget = subs.filter(s => {
                 const sBudget = getCategoryBudgetForPeriod(s, selectedYear, selectedMonth);
@@ -605,71 +625,119 @@ export const BudgetsView: React.FC = () => {
                   }`}
                 >
                   <div>
-                    {/* Linha Superior: Ícone, Nome, Teto e Ações */}
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-md flex-shrink-0"
-                          style={{ backgroundColor: cat.color }}
-                        >
-                          <CategoryIcon name={cat.icon} size={18} />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-bold text-white text-sm">{cat.name}</h3>
-                            {subs.length > 0 && (
-                              <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-md font-medium">
-                                {subs.length} sub
-                              </span>
-                            )}
-                            {budgetInfo.isCustomMonth ? (
-                              <span
-                                className="text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded-md font-medium flex items-center gap-1"
-                                title="Este valor foi definido especificamente para este mês"
-                              >
-                                <Sparkles className="w-2.5 h-2.5" />
-                                Mês {getMonthName(selectedMonth).slice(0, 3)}
-                              </span>
-                            ) : budget > 0 ? (
-                              <span
-                                className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-md font-medium"
-                                title="Usando valor padrão recorrente da categoria"
-                              >
-                                Teto padrão
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
-                            <span>Teto:</span>
+                    {/* Linha Superior: Cabeçalho com Ícone/Nome à esquerda, Barra no Desktop ao centro, e Ações à direita */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-6 mb-2">
+                      {/* Topo Mobile / Esquerda Desktop: [Chevron] + Ícone + Nome/Teto E Ações no Mobile */}
+                      <div className="flex items-center justify-between w-full md:w-auto shrink-0">
+                        {/* Bloco: Chevron + Ícone + Nome + Teto/Previsto */}
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          {subs.length > 0 && (
                             <button
                               type="button"
-                              onClick={() => handleOpenMonthlyBudgetEdit(cat)}
-                              className="font-bold text-slate-200 hover:text-emerald-400 hover:underline cursor-pointer transition-colors"
-                              title="Clique para ajustar o teto deste mês"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpand(cat.id);
+                              }}
+                              className="p-1 -ml-1 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                              title={isExpanded ? 'Recolher subcategorias' : `Expandir subcategorias (${subs.length})`}
                             >
-                              {budget > 0 ? formatCurrency(budget) : 'Sem teto definido (clique p/ definir)'}
+                              {isExpanded ? (
+                                <ChevronDown className="w-4 h-4 text-emerald-400" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4 text-slate-400" />
+                              )}
                             </button>
-                            {isSummedFromSubs && (
-                              <span className="text-[9px] text-emerald-400/90 font-medium ml-0.5">
-                                (soma subs)
-                              </span>
-                            )}
+                          )}
+                          <div
+                            className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-md flex-shrink-0"
+                            style={{ backgroundColor: cat.color }}
+                          >
+                            <CategoryIcon name={cat.icon} size={18} />
                           </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-bold text-white text-sm">{cat.name}</h3>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
+                              {/* No mobile exibe 'Previsto:' e no desktop 'Teto:' */}
+                              <span className="md:hidden">Previsto:</span>
+                              <span className="hidden md:inline">Teto:</span>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEdit(cat)}
+                                className="font-bold text-slate-200 hover:text-emerald-400 hover:underline cursor-pointer transition-colors"
+                                title="Clique para editar teto previsto"
+                              >
+                                {budget > 0 ? formatCurrency(budget) : 'Sem teto definido'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Ações (Arrastar e Mais Opções) visíveis no topo no Mobile */}
+                        <div className="flex items-center gap-1 md:hidden">
+                          <div
+                            draggable
+                            onDragStart={(e) => {
+                              e.stopPropagation();
+                              setDraggedParentId(cat.id);
+                            }}
+                            onDragEnd={() => {
+                              setDraggedParentId(null);
+                              setDragOverParentId(null);
+                            }}
+                            className="p-1.5 text-slate-500 hover:text-slate-300 rounded-lg hover:bg-slate-800 cursor-grab active:cursor-grabbing transition-colors"
+                            title="Arrastar para reordenar categoria"
+                          >
+                            <GripVertical className="w-4 h-4" />
+                          </div>
+
+                          <button
+                            onClick={() => handleOpenEdit(cat)}
+                            title="Opções da Categoria"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1">
-                        {/* Botão de Edição Rápida do Teto Mensal */}
-                        <button
-                          type="button"
-                          onClick={() => handleOpenMonthlyBudgetEdit(cat)}
-                          title="Alterar teto para este mês"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition-colors cursor-pointer"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
+                      {/* Bloco Central: Barra de Progresso + Gastos (Desktop na mesma linha ao lado; Mobile empilhado logo abaixo) */}
+                      <div className="flex-1 space-y-1.5 min-w-0">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 flex items-center gap-1 flex-wrap">
+                            <span>Gasto Total:</span>
+                            <strong className="text-white">{formatCurrency(totalSpent)}</strong>
+                            {excessAmount > 0 && (
+                              <span className="text-rose-400 font-bold ml-0.5">
+                                ({formatCurrency(excessAmount)})
+                              </span>
+                            )}
+                          </span>
+                          <span className={`font-semibold shrink-0 ml-2 ${isOverBudget ? 'text-rose-400 flex items-center gap-1' : 'text-slate-300'}`}>
+                            {isOverBudget && <AlertTriangle className="w-3.5 h-3.5" />}
+                            {budget > 0 ? `${percentage.toFixed(0)}%` : '-'}
+                          </span>
+                        </div>
 
-                        {/* Alça de Arrastar Categoria Pai */}
+                        {budget > 0 && (
+                          <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden p-0.5 border border-slate-800">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                percentage > 150
+                                  ? 'bg-rose-500'
+                                  : percentage > 100
+                                  ? 'bg-amber-400'
+                                  : 'bg-emerald-400'
+                              }`}
+                              style={{ width: `${Math.min(100, percentage)}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Bloco Direito: Ações (Arrastar e Mais Opções) no Desktop */}
+                      <div className="hidden md:flex items-center gap-1 shrink-0 self-center">
                         <div
                           draggable
                           onDragStart={(e) => {
@@ -695,54 +763,12 @@ export const BudgetsView: React.FC = () => {
                         </button>
                       </div>
                     </div>
-
-                    {/* Barra de Progresso Consolidada */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">
-                          Gasto Total: <strong className="text-white">{formatCurrency(totalSpent)}</strong>
-                        </span>
-                        <span className={`font-semibold ${isOverBudget ? 'text-rose-400 flex items-center gap-1' : 'text-slate-300'}`}>
-                          {isOverBudget && <AlertTriangle className="w-3.5 h-3.5" />}
-                          {budget > 0 ? `${percentage.toFixed(0)}%` : '-'}
-                        </span>
-                      </div>
-
-                      {budget > 0 && (
-                        <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden p-0.5 border border-slate-800">
-                          <div
-                            className={`h-full rounded-full transition-all ${
-                              percentage > 150
-                                ? 'bg-rose-500'
-                                : percentage > 100
-                                ? 'bg-amber-400'
-                                : 'bg-emerald-400'
-                            }`}
-                            style={{ width: `${Math.min(100, percentage)}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
                   </div>
 
-                  {/* Subcategorias Aninhadas */}
-                  {subs.length > 0 && (
-                    <div className="mt-4 pt-3 border-t border-slate-800/80">
-                      <button
-                        onClick={() => toggleExpand(cat.id)}
-                        className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-slate-200 py-1 cursor-pointer"
-                      >
-                        <span className="font-semibold flex items-center gap-1.5">
-                          {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-emerald-400" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                          Ver Detalhamento por Subcategorias ({subs.length})
-                        </span>
-                        <span className="text-[10px] text-slate-500">
-                          {isExpanded ? 'Ocultar' : 'Expandir'}
-                        </span>
-                      </button>
-
-                      {isExpanded && (
-                        <div className="space-y-2 mt-2 pl-2 border-l-2 border-slate-800">
+                  {/* Subcategorias Aninhadas (Exibidas quando expandido pelo chevron) */}
+                  {subs.length > 0 && isExpanded && (
+                    <div className="mt-3 pt-3 border-t border-slate-800/80">
+                      <div className="space-y-2 pl-2 border-l-2 border-slate-800">
                           {subs.map(sub => {
                             const subSpent = filteredTransactions
                               .filter(t => t.categoryId === sub.id && t.type === 'expense')
@@ -753,6 +779,11 @@ export const BudgetsView: React.FC = () => {
                             const isSubOver = subBudget > 0 && subSpent > subBudget;
                             const isSubDragging = draggedSubId === sub.id;
                             const isSubOverDrag = dragOverSubId === sub.id;
+
+                            const isSubExpanded = Boolean(expandedSubs[sub.id]);
+                            const subTransactions = filteredTransactions.filter(
+                              t => t.categoryId === sub.id && t.type === 'expense'
+                            );
 
                             return (
                               <div
@@ -772,18 +803,38 @@ export const BudgetsView: React.FC = () => {
                                   e.stopPropagation();
                                   handleDropSubCategory(cat.id, sub.id);
                                 }}
-                                onClick={() => setSelectedCategoryForDetails(sub)}
-                                className={`p-2.5 bg-slate-950/60 hover:bg-slate-900/90 border rounded-xl text-xs space-y-1.5 transition-all cursor-pointer group select-none ${
+                                className={`p-2.5 bg-slate-950/60 hover:bg-slate-900/90 border rounded-xl text-xs space-y-2 transition-all group select-none ${
                                   isSubOverDrag
                                     ? 'border-emerald-500 ring-1 ring-emerald-500/40 bg-slate-900'
                                     : isSubDragging
                                     ? 'border-dashed border-slate-600 opacity-40'
                                     : 'border-slate-800/40 hover:border-slate-700/70'
                                 }`}
-                                title="Clique para ver os lançamentos desta subcategoria"
                               >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2 min-w-0">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4">
+                                  {/* Bloco Esquerdo: Chevron (se houver transações) + Drag + Cor + Nome + Teto */}
+                                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink-0">
+                                    {/* Seta/Chevron para expandir os itens da subcategoria */}
+                                    {subTransactions.length > 0 ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleExpandSub(sub.id);
+                                        }}
+                                        className="p-1 -ml-1 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded transition-colors cursor-pointer shrink-0"
+                                        title={isSubExpanded ? 'Recolher lançamentos' : `Ver lançamentos (${subTransactions.length})`}
+                                      >
+                                        {isSubExpanded ? (
+                                          <ChevronDown className="w-3.5 h-3.5 text-emerald-400" />
+                                        ) : (
+                                          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                        )}
+                                      </button>
+                                    ) : (
+                                      <div className="w-3.5 h-3.5 shrink-0" />
+                                    )}
+
                                     {/* Alça de Arrastar Subcategoria */}
                                     <div
                                       draggable
@@ -796,7 +847,7 @@ export const BudgetsView: React.FC = () => {
                                         setDraggedSubId(null);
                                         setDragOverSubId(null);
                                       }}
-                                      className="p-1 -ml-1 text-slate-600 hover:text-slate-300 rounded cursor-grab active:cursor-grabbing transition-colors"
+                                      className="p-1 text-slate-600 hover:text-slate-300 rounded cursor-grab active:cursor-grabbing transition-colors"
                                       title="Arrastar para reordenar subcategoria"
                                     >
                                       <GripVertical className="w-3.5 h-3.5" />
@@ -814,10 +865,10 @@ export const BudgetsView: React.FC = () => {
                                         type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          handleOpenMonthlyBudgetEdit(sub);
+                                          handleOpenEdit(sub);
                                         }}
                                         className="text-[10px] text-slate-400 hover:text-emerald-400 font-normal shrink-0 transition-colors"
-                                        title="Clique para alterar o teto da subcategoria deste mês"
+                                        title="Clique para editar teto da subcategoria"
                                       >
                                         ({formatCurrency(subBudget)})
                                       </button>
@@ -826,34 +877,44 @@ export const BudgetsView: React.FC = () => {
                                         type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          handleOpenMonthlyBudgetEdit(sub);
+                                          handleOpenEdit(sub);
                                         }}
                                         className="text-[10px] text-slate-600 hover:text-emerald-400 font-normal shrink-0 transition-colors"
-                                        title="Definir teto para esta subcategoria neste mês"
+                                        title="Definir teto para esta subcategoria"
                                       >
                                         + teto
                                       </button>
                                     )}
-                                    {subBudgetInfo.isCustomMonth && (
-                                      <span className="text-[8px] bg-purple-500/20 text-purple-300 px-1 py-0.2 rounded font-medium">
-                                        mês
-                                      </span>
-                                    )}
                                   </div>
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    <span className={`font-semibold ${isSubOver ? 'text-rose-400' : 'text-white'}`}>
+
+                                  {/* Bloco Central: Barra de Progresso no Desktop */}
+                                  {subBudget > 0 && (
+                                    <div className="flex-1 w-full md:w-auto min-w-0">
+                                      <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden p-0.2 border border-slate-800">
+                                        <div
+                                          className={`h-full rounded-full transition-all ${
+                                            subPercent > 150
+                                              ? 'bg-rose-500'
+                                              : subPercent > 100
+                                              ? 'bg-amber-400'
+                                              : 'bg-emerald-400'
+                                          }`}
+                                          style={{ width: `${Math.min(100, subPercent)}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Bloco Direito: Valor Gasto + Ações */}
+                                  <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
+                                    <span className="font-semibold text-white">
                                       {formatCurrency(subSpent)}
+                                      {isSubOver && subBudget > 0 && (
+                                        <span className="font-bold text-rose-400 ml-1">
+                                          ({formatCurrency(subSpent - subBudget)})
+                                        </span>
+                                      )}
                                     </span>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleOpenMonthlyBudgetEdit(sub);
-                                      }}
-                                      className="text-slate-500 hover:text-emerald-400 p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
-                                      title="Ajustar teto deste mês"
-                                    >
-                                      <Edit2 className="w-3 h-3" />
-                                    </button>
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -867,29 +928,79 @@ export const BudgetsView: React.FC = () => {
                                   </div>
                                 </div>
 
-                                {subBudget > 0 && (
-                                  <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden p-0.2 border border-slate-800">
-                                    <div
-                                      className={`h-full rounded-full transition-all ${
-                                        subPercent > 150
-                                          ? 'bg-rose-500'
-                                          : subPercent > 100
-                                          ? 'bg-amber-400'
-                                          : 'bg-emerald-400'
-                                      }`}
-                                      style={{ width: `${Math.min(100, subPercent)}%` }}
-                                    />
+                                {/* Lançamentos da Subcategoria (Exibidos em Accordion Minimalista) */}
+                                {isSubExpanded && subTransactions.length > 0 && (
+                                  <div className="pt-2 border-t border-slate-800/80 pl-3 sm:pl-6 space-y-1.5">
+                                    {subTransactions.map(tx => {
+                                      const acc = accounts.find(a => a.id === tx.accountId);
+                                      const card = creditCards.find(c => c.id === tx.creditCardId);
+                                      const invoicePeriod = card ? getTransactionInvoicePeriod(tx, card) : null;
+                                      const isEffectivelyPaid =
+                                        tx.paid ||
+                                        (card && invoicePeriod
+                                          ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
+                                          : false);
+                                      const accountLabel = card ? card.name : (acc?.name || 'Conta');
+
+                                      return (
+                                        <div
+                                          key={tx.id}
+                                          onClick={() => setEditingTransaction(tx)}
+                                          className="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800/60 hover:border-slate-700 transition-colors cursor-pointer group/tx text-[11px]"
+                                          title="Clique para editar lançamento"
+                                        >
+                                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                                            <span className="text-slate-200 group-hover/tx:text-emerald-400 font-medium truncate">
+                                              {tx.description}
+                                            </span>
+                                            <span className="text-[10px] text-slate-500 shrink-0">
+                                              {formatDateBR(tx.date)}
+                                            </span>
+                                            {card && (
+                                              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-cyan-400/80 shrink-0">
+                                                <CreditCard className="w-3 h-3" />
+                                                <span className="truncate max-w-[90px]">{accountLabel}</span>
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          <div className="flex items-center gap-2.5 shrink-0 ml-2">
+                                            <span className="font-semibold text-rose-400 text-xs">
+                                              {formatCurrency(tx.amount)}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                updateTransaction(tx.id, { paid: !isEffectivelyPaid });
+                                              }}
+                                              className={`w-4 h-4 rounded flex items-center justify-center transition-all select-none shrink-0 cursor-pointer ${
+                                                isEffectivelyPaid
+                                                  ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
+                                                  : 'bg-rose-500 text-white hover:bg-rose-400'
+                                              }`}
+                                              title={isEffectivelyPaid ? 'Pago (Clique para marcar pendente)' : 'Pendente (Clique para pagar)'}
+                                            >
+                                              {isEffectivelyPaid ? (
+                                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                              ) : (
+                                                <span className="text-[10px] font-black leading-none">!</span>
+                                              )}
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 )}
                               </div>
                             );
                           })}
                         </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
+                      </div>
+                    )}
+                  </div>
+                );
             })}
           </div>
         </div>
@@ -1136,20 +1247,108 @@ export const BudgetsView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Teto Orçamentário (Para Categoria Principal ou Subcategoria de Despesa) */}
+              {/* Seção de Tetos Orçamentários (Padrão vs Mês Selecionado) */}
               {type === 'expense' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Teto Orçamentário Mensal (R$)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Ex: 1500.00 (Opcional)"
-                    value={budgetLimit}
-                    onChange={e => setBudgetLimit(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                  />
+                <div className="space-y-3 p-3 bg-slate-950/70 border border-slate-800/80 rounded-2xl">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-800/60">
+                    <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                      Definição de Teto Orçamentário
+                    </span>
+                  </div>
+
+                  {/* Opção 1: Teto Previsto Padrão */}
+                  <div
+                    onClick={() => setBudgetMode('default')}
+                    className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+                      budgetMode === 'default'
+                        ? 'bg-slate-900 border-emerald-500/60 ring-1 ring-emerald-500/30'
+                        : 'bg-slate-950/40 border-slate-800/60 opacity-60 hover:opacity-90'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={budgetMode === 'default'}
+                          onChange={() => setBudgetMode('default')}
+                          className="w-4 h-4 rounded text-emerald-500 bg-slate-950 border-slate-700 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <span className="text-xs font-semibold text-white">
+                          Teto Previsto Padrão
+                        </span>
+                      </label>
+                      {budgetMode === 'default' && (
+                        <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-medium">
+                          Em uso
+                        </span>
+                      )}
+                    </div>
+                    <div className="pl-6">
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Ex: 1500.00 (Opcional)"
+                        value={budgetLimit}
+                        disabled={budgetMode !== 'default'}
+                        onChange={e => {
+                          setBudgetLimit(e.target.value);
+                          if (budgetMode !== 'default') setBudgetMode('default');
+                        }}
+                        className={`w-full bg-slate-950 border rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none ${
+                          budgetMode === 'default'
+                            ? 'border-slate-700 focus:border-emerald-500'
+                            : 'border-slate-800 opacity-50 cursor-not-allowed'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Opção 2: Teto Previsto do Mês Específico */}
+                  <div
+                    onClick={() => setBudgetMode('month')}
+                    className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+                      budgetMode === 'month'
+                        ? 'bg-slate-900 border-purple-500/60 ring-1 ring-purple-500/30'
+                        : 'bg-slate-950/40 border-slate-800/60 opacity-60 hover:opacity-90'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={budgetMode === 'month'}
+                          onChange={() => setBudgetMode('month')}
+                          className="w-4 h-4 rounded text-purple-500 bg-slate-950 border-slate-700 focus:ring-purple-500 cursor-pointer"
+                        />
+                        <span className="text-xs font-semibold text-white">
+                          Teto Previsto {getMonthName(selectedMonth)}/{selectedYear}
+                        </span>
+                      </label>
+                      {budgetMode === 'month' && (
+                        <span className="text-[9px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-medium">
+                          Em uso
+                        </span>
+                      )}
+                    </div>
+                    <div className="pl-6">
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Ex: 1800.00"
+                        value={monthBudgetLimit}
+                        disabled={budgetMode !== 'month'}
+                        onChange={e => {
+                          setMonthBudgetLimit(e.target.value);
+                          if (budgetMode !== 'month') setBudgetMode('month');
+                        }}
+                        className={`w-full bg-slate-950 border rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none ${
+                          budgetMode === 'month'
+                            ? 'border-purple-500/80 focus:border-purple-400'
+                            : 'border-slate-800 opacity-50 cursor-not-allowed'
+                        }`}
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1293,79 +1492,6 @@ export const BudgetsView: React.FC = () => {
         onUnarchive={handleUnarchiveCategory}
         onDelete={(cat) => setDeletingCategory(cat)}
       />
-
-      {/* MODAL DE EDIÇÃO DE TETO ESPECÍFICO DO MÊS */}
-      {editingMonthlyBudgetCat && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <div
-                  className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs shadow-md"
-                  style={{ backgroundColor: editingMonthlyBudgetCat.color }}
-                >
-                  <CategoryIcon name={editingMonthlyBudgetCat.icon} size={15} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white leading-tight">
-                    Teto para {getMonthName(selectedMonth)}/{selectedYear}
-                  </h3>
-                  <span className="text-[11px] text-slate-400">
-                    {editingMonthlyBudgetCat.name}
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingMonthlyBudgetCat(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveMonthlyBudget} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Valor do Teto para este mês (R$)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  autoFocus
-                  placeholder="Ex: 1200.00"
-                  value={monthlyBudgetInput}
-                  onChange={e => setMonthlyBudgetInput(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 text-sm"
-                />
-                <span className="text-[10px] text-slate-500 block mt-1">
-                  Teto padrão cadastrado na categoria: <strong className="text-slate-300">{editingMonthlyBudgetCat.budgetLimit ? formatCurrency(editingMonthlyBudgetCat.budgetLimit) : 'Não definido'}</strong>
-                </span>
-              </div>
-
-              <div className="flex flex-col gap-2 pt-2">
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Salvar Teto deste Mês</span>
-                </button>
-
-                {editingMonthlyBudgetCat.monthlyBudgets?.[`${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`] !== undefined && (
-                  <button
-                    type="button"
-                    onClick={handleResetToDefaultBudget}
-                    className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-[11px] transition-colors cursor-pointer"
-                  >
-                    Restaurar para Teto Padrão
-                  </button>
-                )}
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* CONFIRMAÇÃO: APLICAR TETOS PADRÃO NESTE MÊS */}
       <ConfirmModal
