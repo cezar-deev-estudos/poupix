@@ -616,7 +616,7 @@ export const BudgetsView: React.FC = () => {
                     e.preventDefault();
                     handleDropParentCategory(cat.id);
                   }}
-                  className={`bg-slate-900/60 border p-5 rounded-3xl shadow-xl flex flex-col justify-between transition-all ${
+                  className={`bg-slate-900/60 border p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl shadow-xl flex flex-col justify-between transition-all ${
                     isOver
                       ? 'border-emerald-500 ring-2 ring-emerald-500/30 scale-[1.01]'
                       : isDragging
@@ -768,7 +768,7 @@ export const BudgetsView: React.FC = () => {
                   {/* Subcategorias Aninhadas (Exibidas quando expandido pelo chevron) */}
                   {subs.length > 0 && isExpanded && (
                     <div className="mt-3 pt-3 border-t border-slate-800/80">
-                      <div className="space-y-2 pl-2 border-l-2 border-slate-800">
+                      <div className="space-y-2 pl-1 sm:pl-2 border-l-2 border-slate-800">
                           {subs.map(sub => {
                             const subSpent = filteredTransactions
                               .filter(t => t.categoryId === sub.id && t.type === 'expense')
@@ -803,7 +803,7 @@ export const BudgetsView: React.FC = () => {
                                   e.stopPropagation();
                                   handleDropSubCategory(cat.id, sub.id);
                                 }}
-                                className={`p-2.5 bg-slate-950/60 hover:bg-slate-900/90 border rounded-xl text-xs space-y-2 transition-all group select-none ${
+                                className={`p-2 sm:p-2.5 bg-slate-950/60 hover:bg-slate-900/90 border rounded-xl text-xs space-y-2 transition-all group select-none ${
                                   isSubOverDrag
                                     ? 'border-emerald-500 ring-1 ring-emerald-500/40 bg-slate-900'
                                     : isSubDragging
@@ -930,7 +930,7 @@ export const BudgetsView: React.FC = () => {
 
                                 {/* Lançamentos da Subcategoria (Exibidos em Accordion Minimalista) */}
                                 {isSubExpanded && subTransactions.length > 0 && (
-                                  <div className="pt-2 border-t border-slate-800/80 pl-3 sm:pl-6 space-y-1.5">
+                                  <div className="pt-2 border-t border-slate-800/80 pl-1.5 sm:pl-6 space-y-1.5">
                                     {subTransactions.map(tx => {
                                       const acc = accounts.find(a => a.id === tx.accountId);
                                       const card = creditCards.find(c => c.id === tx.creditCardId);

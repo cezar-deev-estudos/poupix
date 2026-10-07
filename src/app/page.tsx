@@ -235,7 +235,7 @@ function DashboardContent() {
       />
 
       {/* Área Principal de Conteúdo */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8 space-y-6">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-2 py-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
         {/* Top Header com Seletor de Período & Ações Globais (Apenas no Desktop) */}
         <header className="hidden md:flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-900">
           <div>
