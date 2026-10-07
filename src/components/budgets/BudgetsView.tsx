@@ -578,61 +578,61 @@ export const BudgetsView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header com Alternador de Abas */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-900">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            {activeTab === 'budgets' ? (
-              <>
-                <PieChart className="w-5 h-5 text-emerald-400" />
-                <span>Orçamentos</span>
-              </>
-            ) : (
-              <>
-                <FolderTree className="w-5 h-5 text-emerald-400" />
-                <span>Categorias</span>
-              </>
-            )}
-          </h2>
-          <p className="text-xs text-slate-400">
-            {activeTab === 'budgets'
-              ? 'Defina e acompanhe tetos de gastos mensais por categoria.'
-              : 'Gerencie categorias, subcategorias, ícones e cores do sistema.'}
-          </p>
+      {/* Header com Alternador de Abas e Seletor de Mês (Sticky no Mobile ao Rolar) */}
+      <div className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur-md pt-1 pb-3 -mx-2 px-2 border-b border-slate-900/60 shadow-lg md:static md:bg-transparent md:backdrop-blur-none md:p-0 md:border-0 md:shadow-none space-y-3">
+        {/* Header com Alternador de Abas */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-900/60 md:border-slate-900">
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              {activeTab === 'budgets' ? (
+                <>
+                  <PieChart className="w-5 h-5 text-emerald-400" />
+                  <span>Orçamentos</span>
+                </>
+              ) : (
+                <>
+                  <FolderTree className="w-5 h-5 text-emerald-400" />
+                  <span>Categorias</span>
+                </>
+              )}
+            </h2>
+            <p className="text-xs text-slate-400">
+              {activeTab === 'budgets'
+                ? 'Defina e acompanhe tetos de gastos mensais por categoria.'
+                : 'Gerencie categorias, subcategorias, ícones e cores do sistema.'}
+            </p>
+          </div>
+
+          {/* Abas no Topo */}
+          <div className="flex bg-slate-900/80 p-1 rounded-2xl border border-slate-800 self-start sm:self-auto">
+            <button
+              onClick={() => setActiveTab('budgets')}
+              className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                activeTab === 'budgets'
+                  ? 'bg-emerald-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <PieChart className="w-4 h-4" />
+              <span>Orçamentos do Mês</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('categories')}
+              className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                activeTab === 'categories'
+                  ? 'bg-emerald-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <FolderTree className="w-4 h-4" />
+              <span>Gerenciar Categorias</span>
+            </button>
+          </div>
         </div>
 
-        {/* Abas no Topo */}
-        <div className="flex bg-slate-900/80 p-1 rounded-2xl border border-slate-800 self-start sm:self-auto">
-          <button
-            onClick={() => setActiveTab('budgets')}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-              activeTab === 'budgets'
-                ? 'bg-emerald-500 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <PieChart className="w-4 h-4" />
-            <span>Orçamentos do Mês</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('categories')}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
-              activeTab === 'categories'
-                ? 'bg-emerald-500 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <FolderTree className="w-4 h-4" />
-            <span>Gerenciar Categorias</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ABA 1: PLANEJAMENTO ORÇAMENTÁRIO */}
-      {activeTab === 'budgets' && (
-        <div className="space-y-4">
-          {/* Barra de Controles: Seletor de Mês e Ações de Orçamento */}
+        {/* Barra de Controles: Seletor de Mês e Ações de Orçamento (Exibida no topo quando na aba budgets) */}
+        {activeTab === 'budgets' && (
           <div className="flex items-center justify-between gap-2 bg-slate-900/60 p-2 sm:p-2.5 rounded-2xl border border-slate-800">
             {/* Espaçador esquerdo invisível no mobile para manter o seletor perfeitamente centralizado */}
             <div className="w-8 shrink-0 sm:hidden" aria-hidden="true" />
@@ -700,6 +700,12 @@ export const BudgetsView: React.FC = () => {
               </button>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* ABA 1: PLANEJAMENTO ORÇAMENTÁRIO */}
+      {activeTab === 'budgets' && (
+        <div className="space-y-4">
 
           <div className={`grid gap-4 ${layoutColumns === '1col' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
             {budgetExpenseCategories.map(cat => {

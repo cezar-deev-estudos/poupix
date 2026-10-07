@@ -304,8 +304,14 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     return groups;
   }, [displayedTransactions, creditCards]);
 
-  // Auto-scroll inicial: ao abrir a tela de transações no mobile, rola para "Hoje", ou "Ontem" se não houver "Hoje"
+  // Referência do cabeçalho fixo para medição dinâmica de altura
+  const stickyHeaderRef = React.useRef<HTMLDivElement>(null);
   const hasAutoScrolledRef = React.useRef(false);
+
+  // Auto-scroll compensado: ao abrir a lista de transações, posiciona "Hoje" ou "Ontem" perfeitamente abaixo da barra fixa
+  React.useEffect(() => {
+    hasAutoScrolledRef.current = false;
+  }, [activeTypeFilter, selectedMonth, selectedYear]);
 
   React.useEffect(() => {
     if (hasAutoScrolledRef.current || groupedByDate.length === 0) return;
@@ -313,13 +319,23 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     const timer = setTimeout(() => {
       const todayEl = document.getElementById('tx-group-hoje');
       const yesterdayEl = document.getElementById('tx-group-ontem');
-
       const targetEl = todayEl || yesterdayEl;
+
       if (targetEl) {
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const headerHeight = stickyHeaderRef.current?.offsetHeight || 190;
+        const targetRect = targetEl.getBoundingClientRect();
+        const scrollPosition = targetRect.top + window.scrollY - headerHeight - 8;
+
+        window.scrollTo({
+          top: Math.max(0, scrollPosition),
+          behavior: 'smooth',
+        });
         hasAutoScrolledRef.current = true;
+      } else {
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        document.documentElement.scrollTo({ top: 0, behavior: 'instant' });
       }
-    }, 120);
+    }, 150);
 
     return () => clearTimeout(timer);
   }, [groupedByDate]);
@@ -377,379 +393,382 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
   return (
     <div className="space-y-4 pb-28 animate-fadeIn text-slate-100">
-      {/* 1. Header Superior Mobile com Dropdown de Tipo e Ações */}
-      <div className="flex items-center justify-between pt-1">
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setTypeDropdownOpen(!typeDropdownOpen)}
-            className="flex items-center gap-1.5 text-lg font-bold text-white tracking-tight cursor-pointer"
-          >
-            <span>
-              {activeTypeFilter === 'income'
-                ? 'Receitas'
-                : activeTypeFilter === 'expense'
-                ? 'Despesas'
-                : activeTypeFilter === 'transfer'
-                ? 'Transferências'
-                : 'Transações'}
-            </span>
-            <span className="text-xs text-slate-400">▾</span>
-          </button>
-
-          {typeDropdownOpen && (
-            <>
-              <div className="fixed inset-0 z-30" onClick={() => setTypeDropdownOpen(false)} />
-              <div className="absolute left-0 top-full mt-2 w-52 bg-[#232733] border border-slate-700/80 rounded-2xl shadow-2xl z-40 py-2 animate-scaleUp text-xs space-y-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTypeFilter('all');
-                    setTypeDropdownOpen(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-700/50 text-slate-200 text-left"
-                >
-                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-                  <span>Todas</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTypeFilter('expense');
-                    setTypeDropdownOpen(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-700/50 text-slate-200 text-left"
-                >
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                  <span>Despesas</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTypeFilter('income');
-                    setTypeDropdownOpen(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-700/50 text-slate-200 text-left"
-                >
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <span>Receitas</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTypeFilter('transfer');
-                    setTypeDropdownOpen(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-700/50 text-slate-200 text-left"
-                >
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                  <span>Transferências</span>
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Ícones de Busca, Filtro e Mais Opções */}
-        <div className="flex items-center gap-2">
-          {isSearchOpen ? (
-            <div className="relative">
-              <input
-                type="text"
-                autoFocus
-                placeholder="Buscar..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-36 bg-[#1e2330] border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-white focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  setIsSearchOpen(false);
-                }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400"
-              >
-                ✕
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setIsSearchOpen(true)}
-              className="p-2 text-slate-400 hover:text-white"
-            >
-              <Search className="w-4 h-4" />
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setIsFilterModalOpen(true)}
-            className="p-2 text-slate-400 hover:text-white relative"
-          >
-            <Filter className="w-4 h-4" />
-            {(advancedFilter.categoryId || advancedFilter.status !== 'all' || advancedFilter.tag) && (
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-indigo-500" />
-            )}
-          </button>
-
+      {/* Container Sticky Superior no Mobile (Fixa dropdown de tipo, mês e cards de resumo ao rolar) */}
+      <div ref={stickyHeaderRef} className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur-md pt-1 pb-3 -mx-2 px-2 border-b border-slate-900/60 shadow-lg space-y-2.5">
+        {/* 1. Header Superior Mobile com Dropdown de Tipo e Ações */}
+        <div className="flex items-center justify-between pt-1">
           <div className="relative">
             <button
               type="button"
-              onClick={() => setIsOptionsMenuOpen(!isOptionsMenuOpen)}
-              className="p-2 text-slate-400 hover:text-white"
+              onClick={() => setTypeDropdownOpen(!typeDropdownOpen)}
+              className="flex items-center gap-1.5 text-lg font-bold text-white tracking-tight cursor-pointer"
             >
-              <MoreVertical className="w-4 h-4" />
+              <span>
+                {activeTypeFilter === 'income'
+                  ? 'Receitas'
+                  : activeTypeFilter === 'expense'
+                  ? 'Despesas'
+                  : activeTypeFilter === 'transfer'
+                  ? 'Transferências'
+                  : 'Transações'}
+              </span>
+              <span className="text-xs text-slate-400">▾</span>
             </button>
 
-            <TransactionsOptionsMenu
-              isOpen={isOptionsMenuOpen}
-              onClose={() => setIsOptionsMenuOpen(false)}
-              groupByCard={groupByCard}
-              onToggleGroupByCard={toggleGroupByCard}
-              alertPending={alertPending}
-              onToggleAlertPending={() => setAlertPending(!alertPending)}
-            />
+            {typeDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setTypeDropdownOpen(false)} />
+                <div className="absolute left-0 top-full mt-2 w-52 bg-[#232733] border border-slate-700/80 rounded-2xl shadow-2xl z-40 py-2 animate-scaleUp text-xs space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTypeFilter('all');
+                      setTypeDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-700/50 text-slate-200 text-left"
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                    <span>Todas</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTypeFilter('expense');
+                      setTypeDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-700/50 text-slate-200 text-left"
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                    <span>Despesas</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTypeFilter('income');
+                      setTypeDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-700/50 text-slate-200 text-left"
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <span>Receitas</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTypeFilter('transfer');
+                      setTypeDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-700/50 text-slate-200 text-left"
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                    <span>Transferências</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-        </div>
-      </div>
 
-      {/* 2. Navegador de Mês Centralizado */}
-      <div className="flex items-center justify-center gap-6 py-1 text-xs font-semibold text-slate-300">
-        <button type="button" onClick={handlePrevMonth} className="p-1 text-slate-400 hover:text-white">
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-
-        <span>{MONTH_NAMES[selectedMonth]}</span>
-
-        <button type="button" onClick={handleNextMonth} className="p-1 text-slate-400 hover:text-white">
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* 3. Cards de Resumo Superior Mobile (Despesas, Receitas ou Saldo/Balanço) */}
-      {activeTypeFilter === 'expense' ? (
-        <div className="grid grid-cols-3 gap-2 animate-fadeIn">
-          {/* Despesas pendentes */}
-          <button
-            type="button"
-            onClick={() =>
-              setAdvancedFilter((prev) => ({
-                ...prev,
-                status: prev.status === 'pending' ? 'all' : 'pending',
-              }))
-            }
-            className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
-              advancedFilter.status === 'pending'
-                ? 'border-rose-500/70 bg-[#2b2229]'
-                : 'border-slate-700/60'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="w-7 h-7 rounded-full bg-[#ef4444] flex items-center justify-center text-white shrink-0 shadow-sm">
-                <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
+          {/* Ícones de Busca, Filtro e Mais Opções */}
+          <div className="flex items-center gap-2">
+            {isSearchOpen ? (
+              <div className="relative">
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Buscar..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-36 bg-[#1e2330] border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-white focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setIsSearchOpen(false);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400"
+                >
+                  ✕
+                </button>
               </div>
-              <ChevronRight className="w-3 h-3 text-slate-500" />
-            </div>
-            <div className="mt-2 min-w-0">
-              <span className="text-[10px] text-slate-400 block truncate font-medium">
-                Despesas pendentes
-              </span>
-              <span className="text-xs font-bold text-white block truncate mt-0.5">
-                {displayVal(pendingExpense)}
-              </span>
-            </div>
-          </button>
-
-          {/* Despesas pagas */}
-          <button
-            type="button"
-            onClick={() =>
-              setAdvancedFilter((prev) => ({
-                ...prev,
-                status: prev.status === 'paid' ? 'all' : 'paid',
-              }))
-            }
-            className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
-              advancedFilter.status === 'paid'
-                ? 'border-rose-500/70 bg-[#2b2229]'
-                : 'border-slate-700/60'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="w-7 h-7 rounded-full bg-[#ef4444] flex items-center justify-center text-white shrink-0 shadow-sm">
-                <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" />
-              </div>
-              <ChevronRight className="w-3 h-3 text-slate-500" />
-            </div>
-            <div className="mt-2 min-w-0">
-              <span className="text-[10px] text-slate-400 block truncate font-medium">
-                Despesas pagas
-              </span>
-              <span className="text-xs font-bold text-white block truncate mt-0.5">
-                {displayVal(paidExpense)}
-              </span>
-            </div>
-          </button>
-
-          {/* Total Despesas */}
-          <button
-            type="button"
-            onClick={() =>
-              setAdvancedFilter((prev) => ({ ...prev, status: 'all' }))
-            }
-            className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
-              advancedFilter.status === 'all'
-                ? 'border-slate-700/60'
-                : 'border-slate-800'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="w-7 h-7 rounded-full bg-[#ef4444] flex items-center justify-center text-white shrink-0 shadow-sm">
-                <Scale className="w-3.5 h-3.5" />
-              </div>
-              <ChevronRight className="w-3 h-3 text-slate-500" />
-            </div>
-            <div className="mt-2 min-w-0">
-              <span className="text-[10px] text-slate-400 block truncate font-medium">
-                Total
-              </span>
-              <span className="text-xs font-bold text-white block truncate mt-0.5">
-                {displayVal(totalExpense)}
-              </span>
-            </div>
-          </button>
-        </div>
-      ) : activeTypeFilter === 'income' ? (
-        <div className="grid grid-cols-3 gap-2 animate-fadeIn">
-          {/* Receitas pendentes */}
-          <button
-            type="button"
-            onClick={() =>
-              setAdvancedFilter((prev) => ({
-                ...prev,
-                status: prev.status === 'pending' ? 'all' : 'pending',
-              }))
-            }
-            className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
-              advancedFilter.status === 'pending'
-                ? 'border-emerald-500/70 bg-[#1c2923]'
-                : 'border-slate-700/60'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="w-7 h-7 rounded-full bg-[#22c55e] flex items-center justify-center text-slate-950 font-bold shrink-0 shadow-sm">
-                <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
-              </div>
-              <ChevronRight className="w-3 h-3 text-slate-500" />
-            </div>
-            <div className="mt-2 min-w-0">
-              <span className="text-[10px] text-slate-400 block truncate font-medium">
-                Receitas pendentes
-              </span>
-              <span className="text-xs font-bold text-white block truncate mt-0.5">
-                {displayVal(pendingIncome)}
-              </span>
-            </div>
-          </button>
-
-          {/* Receitas recebidas */}
-          <button
-            type="button"
-            onClick={() =>
-              setAdvancedFilter((prev) => ({
-                ...prev,
-                status: prev.status === 'paid' ? 'all' : 'paid',
-              }))
-            }
-            className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
-              advancedFilter.status === 'paid'
-                ? 'border-emerald-500/70 bg-[#1c2923]'
-                : 'border-slate-700/60'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="w-7 h-7 rounded-full bg-[#22c55e] flex items-center justify-center text-slate-950 font-bold shrink-0 shadow-sm">
-                <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" />
-              </div>
-              <ChevronRight className="w-3 h-3 text-slate-500" />
-            </div>
-            <div className="mt-2 min-w-0">
-              <span className="text-[10px] text-slate-400 block truncate font-medium">
-                Receitas recebidas
-              </span>
-              <span className="text-xs font-bold text-white block truncate mt-0.5">
-                {displayVal(paidIncome)}
-              </span>
-            </div>
-          </button>
-
-          {/* Total Receitas */}
-          <button
-            type="button"
-            onClick={() =>
-              setAdvancedFilter((prev) => ({ ...prev, status: 'all' }))
-            }
-            className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
-              advancedFilter.status === 'all'
-                ? 'border-slate-700/60'
-                : 'border-slate-800'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="w-7 h-7 rounded-full bg-[#22c55e] flex items-center justify-center text-slate-950 font-bold shrink-0 shadow-sm">
-                <Scale className="w-3.5 h-3.5" />
-              </div>
-              <ChevronRight className="w-3 h-3 text-slate-500" />
-            </div>
-            <div className="mt-2 min-w-0">
-              <span className="text-[10px] text-slate-400 block truncate font-medium">
-                Total
-              </span>
-              <span className="text-xs font-bold text-white block truncate mt-0.5">
-                {displayVal(totalIncome)}
-              </span>
-            </div>
-          </button>
-        </div>
-      ) : (
-        <div className="bg-[#242732] border border-slate-700/60 rounded-3xl p-4 shadow-xl flex items-center justify-between animate-fadeIn">
-          {/* Saldo Atual */}
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-slate-400">
-              <Briefcase className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] text-slate-400 block font-medium">Saldo atual</span>
-              <span
-                className={`text-sm font-bold block ${
-                  summary.totalBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                }`}
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsSearchOpen(true)}
+                className="p-2 text-slate-400 hover:text-white"
               >
-                {displayVal(summary.totalBalance)}
-              </span>
-            </div>
-          </div>
+                <Search className="w-4 h-4" />
+              </button>
+            )}
 
-          {/* Balanço Mensal */}
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-slate-400">
-              <Briefcase className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] text-slate-400 block font-medium">Balanço mensal</span>
-              <span
-                className={`text-sm font-bold block ${
-                  summary.monthlySavings >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                }`}
+            <button
+              type="button"
+              onClick={() => setIsFilterModalOpen(true)}
+              className="p-2 text-slate-400 hover:text-white relative"
+            >
+              <Filter className="w-4 h-4" />
+              {(advancedFilter.categoryId || advancedFilter.status !== 'all' || advancedFilter.tag) && (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-indigo-500" />
+              )}
+            </button>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsOptionsMenuOpen(!isOptionsMenuOpen)}
+                className="p-2 text-slate-400 hover:text-white"
               >
-                {displayVal(summary.monthlySavings)}
-              </span>
+                <MoreVertical className="w-4 h-4" />
+              </button>
+
+              <TransactionsOptionsMenu
+                isOpen={isOptionsMenuOpen}
+                onClose={() => setIsOptionsMenuOpen(false)}
+                groupByCard={groupByCard}
+                onToggleGroupByCard={toggleGroupByCard}
+                alertPending={alertPending}
+                onToggleAlertPending={() => setAlertPending(!alertPending)}
+              />
             </div>
           </div>
         </div>
-      )}
+
+        {/* 2. Navegador de Mês Centralizado */}
+        <div className="flex items-center justify-center gap-6 py-1 text-xs font-semibold text-slate-300">
+          <button type="button" onClick={handlePrevMonth} className="p-1 text-slate-400 hover:text-white">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <span>{MONTH_NAMES[selectedMonth]}</span>
+
+          <button type="button" onClick={handleNextMonth} className="p-1 text-slate-400 hover:text-white">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* 3. Cards de Resumo Superior Mobile (Despesas, Receitas ou Saldo/Balanço) */}
+        {activeTypeFilter === 'expense' ? (
+          <div className="grid grid-cols-3 gap-2 animate-fadeIn">
+            {/* Despesas pendentes */}
+            <button
+              type="button"
+              onClick={() =>
+                setAdvancedFilter((prev) => ({
+                  ...prev,
+                  status: prev.status === 'pending' ? 'all' : 'pending',
+                }))
+              }
+              className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
+                advancedFilter.status === 'pending'
+                  ? 'border-rose-500/70 bg-[#2b2229]'
+                  : 'border-slate-700/60'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="w-7 h-7 rounded-full bg-[#ef4444] flex items-center justify-center text-white shrink-0 shadow-sm">
+                  <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
+                </div>
+                <ChevronRight className="w-3 h-3 text-slate-500" />
+              </div>
+              <div className="mt-2 min-w-0">
+                <span className="text-[10px] text-slate-400 block truncate font-medium">
+                  Despesas pendentes
+                </span>
+                <span className="text-xs font-bold text-white block truncate mt-0.5">
+                  {displayVal(pendingExpense)}
+                </span>
+              </div>
+            </button>
+
+            {/* Despesas pagas */}
+            <button
+              type="button"
+              onClick={() =>
+                setAdvancedFilter((prev) => ({
+                  ...prev,
+                  status: prev.status === 'paid' ? 'all' : 'paid',
+                }))
+              }
+              className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
+                advancedFilter.status === 'paid'
+                  ? 'border-rose-500/70 bg-[#2b2229]'
+                  : 'border-slate-700/60'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="w-7 h-7 rounded-full bg-[#ef4444] flex items-center justify-center text-white shrink-0 shadow-sm">
+                  <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" />
+                </div>
+                <ChevronRight className="w-3 h-3 text-slate-500" />
+              </div>
+              <div className="mt-2 min-w-0">
+                <span className="text-[10px] text-slate-400 block truncate font-medium">
+                  Despesas pagas
+                </span>
+                <span className="text-xs font-bold text-white block truncate mt-0.5">
+                  {displayVal(paidExpense)}
+                </span>
+              </div>
+            </button>
+
+            {/* Total Despesas */}
+            <button
+              type="button"
+              onClick={() =>
+                setAdvancedFilter((prev) => ({ ...prev, status: 'all' }))
+              }
+              className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
+                advancedFilter.status === 'all'
+                  ? 'border-slate-700/60'
+                  : 'border-slate-800'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="w-7 h-7 rounded-full bg-[#ef4444] flex items-center justify-center text-white shrink-0 shadow-sm">
+                  <Scale className="w-3.5 h-3.5" />
+                </div>
+                <ChevronRight className="w-3 h-3 text-slate-500" />
+              </div>
+              <div className="mt-2 min-w-0">
+                <span className="text-[10px] text-slate-400 block truncate font-medium">
+                  Total
+                </span>
+                <span className="text-xs font-bold text-white block truncate mt-0.5">
+                  {displayVal(totalExpense)}
+                </span>
+              </div>
+            </button>
+          </div>
+        ) : activeTypeFilter === 'income' ? (
+          <div className="grid grid-cols-3 gap-2 animate-fadeIn">
+            {/* Receitas pendentes */}
+            <button
+              type="button"
+              onClick={() =>
+                setAdvancedFilter((prev) => ({
+                  ...prev,
+                  status: prev.status === 'pending' ? 'all' : 'pending',
+                }))
+              }
+              className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
+                advancedFilter.status === 'pending'
+                  ? 'border-emerald-500/70 bg-[#1c2923]'
+                  : 'border-slate-700/60'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="w-7 h-7 rounded-full bg-[#22c55e] flex items-center justify-center text-slate-950 font-bold shrink-0 shadow-sm">
+                  <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
+                </div>
+                <ChevronRight className="w-3 h-3 text-slate-500" />
+              </div>
+              <div className="mt-2 min-w-0">
+                <span className="text-[10px] text-slate-400 block truncate font-medium">
+                  Receitas pendentes
+                </span>
+                <span className="text-xs font-bold text-white block truncate mt-0.5">
+                  {displayVal(pendingIncome)}
+                </span>
+              </div>
+            </button>
+
+            {/* Receitas recebidas */}
+            <button
+              type="button"
+              onClick={() =>
+                setAdvancedFilter((prev) => ({
+                  ...prev,
+                  status: prev.status === 'paid' ? 'all' : 'paid',
+                }))
+              }
+              className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
+                advancedFilter.status === 'paid'
+                  ? 'border-emerald-500/70 bg-[#1c2923]'
+                  : 'border-slate-700/60'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="w-7 h-7 rounded-full bg-[#22c55e] flex items-center justify-center text-slate-950 font-bold shrink-0 shadow-sm">
+                  <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" />
+                </div>
+                <ChevronRight className="w-3 h-3 text-slate-500" />
+              </div>
+              <div className="mt-2 min-w-0">
+                <span className="text-[10px] text-slate-400 block truncate font-medium">
+                  Receitas recebidas
+                </span>
+                <span className="text-xs font-bold text-white block truncate mt-0.5">
+                  {displayVal(paidIncome)}
+                </span>
+              </div>
+            </button>
+
+            {/* Total Receitas */}
+            <button
+              type="button"
+              onClick={() =>
+                setAdvancedFilter((prev) => ({ ...prev, status: 'all' }))
+              }
+              className={`bg-[#242732] border rounded-2xl p-2.5 shadow-md flex flex-col justify-between text-left transition-all cursor-pointer ${
+                advancedFilter.status === 'all'
+                  ? 'border-slate-700/60'
+                  : 'border-slate-800'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="w-7 h-7 rounded-full bg-[#22c55e] flex items-center justify-center text-slate-950 font-bold shrink-0 shadow-sm">
+                  <Scale className="w-3.5 h-3.5" />
+                </div>
+                <ChevronRight className="w-3 h-3 text-slate-500" />
+              </div>
+              <div className="mt-2 min-w-0">
+                <span className="text-[10px] text-slate-400 block truncate font-medium">
+                  Total
+                </span>
+                <span className="text-xs font-bold text-white block truncate mt-0.5">
+                  {displayVal(totalIncome)}
+                </span>
+              </div>
+            </button>
+          </div>
+        ) : (
+          <div className="bg-[#242732] border border-slate-700/60 rounded-3xl p-4 shadow-xl flex items-center justify-between animate-fadeIn">
+            {/* Saldo Atual */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-2xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-slate-400">
+                <Briefcase className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-[11px] text-slate-400 block font-medium">Saldo atual</span>
+                <span
+                  className={`text-sm font-bold block ${
+                    summary.totalBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                  }`}
+                >
+                  {displayVal(summary.totalBalance)}
+                </span>
+              </div>
+            </div>
+
+            {/* Balanço Mensal */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-2xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-slate-400">
+                <Briefcase className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-[11px] text-slate-400 block font-medium">Balanço mensal</span>
+                <span
+                  className={`text-sm font-bold block ${
+                    summary.monthlySavings >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                  }`}
+                >
+                  {displayVal(summary.monthlySavings)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* 4. Lista de Transações Agrupadas por Data */}
       {groupedByDate.length === 0 ? (
@@ -762,7 +781,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
             <div
               key={group.dateKey}
               id={group.isToday ? 'tx-group-hoje' : group.isYesterday ? 'tx-group-ontem' : undefined}
-              className="space-y-2 scroll-mt-2"
+              className="space-y-2 scroll-mt-52"
             >
               {/* Título do Dia */}
               <h4 className="text-sm font-bold text-slate-200 px-1">{group.label}</h4>
