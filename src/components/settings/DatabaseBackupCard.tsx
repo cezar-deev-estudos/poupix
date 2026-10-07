@@ -26,6 +26,7 @@ export const DatabaseBackupCard: React.FC = () => {
     transactions,
     creditCards,
     goals,
+    refreshFromCloud,
   } = useFinance();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -197,7 +198,8 @@ const SupabaseSettingsCard: React.FC = () => {
     categories,
     transactions,
     goals,
-    openFinanceConnections
+    openFinanceConnections,
+    refreshFromCloud
   } = useFinance();
 
   const [url, setUrl] = useState(() => {
@@ -332,7 +334,27 @@ const SupabaseSettingsCard: React.FC = () => {
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
               >
                 <Upload className="w-3.5 h-3.5" />
-                <span>{syncing ? 'Sincronizando Nuvem...' : 'Sincronizar Agora com Supabase'}</span>
+                <span>{syncing ? 'Sincronizando Nuvem...' : 'Enviar para Supabase'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setSyncing(true);
+                  try {
+                    await refreshFromCloud();
+                    setSyncFeedback({ status: 'success', message: 'Dados recarregados da nuvem com sucesso!' });
+                  } catch (e: any) {
+                    setSyncFeedback({ status: 'error', message: 'Falha ao buscar dados da nuvem.' });
+                  } finally {
+                    setSyncing(false);
+                  }
+                }}
+                disabled={syncing}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>{syncing ? 'Baixando...' : 'Baixar da Nuvem'}</span>
               </button>
 
               <button

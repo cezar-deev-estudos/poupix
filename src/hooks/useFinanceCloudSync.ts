@@ -173,11 +173,13 @@ export function useFinanceCloudSync({
     // Não dispara sync se estamos aplicando dados vindos da nuvem
     if (isApplyingRemoteData.current) return;
 
-    // Gera um resumo leve (fingerprint) dos dados locais para saber se realmente mudou algo
+    // Gera um resumo completo e leve (fingerprint) dos dados locais para saber se realmente mudou algo
     const categoriesBudgetSummary = categories
       .map(c => `${c.id}:${c.budgetLimit || 0}:${JSON.stringify(c.monthlyBudgets || {})}`)
       .join(';');
-    const currentFingerprint = `${accounts.length}-${creditCards.length}-${categories.length}-${tags.length}-${transactions.length}-${goals.length}-${openFinanceConnections.length}-${categoriesBudgetSummary}-${transactions.slice(0, 10).map(t => `${t.id}:${t.amount}:${t.paid}`).join('|')}`;
+    const totalTransactionsAmount = transactions.reduce((acc, t) => acc + (t.amount || 0), 0);
+    const transactionsChecksum = transactions.map(t => `${t.id}:${t.amount}:${t.paid}:${t.date}`).join(';');
+    const currentFingerprint = `${accounts.length}-${creditCards.length}-${categories.length}-${tags.length}-${transactions.length}-${goals.length}-${openFinanceConnections.length}-${categoriesBudgetSummary}-${totalTransactionsAmount}-${transactionsChecksum}`;
 
     // Se o fingerprint for idêntico ao último sincronizado com sucesso, não faz nada
     if (lastSyncedFingerprintRef.current === currentFingerprint) {
@@ -225,4 +227,10 @@ export function useFinanceCloudSync({
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     };
   }, [user, isInitialized, currentUser, accounts, creditCards, categories, tags, transactions, goals, openFinanceConnections]);
+
+  const refreshFromCloud = useCallback(async () => {
+    await loadCloudDataRef.current(true);
+  }, []);
+
+  return { refreshFromCloud };
 }

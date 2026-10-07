@@ -104,6 +104,7 @@ interface FinanceContextType {
   summary: FinancialSummary;
   filteredTransactions: Transaction[];
   resetToDefaults: () => void;
+  refreshFromCloud: () => Promise<void>;
 }
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
@@ -475,7 +476,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   // 4. Hook de Sincronização em Nuvem (Debounced & Auto-Fetch)
-  useFinanceCloudSync({
+  const { refreshFromCloud } = useFinanceCloudSync({
     user,
     currentUser,
     accounts,
@@ -932,6 +933,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         markAllAlertsAsRead: () => setReadAlertIds(alerts.map(a => a.id)),
         summary,
         filteredTransactions,
+        refreshFromCloud,
         resetToDefaults: () => {
           setAccounts(INITIAL_ACCOUNTS);
           setCreditCards(INITIAL_CREDIT_CARDS);
