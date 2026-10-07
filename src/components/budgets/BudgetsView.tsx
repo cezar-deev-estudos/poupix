@@ -104,7 +104,7 @@ export const BudgetsView: React.FC = () => {
   const [dragOverSubId, setDragOverSubId] = useState<string | null>(null);
 
   // Reordenação de categorias pai
-  const handleDropParentCategory = (targetParentId: string) => {
+  const handleDropParentCategory = (targetParentId: string, explicitDevice: 'desktop' | 'mobile' = 'desktop') => {
     if (!draggedParentId || draggedParentId === targetParentId) {
       setDraggedParentId(null);
       setDragOverParentId(null);
@@ -147,13 +147,13 @@ export const BudgetsView: React.FC = () => {
       }
     });
 
-    reorderCategories(reorderedList);
+    reorderCategories(reorderedList, explicitDevice);
     setDraggedParentId(null);
     setDragOverParentId(null);
   };
 
   // Reordenação de subcategorias
-  const handleDropSubCategory = (parentCatId: string, targetSubId: string) => {
+  const handleDropSubCategory = (parentCatId: string, targetSubId: string, explicitDevice: 'desktop' | 'mobile' = 'desktop') => {
     if (!draggedSubId || draggedSubId === targetSubId) {
       setDraggedSubId(null);
       setDragOverSubId(null);
@@ -187,7 +187,7 @@ export const BudgetsView: React.FC = () => {
       }
     });
 
-    reorderCategories(reorderedList);
+    reorderCategories(reorderedList, explicitDevice);
     setDraggedSubId(null);
     setDragOverSubId(null);
   };
@@ -223,7 +223,7 @@ export const BudgetsView: React.FC = () => {
       }
     });
 
-    reorderCategories(reorderedList);
+    reorderCategories(reorderedList, 'mobile');
   };
 
   // Mover subcategoria (cima / baixo) no mobile
@@ -250,7 +250,7 @@ export const BudgetsView: React.FC = () => {
       }
     });
 
-    reorderCategories(reorderedList);
+    reorderCategories(reorderedList, 'mobile');
   };
 
   // Estado para exibir controles de seta sob demanda no mobile (ao apertar e segurar)
@@ -302,7 +302,7 @@ export const BudgetsView: React.FC = () => {
   const handleTouchEndParent = () => {
     cancelLongPress();
     if (draggedParentId && touchParentTargetRef.current) {
-      handleDropParentCategory(touchParentTargetRef.current);
+      handleDropParentCategory(touchParentTargetRef.current, 'mobile');
     }
     setDraggedParentId(null);
     setDragOverParentId(null);
@@ -337,7 +337,7 @@ export const BudgetsView: React.FC = () => {
   const handleTouchEndSub = () => {
     cancelLongPress();
     if (draggedSubId && touchSubTargetRef.current) {
-      handleDropSubCategory(touchSubTargetRef.current.parentId, touchSubTargetRef.current.subId);
+      handleDropSubCategory(touchSubTargetRef.current.parentId, touchSubTargetRef.current.subId, 'mobile');
     }
     setDraggedSubId(null);
     setDragOverSubId(null);

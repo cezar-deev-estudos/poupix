@@ -34,19 +34,10 @@ export const ServiceWorkerRegister: React.FC = () => {
           }
         });
 
-        // Checagem periódica a cada 2 minutos
+        // Checagem periódica a cada 5 minutos sem interromper a sessão ativa
         intervalId = setInterval(() => {
           registration.update().catch(() => {});
-        }, 120000);
-
-        // Quando o novo Service Worker assumir o controle, recarrega a página automaticamente
-        let refreshing = false;
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (!refreshing) {
-            refreshing = true;
-            window.location.reload();
-          }
-        });
+        }, 300000);
 
         // Se houver um novo worker esperando, ativar imediatamente
         if (registration.waiting) {

@@ -78,7 +78,7 @@ interface FinanceContextType {
   addCategory: (cat: Omit<Category, 'id'>) => void;
   updateCategory: (id: string, cat: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
-  reorderCategories: (orderedCategories: Category[]) => void;
+  reorderCategories: (orderedCategories: Category[], device?: 'desktop' | 'mobile') => void;
   setCategoryMonthlyBudget: (categoryId: string, year: number, month: number, amount: number) => void;
   applyDefaultBudgetsToMonth: (year: number, month: number) => void;
   replicateBudgetsToYear: (sourceYear: number, sourceMonth: number, targetYear: number) => void;
@@ -148,6 +148,21 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const savedTheme = localStorage.getItem('mobills_theme') as 'dark' | 'light' | null;
 
       const savedGroupByCard = localStorage.getItem(`${userStoragePrefix}group_by_card`);
+      const isMobileDevice = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+      const deviceOrderKey = isMobileDevice ? 'category_order_mobile' : 'category_order_desktop';
+      const savedDeviceOrder = localStorage.getItem(`${userStoragePrefix}${deviceOrderKey}`);
+      const initialDeviceOrderIds: string[] | null = savedDeviceOrder ? JSON.parse(savedDeviceOrder) : null;
+
+      const sortCategoriesByDeviceOrder = (cats: Category[], orderIds: string[] | null) => {
+        if (!orderIds || orderIds.length === 0) return cats;
+        const indexMap = new Map<string, number>();
+        orderIds.forEach((id, idx) => indexMap.set(id, idx));
+        return [...cats].sort((a, b) => {
+          const idxA = indexMap.has(a.id) ? indexMap.get(a.id)! : 99999;
+          const idxB = indexMap.has(b.id) ? indexMap.get(b.id)! : 99999;
+          return idxA - idxB;
+        });
+      };
 
       if (user) {
         const authProfile: UserProfile = {
@@ -161,12 +176,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const loadedCards: CreditCard[] = savedCards ? JSON.parse(savedCards) : [];
         const rawTxs: Transaction[] = savedTransactions ? JSON.parse(savedTransactions) : [];
         const normalizedTxs = normalizeTransactionsInvoiceDates(rawTxs, loadedCards);
+        const rawCats: Category[] = savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES;
+        const userMetadataOrder: string[] | null = user.user_metadata?.[deviceOrderKey] || initialDeviceOrderIds;
 
         setUsers([authProfile]);
         setCurrentUserId(user.id);
         setAccounts(savedAccounts ? JSON.parse(savedAccounts) : []);
         setCreditCards(loadedCards);
-        setCategories(savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES);
+        setCategories(sortCategoriesByDeviceOrder(rawCats, userMetadataOrder));
         setTags(savedTags ? JSON.parse(savedTags) : INITIAL_TAGS);
         setTransactions(normalizedTxs);
         setGoals(savedGoals ? JSON.parse(savedGoals) : []);
@@ -181,12 +198,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const loadedCards: CreditCard[] = savedCards ? JSON.parse(savedCards) : INITIAL_CREDIT_CARDS;
         const rawTxs: Transaction[] = savedTransactions ? JSON.parse(savedTransactions) : INITIAL_TRANSACTIONS;
         const normalizedTxs = normalizeTransactionsInvoiceDates(rawTxs, loadedCards);
+        const rawCats: Category[] = savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES;
 
         setUsers(INITIAL_USERS);
         setCurrentUserId(INITIAL_USERS[0]?.id || 'user-cezar');
         setAccounts(savedAccounts ? JSON.parse(savedAccounts) : INITIAL_ACCOUNTS);
         setCreditCards(loadedCards);
-        setCategories(savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES);
+        setCategories(sortCategoriesByDeviceOrder(rawCats, initialDeviceOrderIds));
         setTags(savedTags ? JSON.parse(savedTags) : INITIAL_TAGS);
         setTransactions(normalizedTxs);
         setGoals(savedGoals ? JSON.parse(savedGoals) : INITIAL_GOALS);
@@ -356,7 +374,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
         });
 
-        return cloudData.categories!.map(cloudCat => {
+        const mergedCats = cloudData.categories!.map(cloudCat => {
           // Se na nuvem for true, mantém true; se na nuvem for false mas localmente for true, preserva o true local
           const localStatus = localArchivedMap.get(cloudCat.id) ?? localArchivedMap.get(ensureValidUUID(cloudCat.id));
           const effectiveArchived = cloudCat.isArchived || (localStatus ?? false);
@@ -365,6 +383,34 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             isArchived: effectiveArchived,
           };
         });
+
+        // Ordenar com base no dispositivo ativo
+        const isMobileDevice = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+        const deviceKey = isMobileDevice ? 'category_order_mobile' : 'category_order_desktop';
+        let savedOrderIds: string[] | null = null;
+        if (user?.user_metadata?.[deviceKey] && Array.isArray(user.user_metadata[deviceKey])) {
+          savedOrderIds = user.user_metadata[deviceKey];
+        } else if (typeof window !== 'undefined') {
+          const cached = localStorage.getItem(`${userStoragePrefix}${deviceKey}`);
+          if (cached) {
+            try { savedOrderIds = JSON.parse(cached); } catch {}
+          }
+        }
+
+        if (savedOrderIds && savedOrderIds.length > 0) {
+          const indexMap = new Map<string, number>();
+          savedOrderIds.forEach((id, idx) => {
+            indexMap.set(id, idx);
+            indexMap.set(ensureValidUUID(id), idx);
+          });
+          return [...mergedCats].sort((a, b) => {
+            const idxA = indexMap.has(a.id) ? indexMap.get(a.id)! : 99999;
+            const idxB = indexMap.has(b.id) ? indexMap.get(b.id)! : 99999;
+            return idxA - idxB;
+          });
+        }
+
+        return mergedCats;
       });
     }
     if (cloudData.tags !== undefined) setTags(cloudData.tags);
@@ -468,6 +514,34 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [filteredTransactions, accounts]);
 
+  const handleReorderCategories = useCallback(async (orderedCategories: Category[], explicitDevice?: 'desktop' | 'mobile') => {
+    setCategories(orderedCategories);
+
+    // Determinar se a ação foi em desktop ou mobile
+    const isMobile = explicitDevice
+      ? explicitDevice === 'mobile'
+      : (typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+    const deviceKey = isMobile ? 'category_order_mobile' : 'category_order_desktop';
+    const orderIds = orderedCategories.map(c => c.id);
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`${userStoragePrefix}${deviceKey}`, JSON.stringify(orderIds));
+      }
+
+      if (user) {
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          await supabase.auth.updateUser({
+            data: { [deviceKey]: orderIds }
+          });
+        }
+      }
+    } catch (err) {
+      console.error(`[FinanceContext] Erro ao salvar ${deviceKey}:`, err);
+    }
+  }, [user, userStoragePrefix]);
+
   return (
     <FinanceContext.Provider
       value={{
@@ -509,7 +583,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addCategory: cat => entityManager.addCategory(cat, setCategories),
         updateCategory: (id, up) => entityManager.updateCategory(id, up, setCategories),
         deleteCategory: id => entityManager.deleteCategory(id, setCategories),
-        reorderCategories: orderedCategories => setCategories(orderedCategories),
+        reorderCategories: handleReorderCategories,
         setCategoryMonthlyBudget: (categoryId, year, month, amount) => {
           const periodKey = `${year}-${String(month + 1).padStart(2, '0')}`;
           setCategories(prev =>

@@ -71,9 +71,6 @@ function DashboardContent() {
 
   // Pilha de histórico de abas navegadas
   const [tabHistory, setTabHistory] = useState<ActiveTab[]>(['dashboard']);
-  const [exitToastVisible, setExitToastVisible] = useState(false);
-  const lastBackPressTimeRef = useRef<number>(0);
-  const exitToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Mantém refs dos estados para o listener global de popstate sem recriá-lo
   const activeTabRef = useRef(activeTab);
@@ -106,8 +103,14 @@ function DashboardContent() {
   }, []);
 
   // Interceptador global do botão "Voltar" nativo do celular (popstate)
+  // REGRA: Sempre retorna para a tela principal (dashboard) ou fecha modais, e NUNCA sai do aplicativo.
   useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
+    // Garante que haja um histórico para interceptar
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ poupix: true, tab: activeTabRef.current }, '');
+    }
+
+    const handlePopState = () => {
       // 1. Se houver modal ou drawer aberto, fecha o modal primeiro
       const { isNewTxModalOpen, isImporterOpen, isAlertsDrawerOpen, selectedDetailCardId } = modalsOpenRef.current;
       if (isNewTxModalOpen || isImporterOpen || isAlertsDrawerOpen || selectedDetailCardId) {
@@ -120,54 +123,30 @@ function DashboardContent() {
         if (isAlertsDrawerOpen) setIsAlertsDrawerOpen(false);
         if (selectedDetailCardId) setSelectedDetailCardId(null);
 
-        // Reinsere estado para manter o app vivo caso o usuário queira voltar de novo
+        // Reinsere estado para manter a barreira ativa e nunca sair do app
         window.history.pushState({ poupix: true, tab: activeTabRef.current }, '');
         return;
       }
 
-      // 2. Se não estiver na tela inicial (dashboard), volta para a tela anterior
+      // 2. Se estiver em qualquer tela que não seja o dashboard, volta diretamente para o dashboard
       const currentTab = activeTabRef.current;
-      const historyList = tabHistoryRef.current;
-
       if (currentTab !== 'dashboard') {
-        // Encontra a tela anterior na pilha de histórico
-        const newHistory = [...historyList];
-        newHistory.pop(); // remove a tela atual
-        const prevTab = newHistory.length > 0 ? newHistory[newHistory.length - 1] : 'dashboard';
+        setTabHistory(['dashboard']);
+        setActiveTab('dashboard');
 
-        setTabHistory(newHistory.length > 0 ? newHistory : ['dashboard']);
-        setActiveTab(prevTab);
-
-        // Mantém a trava de navegação no histórico para continuar interceptando
-        window.history.pushState({ poupix: true, tab: prevTab }, '');
+        // Reinsere barreira no histórico para proteger o app
+        window.history.pushState({ poupix: true, tab: 'dashboard' }, '');
         return;
       }
 
-      // 3. Se JÁ ESTÁ NA TELA INICIAL (dashboard):
-      // Só fecha se clicar 2 vezes dentro de 2 segundos!
-      const now = Date.now();
-      if (now - lastBackPressTimeRef.current < 2000) {
-        // 2º clique dentro de 2s: permite sair (não reinsere no histórico e deixa o navegador/app fechar)
-        if (exitToastTimeoutRef.current) clearTimeout(exitToastTimeoutRef.current);
-        setExitToastVisible(false);
-        window.history.back();
-      } else {
-        // 1º clique: impede o fechamento, reinsere no histórico e exibe toast de aviso
-        lastBackPressTimeRef.current = now;
-        window.history.pushState({ poupix: true, tab: 'dashboard' }, '');
-
-        setExitToastVisible(true);
-        if (exitToastTimeoutRef.current) clearTimeout(exitToastTimeoutRef.current);
-        exitToastTimeoutRef.current = setTimeout(() => {
-          setExitToastVisible(false);
-        }, 2000);
-      }
+      // 3. Se JÁ ESTÁ NA TELA PRINCIPAL (dashboard):
+      // NUNCA sai do app: apenas recoloca o estado no histórico e mantém o app aberto
+      window.history.pushState({ poupix: true, tab: 'dashboard' }, '');
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => {
       window.removeEventListener('popstate', handlePopState);
-      if (exitToastTimeoutRef.current) clearTimeout(exitToastTimeoutRef.current);
     };
   }, []);
 
@@ -533,13 +512,6 @@ function DashboardContent() {
         }}
       />
 
-      {/* Toast Informativo para saída em 2 cliques na Home (Mobile) */}
-      {exitToastVisible && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-slate-900/95 border border-slate-700/80 text-white text-xs font-semibold rounded-full shadow-2xl backdrop-blur-md animate-fadeIn flex items-center gap-2 pointer-events-none">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>Pressione voltar novamente para sair</span>
-        </div>
-      )}
     </div>
   );
 }
