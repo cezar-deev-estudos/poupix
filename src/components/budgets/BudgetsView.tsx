@@ -32,11 +32,11 @@ import {
   GripVertical,
   LayoutGrid,
   StretchHorizontal,
-  Copy,
-  CalendarSync,
   Sparkles,
   CheckCircle2,
   CreditCard,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 
 const COLOR_PALETTE = [
@@ -72,8 +72,6 @@ export const BudgetsView: React.FC = () => {
     deleteCategory,
     reorderCategories,
     setCategoryMonthlyBudget,
-    applyDefaultBudgetsToMonth,
-    replicateBudgetsToYear,
     updateTransaction,
     accounts,
     creditCards,
@@ -194,6 +192,158 @@ export const BudgetsView: React.FC = () => {
     setDragOverSubId(null);
   };
 
+  // Mover categoria pai (cima / baixo) no mobile
+  const handleMoveParentCategory = (catId: string, direction: 'up' | 'down') => {
+    const currentParents = parentCategories.filter(c => c.type === 'expense');
+    const idx = currentParents.findIndex(c => c.id === catId);
+    if (idx === -1) return;
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= currentParents.length) return;
+
+    const newParents = [...currentParents];
+    const [moved] = newParents.splice(idx, 1);
+    newParents.splice(targetIdx, 0, moved);
+
+    const reorderedList: Category[] = [];
+    const usedIds = new Set<string>();
+
+    newParents.forEach(p => {
+      reorderedList.push(p);
+      usedIds.add(p.id);
+      const subs = categories.filter(c => c.parentId === p.id);
+      subs.forEach(s => {
+        reorderedList.push(s);
+        usedIds.add(s.id);
+      });
+    });
+
+    categories.forEach(c => {
+      if (!usedIds.has(c.id)) {
+        reorderedList.push(c);
+      }
+    });
+
+    reorderCategories(reorderedList);
+  };
+
+  // Mover subcategoria (cima / baixo) no mobile
+  const handleMoveSubCategory = (parentCatId: string, subId: string, direction: 'up' | 'down') => {
+    const currentSubs = categories.filter(c => c.parentId === parentCatId);
+    const idx = currentSubs.findIndex(s => s.id === subId);
+    if (idx === -1) return;
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= currentSubs.length) return;
+
+    const newSubs = [...currentSubs];
+    const [moved] = newSubs.splice(idx, 1);
+    newSubs.splice(targetIdx, 0, moved);
+
+    const reorderedList: Category[] = [];
+    const newSubIds = new Set(newSubs.map(s => s.id));
+
+    categories.forEach(c => {
+      if (c.id === parentCatId) {
+        reorderedList.push(c);
+        newSubs.forEach(s => reorderedList.push(s));
+      } else if (!newSubIds.has(c.id)) {
+        reorderedList.push(c);
+      }
+    });
+
+    reorderCategories(reorderedList);
+  };
+
+  // Estado para exibir controles de seta sob demanda no mobile (ao apertar e segurar)
+  const [activeMoveControlsId, setActiveMoveControlsId] = useState<string | null>(null);
+  const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const startLongPress = (id: string) => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = setTimeout(() => {
+      setActiveMoveControlsId(prev => (prev === id ? null : id));
+    }, 400);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  // Touch Drag & Drop para Mobile
+  const touchParentTargetRef = React.useRef<string | null>(null);
+  const touchSubTargetRef = React.useRef<{ parentId: string; subId: string } | null>(null);
+
+  const handleTouchStartParent = (catId: string) => {
+    startLongPress(catId);
+    setDraggedParentId(catId);
+    touchParentTargetRef.current = null;
+  };
+
+  const handleTouchMoveParent = (e: React.TouchEvent) => {
+    cancelLongPress();
+    if (!draggedParentId) return;
+    const touch = e.touches[0];
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    const parentCard = element?.closest('[data-parent-card-id]');
+    if (parentCard) {
+      const targetId = parentCard.getAttribute('data-parent-card-id');
+      if (targetId && targetId !== draggedParentId) {
+        setDragOverParentId(targetId);
+        touchParentTargetRef.current = targetId;
+        return;
+      }
+    }
+    setDragOverParentId(null);
+    touchParentTargetRef.current = null;
+  };
+
+  const handleTouchEndParent = () => {
+    cancelLongPress();
+    if (draggedParentId && touchParentTargetRef.current) {
+      handleDropParentCategory(touchParentTargetRef.current);
+    }
+    setDraggedParentId(null);
+    setDragOverParentId(null);
+    touchParentTargetRef.current = null;
+  };
+
+  const handleTouchStartSub = (subId: string) => {
+    startLongPress(subId);
+    setDraggedSubId(subId);
+    touchSubTargetRef.current = null;
+  };
+
+  const handleTouchMoveSub = (parentId: string, e: React.TouchEvent) => {
+    cancelLongPress();
+    if (!draggedSubId) return;
+    const touch = e.touches[0];
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    const subCard = element?.closest('[data-sub-card-id]');
+    if (subCard) {
+      const targetSubId = subCard.getAttribute('data-sub-card-id');
+      const targetParentId = subCard.getAttribute('data-sub-parent-id');
+      if (targetSubId && targetParentId === parentId && targetSubId !== draggedSubId) {
+        setDragOverSubId(targetSubId);
+        touchSubTargetRef.current = { parentId, subId: targetSubId };
+        return;
+      }
+    }
+    setDragOverSubId(null);
+    touchSubTargetRef.current = null;
+  };
+
+  const handleTouchEndSub = () => {
+    cancelLongPress();
+    if (draggedSubId && touchSubTargetRef.current) {
+      handleDropSubCategory(touchSubTargetRef.current.parentId, touchSubTargetRef.current.subId);
+    }
+    setDraggedSubId(null);
+    setDragOverSubId(null);
+    touchSubTargetRef.current = null;
+  };
+
   // Estado para Modal de Criação / Edição de Categoria
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -218,9 +368,7 @@ export const BudgetsView: React.FC = () => {
   // Estado para Edição da Transação a partir do modal/drawer de detalhe
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
-  // Modais de Confirmação para Ações em Lote de Orçamentos
-  const [isApplyDefaultsConfirmOpen, setIsApplyDefaultsConfirmOpen] = useState(false);
-  const [isReplicateYearConfirmOpen, setIsReplicateYearConfirmOpen] = useState(false);
+  // Estado de feedback toast
   const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -423,19 +571,7 @@ export const BudgetsView: React.FC = () => {
 
 
 
-  // Ação em Lote: Aplicar tetos padrão a este mês
-  const handleConfirmApplyDefaults = () => {
-    applyDefaultBudgetsToMonth(selectedYear, selectedMonth);
-    setIsApplyDefaultsConfirmOpen(false);
-    showToast(`Tetos padrão preenchidos com sucesso para ${getMonthName(selectedMonth)}/${selectedYear}!`);
-  };
 
-  // Ação em Lote: Replicar orçamentos deste mês para todos os meses do ano selecionado
-  const handleConfirmReplicateYear = () => {
-    replicateBudgetsToYear(selectedYear, selectedMonth, selectedYear);
-    setIsReplicateYearConfirmOpen(false);
-    showToast(`Orçamentos de ${getMonthName(selectedMonth)} replicados para todos os meses de ${selectedYear}!`);
-  };
 
   // Categorias de despesa para o planejamento orçamentário
   const budgetExpenseCategories = parentCategories.filter(c => c.type === 'expense');
@@ -497,9 +633,12 @@ export const BudgetsView: React.FC = () => {
       {activeTab === 'budgets' && (
         <div className="space-y-4">
           {/* Barra de Controles: Seletor de Mês e Ações de Orçamento */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-900/60 p-2.5 rounded-2xl border border-slate-800">
-            {/* Seletor de Mês / Ano (compacto no mobile, alinhado e limpo) */}
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2 bg-slate-900/60 p-2 sm:p-2.5 rounded-2xl border border-slate-800">
+            {/* Espaçador esquerdo invisível no mobile para manter o seletor perfeitamente centralizado */}
+            <div className="w-8 shrink-0 sm:hidden" aria-hidden="true" />
+
+            {/* Seletor de Mês / Ano (centralizado no mobile, alinhado à esquerda no desktop) */}
+            <div className="flex-1 sm:flex-initial flex items-center justify-center sm:justify-start gap-2">
               <MonthSelector compact={true} />
               <span className="text-[11px] text-slate-400 hidden lg:inline">
                 ({budgetExpenseCategories.length} categorias)
@@ -507,29 +646,7 @@ export const BudgetsView: React.FC = () => {
             </div>
 
             {/* Ações de Orçamento e Layout */}
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-              {/* Botão Copiar Tetos Padrão */}
-              <button
-                type="button"
-                onClick={() => setIsApplyDefaultsConfirmOpen(true)}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-[11px] font-semibold border border-slate-700/80 transition-all cursor-pointer shadow-sm"
-                title={`Preenche todos os orçamentos de ${getMonthName(selectedMonth)}/${selectedYear} com os valores padrão`}
-              >
-                <Copy className="w-3 h-3 text-emerald-400" />
-                <span>Tetos Padrão</span>
-              </button>
-
-              {/* Botão Replicar para o Ano Todo */}
-              <button
-                type="button"
-                onClick={() => setIsReplicateYearConfirmOpen(true)}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 hover:text-purple-200 rounded-xl text-[11px] font-semibold border border-purple-500/40 transition-all cursor-pointer shadow-sm"
-                title={`Copia os orçamentos definidos em ${getMonthName(selectedMonth)} para todos os 12 meses de ${selectedYear}`}
-              >
-                <CalendarSync className="w-3 h-3 text-purple-400" />
-                <span>Replicar Ano {selectedYear}</span>
-              </button>
-
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {/* Alternador de Layout de Colunas (Apenas Desktop) */}
               <div className="hidden md:flex items-center bg-slate-900 border border-slate-800 p-0.5 rounded-xl">
                 <button
@@ -563,7 +680,7 @@ export const BudgetsView: React.FC = () => {
               {archivedCategories.length > 0 && (
                 <button
                   onClick={() => setIsArchivedModalOpen(true)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-[11px] font-semibold border border-slate-700/60 transition-all cursor-pointer"
+                  className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-[11px] font-semibold border border-slate-700/60 transition-all cursor-pointer"
                   title="Ver categorias e subcategorias arquivadas"
                 >
                   <Archive className="w-3 h-3 text-amber-400" />
@@ -572,12 +689,14 @@ export const BudgetsView: React.FC = () => {
                 </button>
               )}
 
+              {/* Botão Nova Categoria: Apenas '+' circular/arredondado no mobile, '+ Nova' no desktop */}
               <button
                 onClick={() => handleOpenCreate(undefined, 'expense')}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[11px] font-semibold shadow-md transition-all cursor-pointer"
+                className="w-8 h-8 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1.5 flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[11px] font-semibold shadow-md transition-all cursor-pointer"
+                title="Nova Categoria"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Nova</span>
+                <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                <span className="hidden sm:inline">Nova</span>
               </button>
             </div>
           </div>
@@ -603,6 +722,7 @@ export const BudgetsView: React.FC = () => {
               return (
                 <div
                   key={cat.id}
+                  data-parent-card-id={cat.id}
                   onDragOver={(e) => {
                     e.preventDefault();
                     if (draggedParentId && draggedParentId !== cat.id) {
@@ -674,8 +794,37 @@ export const BudgetsView: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Ações (Arrastar e Mais Opções) visíveis no topo no Mobile */}
+                        {/* Ações (Arrastar, Reordenar e Mais Opções) visíveis no topo no Mobile */}
                         <div className="flex items-center gap-1 md:hidden">
+                          {/* Botões rápidos de subir/descer no mobile (exibidos sob demanda ao segurar o quadradinho) */}
+                          {activeMoveControlsId === cat.id && (
+                            <div className="flex items-center bg-slate-950 border border-emerald-500/50 shadow-lg shadow-emerald-500/10 rounded-lg p-0.5 animate-in fade-in zoom-in-95 duration-150">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveParentCategory(cat.id, 'up');
+                                }}
+                                className="p-1 text-emerald-400 hover:text-white hover:bg-slate-800 rounded active:bg-slate-700 transition-colors cursor-pointer"
+                                title="Mover para cima"
+                              >
+                                <ArrowUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveParentCategory(cat.id, 'down');
+                                }}
+                                className="p-1 text-emerald-400 hover:text-white hover:bg-slate-800 rounded active:bg-slate-700 transition-colors cursor-pointer"
+                                title="Mover para baixo"
+                              >
+                                <ArrowDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Alça de arrastar com suporte a Touch, Drag nativo e Long-Press para exibir setas */}
                           <div
                             draggable
                             onDragStart={(e) => {
@@ -686,8 +835,20 @@ export const BudgetsView: React.FC = () => {
                               setDraggedParentId(null);
                               setDragOverParentId(null);
                             }}
-                            className="p-1.5 text-slate-500 hover:text-slate-300 rounded-lg hover:bg-slate-800 cursor-grab active:cursor-grabbing transition-colors"
-                            title="Arrastar para reordenar categoria"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Toque no mobile também alterna as setas
+                              setActiveMoveControlsId(prev => (prev === cat.id ? null : cat.id));
+                            }}
+                            onTouchStart={() => handleTouchStartParent(cat.id)}
+                            onTouchMove={handleTouchMoveParent}
+                            onTouchEnd={handleTouchEndParent}
+                            className={`p-1.5 rounded-lg cursor-grab active:cursor-grabbing transition-colors touch-none ${
+                              activeMoveControlsId === cat.id
+                                ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40'
+                                : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                            }`}
+                            title="Segure para mostrar opções de mover ou arraste"
                           >
                             <GripVertical className="w-4 h-4" />
                           </div>
@@ -788,6 +949,8 @@ export const BudgetsView: React.FC = () => {
                             return (
                               <div
                                 key={sub.id}
+                                data-sub-card-id={sub.id}
+                                data-sub-parent-id={cat.id}
                                 onDragOver={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
@@ -812,7 +975,7 @@ export const BudgetsView: React.FC = () => {
                                 }`}
                               >
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4">
-                                  {/* Bloco Esquerdo: Chevron (se houver transações) + Drag + Cor + Nome + Teto */}
+                                  {/* Bloco Esquerdo: Chevron (se houver transações) + Drag/Move + Cor + Nome + Teto */}
                                   <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink-0">
                                     {/* Seta/Chevron para expandir os itens da subcategoria */}
                                     {subTransactions.length > 0 ? (
@@ -835,10 +998,41 @@ export const BudgetsView: React.FC = () => {
                                       <div className="w-3.5 h-3.5 shrink-0" />
                                     )}
 
-                                    {/* Alça de Arrastar Subcategoria */}
+                                    {/* Botões rápidos de subir/descer subcategoria no mobile (exibidos sob demanda ao segurar o quadradinho) */}
+                                    {activeMoveControlsId === sub.id && (
+                                      <div className="flex md:hidden items-center bg-slate-950 border border-emerald-500/50 shadow-lg shadow-emerald-500/10 rounded p-0.5 animate-in fade-in zoom-in-95 duration-150">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleMoveSubCategory(cat.id, sub.id, 'up');
+                                          }}
+                                          className="p-0.5 text-emerald-400 hover:text-white rounded active:bg-slate-700 transition-colors cursor-pointer"
+                                          title="Mover subcategoria para cima"
+                                        >
+                                          <ArrowUp className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleMoveSubCategory(cat.id, sub.id, 'down');
+                                          }}
+                                          className="p-0.5 text-emerald-400 hover:text-white rounded active:bg-slate-700 transition-colors cursor-pointer"
+                                          title="Mover subcategoria para baixo"
+                                        >
+                                          <ArrowDown className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    )}
+
+                                    {/* Alça de Arrastar Subcategoria (Desktop Drag + Mobile Touch + Long-press para mostrar setas) */}
                                     <div
                                       draggable
-                                      onClick={(e) => e.stopPropagation()}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveMoveControlsId(prev => (prev === sub.id ? null : sub.id));
+                                      }}
                                       onDragStart={(e) => {
                                         e.stopPropagation();
                                         setDraggedSubId(sub.id);
@@ -847,8 +1041,15 @@ export const BudgetsView: React.FC = () => {
                                         setDraggedSubId(null);
                                         setDragOverSubId(null);
                                       }}
-                                      className="p-1 text-slate-600 hover:text-slate-300 rounded cursor-grab active:cursor-grabbing transition-colors"
-                                      title="Arrastar para reordenar subcategoria"
+                                      onTouchStart={() => handleTouchStartSub(sub.id)}
+                                      onTouchMove={(e) => handleTouchMoveSub(cat.id, e)}
+                                      onTouchEnd={handleTouchEndSub}
+                                      className={`p-1 rounded cursor-grab active:cursor-grabbing transition-colors touch-none ${
+                                        activeMoveControlsId === sub.id
+                                          ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40'
+                                          : 'text-slate-600 hover:text-slate-300 hover:bg-slate-800'
+                                      }`}
+                                      title="Segure para mostrar opções de mover ou arraste"
                                     >
                                       <GripVertical className="w-3.5 h-3.5" />
                                     </div>
@@ -1493,29 +1694,7 @@ export const BudgetsView: React.FC = () => {
         onDelete={(cat) => setDeletingCategory(cat)}
       />
 
-      {/* CONFIRMAÇÃO: APLICAR TETOS PADRÃO NESTE MÊS */}
-      <ConfirmModal
-        isOpen={isApplyDefaultsConfirmOpen}
-        title={`Preencher Tetos Padrão em ${getMonthName(selectedMonth)}/${selectedYear}?`}
-        message="Esta ação irá preencher o orçamento de todas as categorias de despesa deste mês utilizando o teto padrão cadastrado em cada uma delas na aba Gerenciar Categorias."
-        variant="warning"
-        confirmLabel="Sim, Preencher Tetos"
-        cancelLabel="Cancelar"
-        onConfirm={handleConfirmApplyDefaults}
-        onCancel={() => setIsApplyDefaultsConfirmOpen(false)}
-      />
 
-      {/* CONFIRMAÇÃO: REPLICAR ORÇAMENTOS PARA O ANO INTEIRO */}
-      <ConfirmModal
-        isOpen={isReplicateYearConfirmOpen}
-        title={`Replicar Orçamentos para Todo o Ano de ${selectedYear}?`}
-        message={`Esta ação irá copiar os tetos de gastos atualmente definidos em ${getMonthName(selectedMonth)}/${selectedYear} para TODOS os 12 meses do ano de ${selectedYear}. Deseja continuar?`}
-        variant="primary"
-        confirmLabel="Sim, Replicar para o Ano"
-        cancelLabel="Cancelar"
-        onConfirm={handleConfirmReplicateYear}
-        onCancel={() => setIsReplicateYearConfirmOpen(false)}
-      />
 
       {/* FEEDBACK TOAST */}
       {feedbackToast && (
