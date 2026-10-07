@@ -173,17 +173,36 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           currency: 'BRL',
           createdAt: user.created_at || new Date().toISOString(),
         };
+        const savedDeletedIds = localStorage.getItem('mobills_deleted_tx_ids');
+        const activeTombstones = savedDeletedIds ? new Set<string>(JSON.parse(savedDeletedIds)) : new Set<string>();
+
         const loadedCards: CreditCard[] = savedCards ? JSON.parse(savedCards) : [];
         const rawTxs: Transaction[] = savedTransactions ? JSON.parse(savedTransactions) : [];
-        const normalizedTxs = normalizeTransactionsInvoiceDates(rawTxs, loadedCards);
+        const filteredTxs = rawTxs.filter(t => !activeTombstones.has(t.id) && !activeTombstones.has(ensureValidUUID(t.id)));
+        const normalizedTxs = normalizeTransactionsInvoiceDates(filteredTxs, loadedCards);
         const rawCats: Category[] = savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES;
         const userMetadataOrder: string[] | null = user.user_metadata?.[deviceOrderKey] || initialDeviceOrderIds;
+        const userMetadataMonthlyBudgets = (user.user_metadata?.category_monthly_budgets || {}) as Record<string, Record<string, number>>;
+
+        const categoriesWithMonthlyBudgets = rawCats.map(c => {
+          const metaMonthly = userMetadataMonthlyBudgets[c.id] || userMetadataMonthlyBudgets[ensureValidUUID(c.id)];
+          if (metaMonthly && Object.keys(metaMonthly).length > 0) {
+            return {
+              ...c,
+              monthlyBudgets: {
+                ...metaMonthly,
+                ...(c.monthlyBudgets || {}),
+              },
+            };
+          }
+          return c;
+        });
 
         setUsers([authProfile]);
         setCurrentUserId(user.id);
         setAccounts(savedAccounts ? JSON.parse(savedAccounts) : []);
         setCreditCards(loadedCards);
-        setCategories(sortCategoriesByDeviceOrder(rawCats, userMetadataOrder));
+        setCategories(sortCategoriesByDeviceOrder(categoriesWithMonthlyBudgets, userMetadataOrder));
         setTags(savedTags ? JSON.parse(savedTags) : INITIAL_TAGS);
         setTransactions(normalizedTxs);
         setGoals(savedGoals ? JSON.parse(savedGoals) : []);
@@ -195,9 +214,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setGroupByCard(JSON.parse(savedGroupByCard));
         }
       } else {
+        const savedDeletedIds = localStorage.getItem('mobills_deleted_tx_ids');
+        const activeTombstones = savedDeletedIds ? new Set<string>(JSON.parse(savedDeletedIds)) : new Set<string>();
+
         const loadedCards: CreditCard[] = savedCards ? JSON.parse(savedCards) : INITIAL_CREDIT_CARDS;
         const rawTxs: Transaction[] = savedTransactions ? JSON.parse(savedTransactions) : INITIAL_TRANSACTIONS;
-        const normalizedTxs = normalizeTransactionsInvoiceDates(rawTxs, loadedCards);
+        const filteredTxs = rawTxs.filter(t => !activeTombstones.has(t.id) && !activeTombstones.has(ensureValidUUID(t.id)));
+        const normalizedTxs = normalizeTransactionsInvoiceDates(filteredTxs, loadedCards);
         const rawCats: Category[] = savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES;
 
         setUsers(INITIAL_USERS);
@@ -367,20 +390,43 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (cloudData.categories !== undefined && cloudData.categories.length > 0) {
       setCategories(prevLocalCats => {
         const localArchivedMap = new Map<string, boolean>();
+        const localMonthlyBudgetsMap = new Map<string, Record<string, number>>();
+
         prevLocalCats.forEach(cat => {
           if (cat.isArchived !== undefined) {
             localArchivedMap.set(cat.id, cat.isArchived);
             localArchivedMap.set(ensureValidUUID(cat.id), cat.isArchived);
           }
+          if (cat.monthlyBudgets && Object.keys(cat.monthlyBudgets).length > 0) {
+            localMonthlyBudgetsMap.set(cat.id, cat.monthlyBudgets);
+            localMonthlyBudgetsMap.set(ensureValidUUID(cat.id), cat.monthlyBudgets);
+          }
         });
 
+        // Tetos mensais persistidos na nuvem em user_metadata
+        const cloudMonthlyBudgets = (user?.user_metadata?.category_monthly_budgets || {}) as Record<string, Record<string, number>>;
+
         const mergedCats = cloudData.categories!.map(cloudCat => {
+          const catId = cloudCat.id;
+          const catUuid = ensureValidUUID(cloudCat.id);
+
           // Se na nuvem for true, mantém true; se na nuvem for false mas localmente for true, preserva o true local
-          const localStatus = localArchivedMap.get(cloudCat.id) ?? localArchivedMap.get(ensureValidUUID(cloudCat.id));
+          const localStatus = localArchivedMap.get(catId) ?? localArchivedMap.get(catUuid);
           const effectiveArchived = cloudCat.isArchived || (localStatus ?? false);
+
+          // Mesclar tetos mensais: nuvem (user_metadata) + local + cloudCat (se houver)
+          const localMonthly = localMonthlyBudgetsMap.get(catId) || localMonthlyBudgetsMap.get(catUuid) || {};
+          const metaMonthly = cloudMonthlyBudgets[catId] || cloudMonthlyBudgets[catUuid] || {};
+          const effectiveMonthlyBudgets = {
+            ...metaMonthly,
+            ...localMonthly,
+            ...(cloudCat.monthlyBudgets || {}),
+          };
+
           return {
             ...cloudCat,
             isArchived: effectiveArchived,
+            monthlyBudgets: Object.keys(effectiveMonthlyBudgets).length > 0 ? effectiveMonthlyBudgets : undefined,
           };
         });
 
@@ -542,6 +588,30 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [user, userStoragePrefix]);
 
+  // Função para persistir mapa de tetos mensais no Supabase user_metadata
+  const persistMonthlyBudgetsToCloud = useCallback(async (updatedCategories: Category[]) => {
+    const monthlyMap: Record<string, Record<string, number>> = {};
+    updatedCategories.forEach(cat => {
+      if (cat.monthlyBudgets && Object.keys(cat.monthlyBudgets).length > 0) {
+        monthlyMap[cat.id] = cat.monthlyBudgets;
+        monthlyMap[ensureValidUUID(cat.id)] = cat.monthlyBudgets;
+      }
+    });
+
+    try {
+      if (user) {
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          await supabase.auth.updateUser({
+            data: { category_monthly_budgets: monthlyMap }
+          });
+        }
+      }
+    } catch (err) {
+      console.error('[FinanceContext] Erro ao sincronizar category_monthly_budgets com a nuvem:', err);
+    }
+  }, [user]);
+
   return (
     <FinanceContext.Provider
       value={{
@@ -580,14 +650,30 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addCreditCard: card => entityManager.addCreditCard(card, setCreditCards),
         updateCreditCard: (id, up) => entityManager.updateCreditCard(id, up, setCreditCards),
         deleteCreditCard: id => entityManager.deleteCreditCard(id, setCreditCards),
-        addCategory: cat => entityManager.addCategory(cat, setCategories),
-        updateCategory: (id, up) => entityManager.updateCategory(id, up, setCategories),
+        addCategory: cat => {
+          entityManager.addCategory(cat, setCategories);
+          if (cat.monthlyBudgets && Object.keys(cat.monthlyBudgets).length > 0) {
+            setCategories(prev => {
+              persistMonthlyBudgetsToCloud(prev);
+              return prev;
+            });
+          }
+        },
+        updateCategory: (id, up) => {
+          entityManager.updateCategory(id, up, setCategories);
+          if (up.monthlyBudgets !== undefined) {
+            setCategories(prev => {
+              persistMonthlyBudgetsToCloud(prev);
+              return prev;
+            });
+          }
+        },
         deleteCategory: id => entityManager.deleteCategory(id, setCategories),
         reorderCategories: handleReorderCategories,
         setCategoryMonthlyBudget: (categoryId, year, month, amount) => {
           const periodKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-          setCategories(prev =>
-            prev.map(c => {
+          setCategories(prev => {
+            const nextList = prev.map(c => {
               if (c.id !== categoryId) return c;
               const nextMonthly = { ...(c.monthlyBudgets || {}) };
               if (amount <= 0) {
@@ -596,13 +682,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 nextMonthly[periodKey] = amount;
               }
               return { ...c, monthlyBudgets: nextMonthly };
-            })
-          );
+            });
+            persistMonthlyBudgetsToCloud(nextList);
+            return nextList;
+          });
         },
         applyDefaultBudgetsToMonth: (year, month) => {
           const periodKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-          setCategories(prev =>
-            prev.map(c => {
+          setCategories(prev => {
+            const nextList = prev.map(c => {
               if (c.type !== 'expense') return c;
               const defaultBudget = c.budgetLimit || 0;
               const nextMonthly = { ...(c.monthlyBudgets || {}) };
@@ -612,13 +700,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 delete nextMonthly[periodKey];
               }
               return { ...c, monthlyBudgets: nextMonthly };
-            })
-          );
+            });
+            persistMonthlyBudgetsToCloud(nextList);
+            return nextList;
+          });
         },
         replicateBudgetsToYear: (sourceYear, sourceMonth, targetYear) => {
           const sourceKey = `${sourceYear}-${String(sourceMonth + 1).padStart(2, '0')}`;
-          setCategories(prev =>
-            prev.map(c => {
+          setCategories(prev => {
+            const nextList = prev.map(c => {
               if (c.type !== 'expense') return c;
               const sourceAmount =
                 c.monthlyBudgets && typeof c.monthlyBudgets[sourceKey] === 'number'
@@ -635,8 +725,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }
               }
               return { ...c, monthlyBudgets: nextMonthly };
-            })
-          );
+            });
+            persistMonthlyBudgetsToCloud(nextList);
+            return nextList;
+          });
         },
         addTag: tag => entityManager.addTag(tag, setTags),
         updateTag: (id, up) => entityManager.updateTag(id, up, tags, setTags, setTransactions),

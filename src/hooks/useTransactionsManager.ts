@@ -321,23 +321,21 @@ export const transactionManager: TransactionManagerActions = {
       if (mode === 'following') {
         let remaining = prev;
         if (target.recurringGroupId) {
-          const removed = prev.filter(t => (t.recurringGroupId === target.recurringGroupId && t.date >= target.date && (!t.paid || t.id === target.id)));
+          const removed = prev.filter(t => (t.recurringGroupId === target.recurringGroupId && t.date >= target.date));
           removed.forEach(t => deletedIds.push(t.id));
-          remaining = prev.filter(t => !(t.recurringGroupId === target.recurringGroupId && t.date >= target.date && (!t.paid || t.id === target.id)));
+          remaining = prev.filter(t => !(t.recurringGroupId === target.recurringGroupId && t.date >= target.date));
         } else if (target.installmentGroupId) {
           const removed = prev.filter(
             t =>
               t.installmentGroupId === target.installmentGroupId &&
-              (t.installmentCurrent || 0) >= (target.installmentCurrent || 0) &&
-              (!t.paid || t.id === target.id)
+              (t.installmentCurrent || 0) >= (target.installmentCurrent || 0)
           );
           removed.forEach(t => deletedIds.push(t.id));
           remaining = prev.filter(
             t =>
               !(
                 t.installmentGroupId === target.installmentGroupId &&
-                (t.installmentCurrent || 0) >= (target.installmentCurrent || 0) &&
-                (!t.paid || t.id === target.id)
+                (t.installmentCurrent || 0) >= (target.installmentCurrent || 0)
               )
           );
         }

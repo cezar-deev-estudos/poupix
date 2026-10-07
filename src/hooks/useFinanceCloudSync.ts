@@ -50,6 +50,9 @@ export function useFinanceCloudSync({
   // Timestamp até o qual o loadCloudData deve ser bloqueado após um sync local
   const blockRemoteFetchUntilRef = useRef<number>(0);
 
+  // Armazena um fingerprint dos últimos dados enviados com sucesso para nunca reenviar dados idênticos
+  const lastSyncedFingerprintRef = useRef<string>('');
+
   // Mantém referência sempre fresca do callback para evitar re-criação de loadCloudData
   const onCloudDataLoadedRef = useRef(onCloudDataLoaded);
   onCloudDataLoadedRef.current = onCloudDataLoaded;
@@ -61,8 +64,10 @@ export function useFinanceCloudSync({
     if (hasPendingLocalChangesRef.current) return false;
     if (isSyncingToCloud.current) return false;
     if (syncTimeoutRef.current !== null) return false;
-    // Bloqueia se ainda estamos dentro do cooldown pós-sync
+    // Bloqueia se ainda estamos dentro do cooldown pós-sync (10 segundos)
     if (Date.now() < blockRemoteFetchUntilRef.current) return false;
+    // Throttle mínimo de 30 segundos entre buscas bem-sucedidas para economizar cota do Supabase
+    if (Date.now() - lastSyncTimestampRef.current < 30000) return false;
     return true;
   }, []);
 
@@ -102,78 +107,59 @@ export function useFinanceCloudSync({
   // Referência para cancelar timeout de busca por Realtime
   const realtimeFetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 1. Carregamento inicial + Realtime + Revalidação por visibilidade (apenas 1x por usuário)
+  // 1. Carregamento inicial + Realtime sob demanda + Revalidação prudente por visibilidade
   useEffect(() => {
     if (!user) {
       isFirstSyncDone.current = false;
       return;
     }
 
-    // Carregamento inicial forçado ao logar
+    // Carregamento inicial forçado apenas ao autenticar
     loadCloudDataRef.current(true);
 
     const supabase = getSupabaseClient();
     let channel: any = null;
 
     if (supabase) {
-      // Inscrição no Realtime por tabela de transações
+      // Inscrição no Realtime por tabela de transações com debounce de 3s
       channel = supabase
         .channel(`finance-sync-${user.id}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
           () => {
-            // Se houver alteração local em fila ou sincronização ativa, ignorar o Realtime
+            // Se houver alteração local em fila ou sincronização ativa/recente, ignora o Realtime
             if (canFetchRef.current(false)) {
               if (realtimeFetchTimeoutRef.current) clearTimeout(realtimeFetchTimeoutRef.current);
               realtimeFetchTimeoutRef.current = setTimeout(() => {
                 if (canFetchRef.current(false)) {
                   loadCloudDataRef.current();
                 }
-              }, 1200);
+              }, 3000);
             }
           }
         )
         .subscribe((status: string) => {
           if (status === 'SUBSCRIBED') {
-            console.log('[CloudSync] Realtime conectado com sucesso');
-          } else if (status === 'CHANNEL_ERROR') {
-            console.warn('[CloudSync] Erro no canal Realtime — usando polling como fallback');
+            console.log('[CloudSync] Realtime conectado');
           }
         });
     }
 
-    // Revalidação ao retornar para a aba (mobile/desktop)
+    // Revalidação suave apenas quando o app voltar ao primeiro plano após mais de 60 segundos
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         const timeSinceLastSync = Date.now() - lastSyncTimestampRef.current;
-        if (timeSinceLastSync > 5000 && canFetchRef.current(false)) {
+        if (timeSinceLastSync > 60000 && canFetchRef.current(false)) {
           loadCloudDataRef.current();
         }
       }
     };
 
-    const handleWindowFocus = () => {
-      const timeSinceLastSync = Date.now() - lastSyncTimestampRef.current;
-      if (timeSinceLastSync > 5000 && canFetchRef.current(false)) {
-        loadCloudDataRef.current();
-      }
-    };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleWindowFocus);
-
-    // Polling de segurança a cada 60s
-    const pollingInterval = setInterval(() => {
-      if (document.visibilityState === 'visible' && canFetchRef.current(false)) {
-        loadCloudDataRef.current();
-      }
-    }, 60000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleWindowFocus);
-      clearInterval(pollingInterval);
       if (realtimeFetchTimeoutRef.current) clearTimeout(realtimeFetchTimeoutRef.current);
       if (channel && supabase) {
         supabase.removeChannel(channel);
@@ -181,14 +167,24 @@ export function useFinanceCloudSync({
     };
   }, [user?.id]);
 
-  // 2. Debounced Auto-Sync ao alterar dados locais (rápido: 400ms)
+  // 2. Debounced Auto-Sync ao alterar dados locais com verificação de fingerprint (1500ms)
   useEffect(() => {
     if (!user || !isInitialized || !isFirstSyncDone.current) return;
     // Não dispara sync se estamos aplicando dados vindos da nuvem
     if (isApplyingRemoteData.current) return;
 
+    // Gera um resumo leve (fingerprint) dos dados locais para saber se realmente mudou algo
+    const categoriesBudgetSummary = categories
+      .map(c => `${c.id}:${c.budgetLimit || 0}:${JSON.stringify(c.monthlyBudgets || {})}`)
+      .join(';');
+    const currentFingerprint = `${accounts.length}-${creditCards.length}-${categories.length}-${tags.length}-${transactions.length}-${goals.length}-${openFinanceConnections.length}-${categoriesBudgetSummary}-${transactions.slice(0, 10).map(t => `${t.id}:${t.amount}:${t.paid}`).join('|')}`;
+
+    // Se o fingerprint for idêntico ao último sincronizado com sucesso, não faz nada
+    if (lastSyncedFingerprintRef.current === currentFingerprint) {
+      return;
+    }
+
     hasPendingLocalChangesRef.current = true;
-    // Cancela qualquer busca remota pendente do Realtime para não atropelar a edição local
     if (realtimeFetchTimeoutRef.current) {
       clearTimeout(realtimeFetchTimeoutRef.current);
     }
@@ -197,7 +193,7 @@ export function useFinanceCloudSync({
       clearTimeout(syncTimeoutRef.current);
     }
 
-    // Sincronização rápida (400ms) para salvar no banco quase instantaneamente
+    // Debounce de 1500ms para acumular edições e não bombardear o banco
     syncTimeoutRef.current = setTimeout(async () => {
       syncTimeoutRef.current = null;
       isSyncingToCloud.current = true;
@@ -213,8 +209,9 @@ export function useFinanceCloudSync({
           openFinanceConnections,
         });
         lastSyncTimestampRef.current = Date.now();
-        // Cooldown de 4s após sync bem-sucedido
-        blockRemoteFetchUntilRef.current = Date.now() + 4000;
+        lastSyncedFingerprintRef.current = currentFingerprint;
+        // Cooldown de 10s após envio para impedir qualquer re-fetch de eco imediato
+        blockRemoteFetchUntilRef.current = Date.now() + 10000;
         console.log('[CloudSync] Dados sincronizados com a nuvem com sucesso');
       } catch (err) {
         console.error('[CloudSync] Falha no auto-sync:', err);
@@ -222,7 +219,7 @@ export function useFinanceCloudSync({
         isSyncingToCloud.current = false;
         hasPendingLocalChangesRef.current = false;
       }
-    }, 400);
+    }, 1500);
 
     return () => {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
