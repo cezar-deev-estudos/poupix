@@ -466,25 +466,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const validCloudTxs = cloudData.transactions.filter(t => !tombstones.has(t.id) && !tombstones.has(ensureValidUUID(t.id)));
       const normalizedCloudTxs = normalizeTransactionsInvoiceDates(validCloudTxs, currentCards);
 
-      setTransactions(prevLocalTxs => {
-        // Nuvem é referência, e remove transações que já foram excluídas
-        const cloudIdSet = new Set<string>();
-        normalizedCloudTxs.forEach(t => {
-          cloudIdSet.add(t.id);
-          cloudIdSet.add(ensureValidUUID(t.id));
-        });
-
-        // Mantém apenas transações locais não sincronizadas que NÃO foram excluídas
-        const unsyncedLocalTxs = prevLocalTxs.filter(t => {
-          if (tombstones.has(t.id) || tombstones.has(ensureValidUUID(t.id))) return false;
-          return !cloudIdSet.has(t.id) && !cloudIdSet.has(ensureValidUUID(t.id));
-        });
-
-        if (unsyncedLocalTxs.length > 0) {
-          return [...unsyncedLocalTxs, ...normalizedCloudTxs];
-        }
-        return normalizedCloudTxs;
-      });
+      // O Supabase é a Fonte Única da Verdade para todos os dispositivos e telas conectadas.
+      // Substitui diretamente o estado local pelas transações oficiais da nuvem.
+      setTransactions(normalizedCloudTxs);
     }
     if (cloudData.goals !== undefined) setGoals(cloudData.goals);
     if (cloudData.openFinanceConnections !== undefined) setOpenFinanceConnections(cloudData.openFinanceConnections);
