@@ -40,7 +40,7 @@ import {
   DashboardCardId,
   mergeDashboardLayout,
 } from '@/types/settings';
-import { Plus, ArrowRight, UploadCloud, Bell } from 'lucide-react';
+import { Plus, ArrowRight, CloudDownload, Bell, Check, Loader2 } from 'lucide-react';
 
 function DashboardContent() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -53,8 +53,10 @@ function DashboardContent() {
   const [txModalCreditCardId, setTxModalCreditCardId] = useState<string | null>(null);
   const [isImporterOpen, setIsImporterOpen] = useState(false);
   const [isAlertsDrawerOpen, setIsAlertsDrawerOpen] = useState(false);
+  const [isDownloadingCloud, setIsDownloadingCloud] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
 
-  const { unreadAlertsCount } = useFinance();
+  const { unreadAlertsCount, refreshFromCloud } = useFinance();
 
   const [dashboardLayout, setDashboardLayout] = useState<DashboardLayoutPreferences>(DEFAULT_DASHBOARD_LAYOUT);
 
@@ -236,13 +238,44 @@ function DashboardContent() {
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-            {/* Botão Importar Extrato */}
+            {/* Botão Baixar da Nuvem */}
             <button
-              onClick={() => setIsImporterOpen(true)}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm"
+              onClick={async () => {
+                if (isDownloadingCloud) return;
+                setIsDownloadingCloud(true);
+                setDownloadSuccess(false);
+                try {
+                  await refreshFromCloud();
+                  setDownloadSuccess(true);
+                  setTimeout(() => setDownloadSuccess(false), 2500);
+                } catch (e) {
+                  console.error('Falha ao baixar da nuvem:', e);
+                } finally {
+                  setIsDownloadingCloud(false);
+                }
+              }}
+              disabled={isDownloadingCloud}
+              className={`hidden sm:flex items-center gap-1.5 px-3.5 py-2 border rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm disabled:opacity-60 ${
+                downloadSuccess
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                  : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-300 hover:text-white hover:border-emerald-500/40'
+              }`}
+              title="Recarrega as informações oficiais do banco de dados na nuvem"
             >
-              <UploadCloud className="w-4 h-4 text-emerald-400" />
-              <span>Importar OFX/CSV</span>
+              {isDownloadingCloud ? (
+                <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+              ) : downloadSuccess ? (
+                <Check className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <CloudDownload className="w-4 h-4 text-emerald-400" />
+              )}
+              <span>
+                {isDownloadingCloud
+                  ? 'Baixando...'
+                  : downloadSuccess
+                  ? 'Nuvem Atualizada!'
+                  : 'Baixar da Nuvem'}
+              </span>
             </button>
 
             {/* Sininho de Notificações / Alertas */}

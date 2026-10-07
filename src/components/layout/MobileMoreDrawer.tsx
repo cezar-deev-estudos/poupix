@@ -12,6 +12,9 @@ import {
   Users,
   Settings,
   UploadCloud,
+  CloudDownload,
+  Check,
+  Loader2,
   Eye,
   EyeOff,
   Sun,
@@ -38,8 +41,10 @@ export const MobileMoreDrawer: React.FC<MobileMoreDrawerProps> = ({
   onSelectTab,
   onOpenImporter,
 }) => {
-  const { isPrivacyMode, togglePrivacyMode, theme, toggleTheme, currentUser } = useFinance();
+  const { isPrivacyMode, togglePrivacyMode, theme, toggleTheme, currentUser, refreshFromCloud } = useFinance();
   const { user, isDemoMode, signOut, exitDemoMode } = useAuth();
+  const [isDownloading, setIsDownloading] = React.useState(false);
+  const [downloadSuccess, setDownloadSuccess] = React.useState(false);
 
   if (!isOpen) return null;
 
@@ -146,14 +151,40 @@ export const MobileMoreDrawer: React.FC<MobileMoreDrawerProps> = ({
         <div className="grid grid-cols-3 gap-2.5">
           <button
             type="button"
-            onClick={() => {
-              onClose();
-              onOpenImporter();
+            onClick={async () => {
+              if (isDownloading) return;
+              setIsDownloading(true);
+              setDownloadSuccess(false);
+              try {
+                await refreshFromCloud();
+                setDownloadSuccess(true);
+                setTimeout(() => {
+                  setDownloadSuccess(false);
+                  onClose();
+                }, 1500);
+              } catch (e) {
+                console.error('Falha ao baixar da nuvem:', e);
+              } finally {
+                setIsDownloading(false);
+              }
             }}
-            className="p-3 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col items-center gap-1.5 text-slate-300 hover:text-white hover:border-emerald-500/40 transition-all cursor-pointer"
+            disabled={isDownloading}
+            className={`p-3 rounded-2xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer disabled:opacity-60 ${
+              downloadSuccess
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-emerald-500/40'
+            }`}
           >
-            <UploadCloud className="w-5 h-5 text-emerald-400" />
-            <span className="text-[10px] font-semibold text-center">Importar OFX/CSV</span>
+            {isDownloading ? (
+              <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
+            ) : downloadSuccess ? (
+              <Check className="w-5 h-5 text-emerald-400" />
+            ) : (
+              <CloudDownload className="w-5 h-5 text-emerald-400" />
+            )}
+            <span className="text-[10px] font-semibold text-center">
+              {isDownloading ? 'Baixando...' : downloadSuccess ? 'Atualizado!' : 'Baixar da Nuvem'}
+            </span>
           </button>
 
           <button
