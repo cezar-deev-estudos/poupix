@@ -244,7 +244,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (savedPendingBank) {
         setPendingBankTransactions(JSON.parse(savedPendingBank));
       }
-      setReadAlertIds(savedReadAlerts ? JSON.parse(savedReadAlerts) : []);
+      
+      const cloudReadAlerts: string[] | null = user?.user_metadata?.read_alert_ids;
+      if (Array.isArray(cloudReadAlerts)) {
+        setReadAlertIds(cloudReadAlerts);
+      } else {
+        setReadAlertIds(savedReadAlerts ? JSON.parse(savedReadAlerts) : []);
+      }
+
       setIsPrivacyMode(savedPrivacy ? JSON.parse(savedPrivacy) : false);
       if (savedTheme) setTheme(savedTheme);
     } catch (e) {
@@ -929,8 +936,33 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             return false;
           }
         },
-        markAlertAsRead: alertId => setReadAlertIds(prev => (prev.includes(alertId) ? prev : [...prev, alertId])),
-        markAllAlertsAsRead: () => setReadAlertIds(alerts.map(a => a.id)),
+        markAlertAsRead: (alertId: string) => {
+          setReadAlertIds(prev => {
+            if (prev.includes(alertId)) return prev;
+            const next = [...prev.slice(-49), alertId];
+            if (user) {
+              const supabase = getSupabaseClient();
+              if (supabase) {
+                supabase.auth.updateUser({
+                  data: { read_alert_ids: next }
+                }).catch(err => console.warn('[Supabase] Falha ao sincronizar alerta lido:', err));
+              }
+            }
+            return next;
+          });
+        },
+        markAllAlertsAsRead: () => {
+          const allIds = Array.from(new Set([...readAlertIds, ...alerts.map(a => a.id)])).slice(-50);
+          setReadAlertIds(allIds);
+          if (user) {
+            const supabase = getSupabaseClient();
+            if (supabase) {
+              supabase.auth.updateUser({
+                data: { read_alert_ids: allIds }
+              }).catch(err => console.warn('[Supabase] Falha ao sincronizar todos os alertas lidos:', err));
+            }
+          }
+        },
         summary,
         filteredTransactions,
         refreshFromCloud,
