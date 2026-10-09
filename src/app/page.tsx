@@ -27,6 +27,7 @@ import { UsersManagementView } from '@/components/users/UsersManagementView';
 import { TransactionModal, TransactionFlowType } from '@/components/transactions/modal/TransactionModal';
 import { BankStatementImporterModal } from '@/components/importer/BankStatementImporterModal';
 import { AlertsDrawer } from '@/components/alerts/AlertsDrawer';
+import { PendingAlertsView, AlertTabFilter } from '@/components/alerts/PendingAlertsView';
 import { MobillsMobileHome } from '@/components/dashboard/MobillsMobileHome';
 import { MobileMonthlyBalanceView } from '@/components/dashboard/MobileMonthlyBalanceView';
 import { DesktopMonthlyBalanceView } from '@/components/dashboard/DesktopMonthlyBalanceView';
@@ -47,6 +48,7 @@ function DashboardContent() {
   const [selectedTxFilter, setSelectedTxFilter] = useState<'all' | 'income' | 'expense' | 'transfer'>('all');
   const [selectedTxStatusFilter, setSelectedTxStatusFilter] = useState<'all' | 'pending' | 'paid'>('all');
   const [selectedDetailCardId, setSelectedDetailCardId] = useState<string | null>(null);
+  const [pendingAlertsTab, setPendingAlertsTab] = useState<AlertTabFilter>('closed_invoices');
   const [isNewTxModalOpen, setIsNewTxModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [txModalFlow, setTxModalFlow] = useState<TransactionFlowType>('expense');
@@ -167,6 +169,12 @@ function DashboardContent() {
     cardId?: string,
     statusFilter?: 'all' | 'pending' | 'paid'
   ) => {
+    if (tab === 'pending-alerts') {
+      if (cardId === 'overdue_invoices' || cardId === 'closed_invoices' || cardId === 'reminders') {
+        setPendingAlertsTab(cardId);
+      }
+    }
+
     if (filterType) {
       setSelectedTxFilter(filterType);
     } else if (tab === 'transactions') {
@@ -179,7 +187,7 @@ function DashboardContent() {
       setSelectedTxStatusFilter('all');
     }
 
-    if (cardId) {
+    if (cardId && tab !== 'pending-alerts') {
       setSelectedDetailCardId(cardId);
     } else if (tab !== 'cards') {
       setSelectedDetailCardId(null);
@@ -516,6 +524,14 @@ function DashboardContent() {
               />
             </div>
           </>
+        )}
+        {activeTab === 'pending-alerts' && (
+          <PendingAlertsView
+            initialFilter={pendingAlertsTab}
+            onBack={handleGoBack}
+            onNavigateTab={handleNavigateTab}
+            onOpenAlertsDrawer={() => setIsAlertsDrawerOpen(true)}
+          />
         )}
       </main>
 

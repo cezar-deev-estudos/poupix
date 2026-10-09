@@ -136,7 +136,7 @@ export const PendingAlertsCards: React.FC<PendingAlertsCardsProps> = ({ onNaviga
         amountColor: 'text-rose-400',
         badgeBg: 'bg-rose-500',
         icon: <FileText className="w-4 h-4 stroke-[2]" />,
-        onClick: () => onNavigateTab('cards'),
+        onClick: () => onNavigateTab('pending-alerts', undefined, 'overdue_invoices'),
       });
     }
 
@@ -149,7 +149,7 @@ export const PendingAlertsCards: React.FC<PendingAlertsCardsProps> = ({ onNaviga
         amountColor: 'text-teal-400',
         badgeBg: 'bg-teal-500',
         icon: <FileText className="w-4 h-4 stroke-[2]" />,
-        onClick: () => onNavigateTab('cards'),
+        onClick: () => onNavigateTab('pending-alerts', undefined, 'closed_invoices'),
       });
     }
 
