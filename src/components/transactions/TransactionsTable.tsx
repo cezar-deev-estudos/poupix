@@ -7,6 +7,7 @@ import { formatCurrency, formatDateBR, getLocalDateString } from '@/lib/utils';
 import { getTransactionInvoicePeriod, getEffectiveTransactionDate } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { TransactionRowMenu } from './TransactionRowMenu';
+import { ConfirmPaymentModal } from './ConfirmPaymentModal';
 import { Check, Clock, CreditCard, MoreVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Repeat } from 'lucide-react';
 
 interface TransactionsTableProps {
@@ -33,6 +34,16 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isRowsDropdownOpen, setIsRowsDropdownOpen] = useState(false);
   const [openMenuTxId, setOpenMenuTxId] = useState<string | null>(null);
+
+  // Estado para caixa box de confirmação de pagamento
+  const [confirmingPayment, setConfirmingPayment] = useState<{
+    tx: Transaction | null;
+    isGroupedCard?: boolean;
+    cardId?: string;
+    periodKey?: string;
+    invoiceInfo?: { cardName: string; amount: number; dueDate: string } | null;
+    currentPaid: boolean;
+  } | null>(null);
 
   const getTxDate = (tx: Transaction) => {
     const card = creditCards.find((c) => c.id === tx.creditCardId);
@@ -143,12 +154,40 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
 
-  const togglePaid = (id: string, currentPaid: boolean, txItem?: Transaction) => {
-    // Se for uma linha sintética de fatura agrupada: grouped-card-${cardId}-${currentPeriodKey}
+  const handleRequestTogglePaid = (id: string, currentPaid: boolean, txItem?: Transaction) => {
+    // Se for uma linha sintética de fatura agrupada
     if (id.startsWith('grouped-card-')) {
       const parts = id.replace('grouped-card-', '').split('-');
       const cardId = parts[0];
       const periodKey = `${parts[1]}-${parts[2]}`;
+      const card = creditCards.find(c => c.id === cardId);
+      setConfirmingPayment({
+        tx: null,
+        isGroupedCard: true,
+        cardId,
+        periodKey,
+        invoiceInfo: {
+          cardName: card?.name ? `Fatura Cartão ${card.name}` : 'Fatura Cartão de Crédito',
+          amount: txItem?.amount || 0,
+          dueDate: txItem?.date || '',
+        },
+        currentPaid,
+      });
+      return;
+    }
+
+    const tx = txItem || sortedTransactions.find(t => t.id === id) || null;
+    setConfirmingPayment({
+      tx,
+      currentPaid,
+    });
+  };
+
+  const handleConfirmExecutePayment = (paymentDate?: string) => {
+    if (!confirmingPayment) return;
+    const { tx, isGroupedCard, cardId, periodKey, currentPaid } = confirmingPayment;
+
+    if (isGroupedCard && cardId && periodKey) {
       const card = creditCards.find(c => c.id === cardId);
       if (card) {
         const nextPaidStatus = !currentPaid;
@@ -162,19 +201,28 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
         });
 
         // Atualizar todas as compras vinculadas a esta fatura
-        allTransactions.forEach(tx => {
-          if (tx.creditCardId === card.id) {
-            const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(tx, card);
-            if (txPeriodKey === periodKey && tx.paid !== nextPaidStatus) {
-              updateTransaction(tx.id, { paid: nextPaidStatus });
+        allTransactions.forEach(t => {
+          if (t.creditCardId === card.id) {
+            const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(t, card);
+            if (txPeriodKey === periodKey && t.paid !== nextPaidStatus) {
+              updateTransaction(t.id, { paid: nextPaidStatus });
             }
           }
         });
       }
+      setConfirmingPayment(null);
       return;
     }
 
-    updateTransaction(id, { paid: !currentPaid });
+    if (tx) {
+      const nextPaid = !currentPaid;
+      updateTransaction(tx.id, {
+        paid: nextPaid,
+        ...(paymentDate && nextPaid ? { paymentDate } : {}),
+      });
+    }
+
+    setConfirmingPayment(null);
   };
 
   const paginationStart = totalItems === 0 ? 0 : (safeCurrentPage - 1) * rowsPerPage + 1;
@@ -314,7 +362,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => togglePaid(tx.id, isEffectivelyPaid)}
+                            onClick={() => handleRequestTogglePaid(tx.id, isEffectivelyPaid, tx)}
                             className={`w-6 h-6 rounded-full flex items-center justify-center transition-all select-none cursor-pointer ${
                               isEffectivelyPaid
                                 ? 'bg-emerald-500 text-slate-950 shadow-sm'
@@ -471,7 +519,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                         {isGroupedCard ? (
                           <button
                             type="button"
-                            onClick={() => togglePaid(tx.id, isEffectivelyPaid)}
+                            onClick={() => handleRequestTogglePaid(tx.id, isEffectivelyPaid, tx)}
                             className="p-1.5 text-slate-500 hover:text-teal-400 hover:bg-slate-700/60 rounded-xl transition-colors cursor-pointer"
                             title={isEffectivelyPaid ? 'Marcar fatura como pendente' : 'Marcar fatura como paga'}
                           >
@@ -593,6 +641,15 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Modal Box de Confirmação de Pagamento / Efetivação */}
+      <ConfirmPaymentModal
+        isOpen={Boolean(confirmingPayment)}
+        transaction={confirmingPayment?.tx || null}
+        invoiceInfo={confirmingPayment?.invoiceInfo}
+        onConfirm={handleConfirmExecutePayment}
+        onCancel={() => setConfirmingPayment(null)}
+      />
     </div>
   );
 };

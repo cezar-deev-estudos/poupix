@@ -4,7 +4,7 @@ import React from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency } from '@/lib/utils';
 import { ActiveTab } from '@/components/layout/Sidebar';
-import { Wallet, TrendingUp, TrendingDown, CreditCard, ArrowUpRight, ArrowDownRight, ShieldCheck } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, Scale, ArrowUpRight, ArrowDownRight, ShieldCheck } from 'lucide-react';
 
 interface SummaryCardsProps {
   onNavigateTab?: (tab: ActiveTab, filterType?: 'all' | 'income' | 'expense' | 'transfer') => void;
@@ -83,23 +83,23 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ onNavigateTab }) => 
         </div>
       </div>
 
-      {/* Faturas de Cartão -> Abre Cartões de Crédito */}
+      {/* Balanço Mensal -> Abre Balanço Mensal */}
       <div 
-        onClick={() => onNavigateTab?.('cards')}
-        className={`relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-950/90 border border-slate-800/80 p-5 rounded-3xl shadow-xl backdrop-blur-md group hover:border-violet-500/50 transition-all ${onNavigateTab ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.99]' : ''}`}
+        onClick={() => onNavigateTab?.('monthly-balance')}
+        className={`relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-950/90 border border-slate-800/80 p-5 rounded-3xl shadow-xl backdrop-blur-md group hover:border-purple-500/50 transition-all ${onNavigateTab ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.99]' : ''}`}
       >
-        <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 rounded-full blur-2xl group-hover:bg-violet-500/15 transition-all"></div>
+        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl group-hover:bg-purple-500/15 transition-all"></div>
         <div className="flex items-center justify-between mb-3">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Faturas de Cartão</span>
-          <div className="w-10 h-10 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 group-hover:bg-violet-500/20 transition-all">
-            <CreditCard className="w-5 h-5" />
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Balanço do Mês</span>
+          <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 group-hover:bg-purple-500/20 transition-all">
+            <Scale className="w-5 h-5" />
           </div>
         </div>
-        <div className="text-2xl lg:text-3xl font-extrabold text-violet-400 tracking-tight">
-          {displayVal(summary.creditCardTotalInvoice)}
+        <div className={`text-2xl lg:text-3xl font-extrabold tracking-tight ${summary.monthlySavings >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+          {displayVal(summary.monthlySavings)}
         </div>
         <div className="flex items-center gap-1.5 mt-2 text-xs text-slate-400">
-          <span>Gastos em cartões no mês</span>
+          <span>{summary.monthlySavings >= 0 ? 'Superávit no período' : 'Déficit no período'}</span>
         </div>
       </div>
     </div>

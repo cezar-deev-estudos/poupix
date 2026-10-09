@@ -306,6 +306,7 @@ function DashboardContent() {
                 onNavigateTab={handleNavigateTab}
                 onOpenNewTransaction={handleOpenNewTransaction}
                 onOpenAlerts={() => setIsAlertsDrawerOpen(true)}
+                dashboardLayout={dashboardLayout}
               />
             </div>
 

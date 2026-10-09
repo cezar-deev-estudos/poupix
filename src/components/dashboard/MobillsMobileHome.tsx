@@ -18,6 +18,7 @@ import {
   Bell,
   User,
   Crown,
+  ArrowRight,
 } from 'lucide-react';
 import { ActiveTab } from '../layout/Sidebar';
 import { TransactionFlowType } from '../transactions/modal/TransactionModal';
@@ -25,6 +26,8 @@ import { MonthDropdownModal } from '../layout/MonthDropdownModal';
 import { PendingAlertsCards } from './PendingAlertsCards';
 import { useAuth } from '@/context/AuthContext';
 import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
+import { TransactionList } from '../transactions/TransactionList';
+import { DashboardLayoutPreferences } from '@/types/settings';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -40,12 +43,14 @@ interface MobillsMobileHomeProps {
   ) => void;
   onOpenNewTransaction: (flowType?: TransactionFlowType) => void;
   onOpenAlerts?: () => void;
+  dashboardLayout?: DashboardLayoutPreferences;
 }
 
 export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
   onNavigateTab,
   onOpenNewTransaction,
   onOpenAlerts,
+  dashboardLayout,
 }) => {
   const {
     summary,
@@ -204,9 +209,9 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
   };
 
   return (
-    <div className="space-y-5 pb-24 animate-fadeIn">
+    <div className="space-y-4 pb-24 animate-fadeIn">
       {/* 1. HERO CARD: TOPO MOBILLS + SALDO EM CONTAS */}
-      <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-5 shadow-xl space-y-4">
+      <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl px-4 pt-3 pb-4 shadow-xl space-y-2.5">
         {/* Top Header do Card: Avatar Usuário | Mês Dropdown | Ícone Notificações / Alertas */}
         <div className="flex items-center justify-between gap-2">
           {/* Avatar Usuário com Badge VIP / Perfil */}
@@ -216,8 +221,8 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
             className="relative p-0.5 rounded-full hover:opacity-90 active:scale-95 transition-all cursor-pointer"
             title="Meu Perfil"
           >
-            <div className="w-10 h-10 rounded-full border-2 border-slate-600/80 bg-slate-800/90 flex items-center justify-center text-slate-300 shadow-inner">
-              <User className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-full border-2 border-slate-600/80 bg-slate-800/90 flex items-center justify-center text-slate-300 shadow-inner">
+              <User className="w-4 h-4" />
             </div>
             <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400 border-2 border-[#1c202a] flex items-center justify-center text-slate-950 shadow-sm">
               <Crown className="w-2.5 h-2.5 fill-slate-950" />
@@ -228,7 +233,7 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           <button
             type="button"
             onClick={() => setIsMonthModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl hover:bg-slate-800/60 active:scale-95 transition-all text-white font-bold text-base cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-2xl hover:bg-slate-800/60 active:scale-95 transition-all text-white font-bold text-base cursor-pointer"
           >
             <span>{MONTH_NAMES[selectedMonth]}</span>
             <ChevronDown className="w-4 h-4 text-slate-400 stroke-[2.5]" />
@@ -238,10 +243,10 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           <button
             type="button"
             onClick={() => onOpenAlerts?.()}
-            className="relative w-10 h-10 rounded-full bg-[#9333EA] hover:bg-[#A855F7] active:scale-95 text-white flex items-center justify-center shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
+            className="relative w-9 h-9 rounded-full bg-[#9333EA] hover:bg-[#A855F7] active:scale-95 text-white flex items-center justify-center shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
             title="Notificações e Alertas"
           >
-            <Bell className="w-5 h-5" />
+            <Bell className="w-4 h-4" />
             {unreadAlertsCount > 0 && (
               <span className="absolute top-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-[#1c202a] rounded-full" />
             )}
@@ -249,19 +254,21 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
         </div>
 
         {/* Saldo Central */}
-        <div className="text-center space-y-1 pt-1">
+        <div className="flex flex-col items-center space-y-1">
           <span 
             onClick={() => onNavigateTab('accounts')}
-            className="text-xs font-semibold text-slate-400 block cursor-pointer hover:text-slate-200 transition-colors"
+            className="text-[11px] font-semibold text-slate-400 block cursor-pointer hover:text-slate-200 transition-colors"
           >
             Saldo em contas
           </span>
           <div 
             onClick={() => onNavigateTab('accounts')}
-            className="text-2xl font-bold text-white tracking-tight cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-transform"
+            className="text-2xl font-bold text-white tracking-tight cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-transform leading-tight"
           >
             {displayVal(summary.totalBalance)}
           </div>
+
+          {/* Ícone de Privacidade centralizado no meio entre Saldo e Balanço */}
           <button
             type="button"
             onClick={togglePrivacyMode}
@@ -270,6 +277,17 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           >
             {isPrivacyMode ? <EyeOff className="w-4 h-4 text-emerald-400" /> : <Eye className="w-4 h-4" />}
           </button>
+
+          {/* Balanço Minimalista */}
+          <div 
+            onClick={() => onNavigateTab('monthly-balance')}
+            className="inline-flex items-center justify-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800/40 border border-slate-700/40 text-[11px] cursor-pointer hover:bg-slate-800/70 active:scale-98 transition-all"
+          >
+            <span className="text-slate-400">Balanço:</span>
+            <span className={`font-semibold ${summary.monthlySavings >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {displayVal(summary.monthlySavings)}
+            </span>
+          </div>
         </div>
 
         {/* Pílulas de Receitas e Despesas -> Abre Extrato de Transações */}
@@ -640,6 +658,27 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           </div>
         </div>
       </div>
+
+      {/* CARD: ÚLTIMAS TRANSAÇÕES DO MÊS */}
+      {(!dashboardLayout || dashboardLayout.enabled?.recentTransactions !== false) && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <h4 className="text-sm font-bold text-slate-300">Últimas Transações do Mês</h4>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('transactions', 'all')}
+              className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors cursor-pointer"
+            >
+              Ver todas
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-4 shadow-xl">
+            <TransactionList limit={5} />
+          </div>
+        </div>
+      )}
 
       {/* 6. CARD: PLANEJAMENTO MENSAL */}
       <div className="space-y-2">

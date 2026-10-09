@@ -29,6 +29,7 @@ import { TransactionsOptionsMenu } from './TransactionsOptionsMenu';
 import { NewTransactionModal } from './NewTransactionModal';
 import { TransactionScopeModal } from './TransactionScopeModal';
 import { ConfirmModal } from '../ui/ConfirmModal';
+import { ConfirmPaymentModal } from './ConfirmPaymentModal';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -340,7 +341,16 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     return () => clearTimeout(timer);
   }, [groupedByDate]);
 
-  const togglePaid = (e: React.MouseEvent, id: string, currentPaid: boolean) => {
+  const [confirmingPayment, setConfirmingPayment] = useState<{
+    tx: Transaction | null;
+    isGroupedCard?: boolean;
+    cardId?: string;
+    periodKey?: string;
+    invoiceInfo?: { cardName: string; amount: number; dueDate: string } | null;
+    currentPaid: boolean;
+  } | null>(null);
+
+  const togglePaid = (e: React.MouseEvent, id: string, currentPaid: boolean, txItem?: Transaction) => {
     e.stopPropagation();
 
     // Se for fatura sintética de cartão
@@ -348,6 +358,34 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
       const parts = id.replace('grouped-card-', '').split('-');
       const cardId = parts[0];
       const periodKey = `${parts[1]}-${parts[2]}`;
+      const card = creditCards.find(c => c.id === cardId);
+      setConfirmingPayment({
+        tx: null,
+        isGroupedCard: true,
+        cardId,
+        periodKey,
+        invoiceInfo: {
+          cardName: card?.name ? `Fatura Cartão ${card.name}` : 'Fatura Cartão de Crédito',
+          amount: txItem?.amount || 0,
+          dueDate: txItem?.date || '',
+        },
+        currentPaid,
+      });
+      return;
+    }
+
+    const tx = txItem || displayedTransactions.find(t => t.id === id) || null;
+    setConfirmingPayment({
+      tx,
+      currentPaid,
+    });
+  };
+
+  const handleConfirmExecutePayment = (paymentDate?: string) => {
+    if (!confirmingPayment) return;
+    const { tx, isGroupedCard, cardId, periodKey, currentPaid } = confirmingPayment;
+
+    if (isGroupedCard && cardId && periodKey) {
       const card = creditCards.find(c => c.id === cardId);
       if (card) {
         const nextPaidStatus = !currentPaid;
@@ -361,19 +399,28 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
         });
 
         // Atualizar todas as compras vinculadas a esta fatura
-        allTransactions.forEach(tx => {
-          if (tx.creditCardId === card.id) {
-            const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(tx, card);
-            if (txPeriodKey === periodKey && tx.paid !== nextPaidStatus) {
-              updateTransaction(tx.id, { paid: nextPaidStatus });
+        allTransactions.forEach(t => {
+          if (t.creditCardId === card.id) {
+            const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(t, card);
+            if (txPeriodKey === periodKey && t.paid !== nextPaidStatus) {
+              updateTransaction(t.id, { paid: nextPaidStatus });
             }
           }
         });
       }
+      setConfirmingPayment(null);
       return;
     }
 
-    updateTransaction(id, { paid: !currentPaid });
+    if (tx) {
+      const nextPaid = !currentPaid;
+      updateTransaction(tx.id, {
+        paid: nextPaid,
+        ...(paymentDate && nextPaid ? { paymentDate } : {}),
+      });
+    }
+
+    setConfirmingPayment(null);
   };
 
   const handleConfirmDelete = () => {
@@ -906,7 +953,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
-                            onClick={(e) => togglePaid(e, tx.id, isEffectivelyPaid)}
+                            onClick={(e) => togglePaid(e, tx.id, isEffectivelyPaid, tx)}
                             className={`w-5 h-5 rounded-full flex items-center justify-center transition-all select-none shrink-0 cursor-pointer ${
                               isEffectivelyPaid
                                 ? 'bg-[#22c55e] text-slate-950 shadow-sm'
@@ -955,6 +1002,19 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
           setDeletingTransaction(tx);
         }}
       />
+
+      {/* Modal de Confirmação de Efetivação / Pagamento com data */}
+      {confirmingPayment && (
+        <ConfirmPaymentModal
+          isOpen={Boolean(confirmingPayment)}
+          onClose={() => setConfirmingPayment(null)}
+          onConfirm={handleConfirmExecutePayment}
+          currentPaid={confirmingPayment.currentPaid}
+          transaction={confirmingPayment.tx}
+          isGroupedCard={confirmingPayment.isGroupedCard}
+          invoiceInfo={confirmingPayment.invoiceInfo}
+        />
+      )}
 
       {/* Modal de Filtros Avançados */}
       <TransactionsFilterModal

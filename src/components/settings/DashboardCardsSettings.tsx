@@ -226,11 +226,14 @@ export const DashboardCardsSettings: React.FC<DashboardCardsSettingsProps> = ({ 
           onDrop={() => handleDrop('left')}
           className="space-y-3 min-h-[220px] p-2 rounded-2xl border border-dashed border-slate-800/80 bg-slate-950/20"
         >
-          <h4 className="text-xs font-semibold text-slate-400 text-center mb-2">Cards da esquerda</h4>
+          <div className="text-center mb-2">
+            <h4 className="text-xs font-semibold text-slate-300">Coluna Esquerda (Desktop)</h4>
+            <span className="text-[10px] text-slate-500">Exibidos no topo da coluna</span>
+          </div>
           {layout.leftColumn.map((id, index) => renderCardItem(id, 'left', index))}
           {layout.leftColumn.length === 0 && (
             <div className="h-28 flex items-center justify-center text-xs text-slate-500">
-              Nenhum card na coluna esquerda
+              Nenhum card nesta coluna
             </div>
           )}
         </div>
@@ -241,11 +244,14 @@ export const DashboardCardsSettings: React.FC<DashboardCardsSettingsProps> = ({ 
           onDrop={() => handleDrop('right')}
           className="space-y-3 min-h-[220px] p-2 rounded-2xl border border-dashed border-slate-800/80 bg-slate-950/20"
         >
-          <h4 className="text-xs font-semibold text-slate-400 text-center mb-2">Cards da direita</h4>
+          <div className="text-center mb-2">
+            <h4 className="text-xs font-semibold text-slate-300">Coluna Direita (Desktop)</h4>
+            <span className="text-[10px] text-slate-500">Exibidos na segunda coluna</span>
+          </div>
           {layout.rightColumn.map((id, index) => renderCardItem(id, 'right', index))}
           {layout.rightColumn.length === 0 && (
             <div className="h-28 flex items-center justify-center text-xs text-slate-500">
-              Nenhum card na coluna direita
+              Nenhum card nesta coluna
             </div>
           )}
         </div>

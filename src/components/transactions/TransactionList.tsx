@@ -8,6 +8,7 @@ import { CategoryIcon } from '../ui/CategoryIcon';
 import { CheckCircle2, Clock, Trash2, Pencil, ArrowRightLeft, CreditCard, Wallet } from 'lucide-react';
 import { Transaction } from '@/types/finance';
 import { ConfirmModal } from '../ui/ConfirmModal';
+import { ConfirmPaymentModal } from './ConfirmPaymentModal';
 import { NewTransactionModal } from './NewTransactionModal';
 import { TransactionScopeModal } from './TransactionScopeModal';
 
@@ -22,11 +23,22 @@ export const TransactionList: React.FC<TransactionListProps> = ({ limit, showAll
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
   const [deleteMode, setDeleteMode] = useState<'single' | 'following' | 'all'>('single');
+  const [confirmingTx, setConfirmingTx] = useState<Transaction | null>(null);
 
   const transactionsToDisplay = limit ? filteredTransactions.slice(0, limit) : filteredTransactions;
 
-  const togglePaid = (id: string, currentPaid: boolean) => {
-    updateTransaction(id, { paid: !currentPaid });
+  const handleRequestTogglePaid = (tx: Transaction) => {
+    setConfirmingTx(tx);
+  };
+
+  const handleConfirmExecutePayment = (paymentDate?: string) => {
+    if (!confirmingTx) return;
+    const nextPaid = !confirmingTx.paid;
+    updateTransaction(confirmingTx.id, {
+      paid: nextPaid,
+      ...(paymentDate && nextPaid ? { paymentDate } : {}),
+    });
+    setConfirmingTx(null);
   };
 
   const handleConfirmDelete = () => {
@@ -60,146 +72,119 @@ export const TransactionList: React.FC<TransactionListProps> = ({ limit, showAll
 
   return (
     <>
-      <div className="space-y-2.5">
-        {transactionsToDisplay.map(tx => {
-          const cat = categories.find(c => c.id === tx.categoryId);
-          const parentCat = cat?.parentId ? categories.find(c => c.id === cat.parentId) : null;
-          const categoryDisplayName = parentCat ? `${parentCat.name} / ${cat?.name}` : cat?.name || 'Geral';
-          const acc = accounts.find(a => a.id === tx.accountId);
-          const card = creditCards.find(c => c.id === tx.creditCardId);
-          const destAcc = accounts.find(a => a.id === tx.destinationAccountId);
+      <div className="space-y-2">
+        {transactionsToDisplay.map((tx) => {
+          const directCat = categories.find((c) => c.id === tx.categoryId);
+          const parentCat = directCat?.parentId ? categories.find((c) => c.id === directCat.parentId) : null;
+          const cat = parentCat || directCat;
+          const acc = accounts.find((a) => a.id === tx.accountId);
+          const card = creditCards.find((c) => c.id === tx.creditCardId);
+          const destAcc = accounts.find((a) => a.id === tx.destinationAccountId);
 
           const isExpense = tx.type === 'expense';
           const isIncome = tx.type === 'income';
-          const isTransfer = tx.type === 'transfer';
-          const effectiveDate = getEffectiveTransactionDate(tx, card);
+
+          const accountName =
+            tx.type === 'transfer'
+              ? `${acc?.name || 'Conta'} ➔ ${destAcc?.name || 'Conta'}`
+              : card
+              ? card.name
+              : acc?.name || 'Conta';
+          const categoryName = cat?.name || 'Geral';
 
           return (
             <div
               key={tx.id}
-              className="flex items-center justify-between p-3.5 sm:p-4 bg-slate-900/90 border border-slate-800/80 hover:border-slate-700/80 rounded-2xl transition-all group"
+              onClick={() => setEditingTransaction(tx)}
+              className="flex items-center justify-between p-3.5 bg-[#242732]/90 border border-slate-800/70 hover:border-slate-700 rounded-2xl transition-all active:scale-[0.99] cursor-pointer group"
             >
-              {/* Ícone e Detalhes da Esquerda */}
-              <div className="flex items-center gap-3 min-w-0">
+              {/* Ícone e Detalhes da Transação */}
+              <div className="flex items-start gap-3 min-w-0 flex-1">
                 <div
-                  className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-md"
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 shadow-md mt-0.5"
                   style={{
-                    backgroundColor: isTransfer ? '#3B82F6' : cat?.color || '#6B7280',
+                    backgroundColor:
+                      cat?.color || (tx.type === 'transfer' ? '#3B82F6' : isExpense ? '#f97316' : '#84cc16'),
                   }}
                 >
-                  {isTransfer ? (
-                    <ArrowRightLeft className="w-5 h-5" />
-                  ) : (
-                    <CategoryIcon name={cat?.icon || 'Tag'} size={18} />
-                  )}
+                  <CategoryIcon name={cat?.icon || 'Tag'} size={18} />
                 </div>
 
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-white text-sm truncate">{tx.description}</span>
-                    {!isTransfer && (
-                      <span className="bg-slate-800 text-emerald-400 text-[10px] font-medium px-2 py-0.5 rounded-md truncate max-w-[140px] sm:max-w-none">
-                        {categoryDisplayName}
-                      </span>
-                    )}
-                    {tx.installmentCurrent && tx.installmentTotal && (
-                      <span className="bg-slate-800 text-slate-400 text-[10px] font-medium px-2 py-0.5 rounded-md">
-                        {tx.installmentCurrent}/{tx.installmentTotal}x
-                      </span>
-                    )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-normal text-slate-100 text-xs truncate group-hover:text-white transition-colors">
+                      {tx.description}
+                    </span>
                     {tx.isRecurring && (
-                      <span className="bg-indigo-950/80 text-indigo-400 border border-indigo-800 text-[10px] px-1.5 py-0.5 rounded-md">
+                      <span className="inline-flex items-center gap-0.5 bg-indigo-950/80 text-indigo-300 border border-indigo-800/70 text-[9px] font-normal px-1.5 py-0.2 rounded-md shrink-0 shadow-sm" title="Despesa/Receita Fixa">
                         Fixa
                       </span>
                     )}
                   </div>
-
-                  <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5 truncate">
-                    <span>{formatDateBR(effectiveDate)}</span>
-                    <span>•</span>
-                    {isTransfer ? (
-                      <span className="truncate">{acc?.name} ➔ {destAcc?.name}</span>
-                    ) : card ? (
-                      <span className="flex items-center gap-1 text-violet-400 truncate">
-                        <CreditCard className="w-3 h-3" />
-                        {card.name}
+                  <div className="text-[11px] text-slate-400 flex items-center gap-1.5 truncate mt-0.5">
+                    <span className="truncate">{categoryName}</span>
+                    <span className="text-slate-600">|</span>
+                    {card ? (
+                      <span className="inline-flex items-center gap-1 text-cyan-300 truncate">
+                        <CreditCard className="w-3 h-3 shrink-0 text-cyan-400" />
+                        <span className="truncate">{accountName}</span>
                       </span>
                     ) : (
-                      <span className="flex items-center gap-1 text-slate-400 truncate">
-                        <Wallet className="w-3 h-3" />
-                        {acc?.name || 'Conta'}
-                      </span>
-                    )}
-                    {tx.tags && tx.tags.length > 0 && (
-                      <>
-                        <span>•</span>
-                        <span className="text-emerald-400/80">#{tx.tags[0]}</span>
-                      </>
+                      <span className="truncate">{accountName}</span>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Valor e Ações da Direita */}
-              <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-3">
-                <div className="text-right">
-                  <span
-                    className={`font-bold text-sm sm:text-base block ${
-                      isIncome
-                        ? 'text-emerald-400'
-                        : isExpense
-                        ? 'text-rose-400'
-                        : 'text-blue-400'
-                    }`}
-                  >
-                    {isExpense ? '- ' : isIncome ? '+ ' : ''}
-                    {formatCurrency(tx.amount)}
-                  </span>
-                  <div
-                    className={`text-[10px] flex items-center gap-1 ml-auto font-medium select-none ${
-                      tx.paid ? 'text-emerald-500/80' : 'text-amber-500/80'
-                    }`}
-                    title={tx.paid ? 'Efetivado' : 'Pendente'}
-                  >
-                    {tx.paid ? (
-                      <>
-                        <CheckCircle2 className="w-3 h-3" />
-                        Efetivado
-                      </>
-                    ) : (
-                      <>
-                        <Clock className="w-3 h-3" />
-                        Pendente
-                      </>
-                    )}
-                  </div>
-                </div>
+              {/* Valor e Botão Circular de Status */}
+              <div className="flex items-center gap-2.5 shrink-0 ml-3 self-center">
+                <span
+                  className={`text-xs font-semibold ${
+                    isIncome
+                      ? 'text-emerald-400'
+                      : isExpense
+                      ? 'text-rose-400'
+                      : 'text-blue-400'
+                  }`}
+                >
+                  {formatCurrency(tx.amount)}
+                </span>
 
-                {/* Ações de Edição e Exclusão */}
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setEditingTransaction(tx)}
-                    className="p-1.5 sm:p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
-                    title="Editar lançamento"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      setDeleteMode('single');
-                      setDeletingTransaction(tx);
-                    }}
-                    className="p-1.5 sm:p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
-                    title="Excluir lançamento"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRequestTogglePaid(tx);
+                  }}
+                  className={`w-5 h-5 rounded-full flex items-center justify-center transition-all select-none shrink-0 cursor-pointer ${
+                    tx.paid
+                      ? 'bg-[#22c55e] text-slate-950 shadow-sm'
+                      : 'bg-[#ef4444] text-white shadow-sm'
+                  }`}
+                  title={tx.paid ? 'Efetivado / Pago' : 'Pendente de pagamento'}
+                >
+                  {tx.paid ? (
+                    <span className="text-[10px] font-bold">✓</span>
+                  ) : (
+                    <span className="text-[10px] font-black leading-none">!</span>
+                  )}
+                </button>
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Modal de Confirmação de Efetivação / Pagamento com data */}
+      {confirmingTx && (
+        <ConfirmPaymentModal
+          isOpen={Boolean(confirmingTx)}
+          onClose={() => setConfirmingTx(null)}
+          onConfirm={handleConfirmExecutePayment}
+          currentPaid={confirmingTx.paid}
+          transaction={confirmingTx}
+        />
+      )}
 
       {/* Modal de Edição de Transação */}
       {editingTransaction && (

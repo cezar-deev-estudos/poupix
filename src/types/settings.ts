@@ -12,12 +12,12 @@ export interface DashboardCardDefinition {
 }
 
 export const ALL_DASHBOARD_CARDS: Record<DashboardCardId, DashboardCardDefinition> = {
-  categoryExpenseChart: { id: 'categoryExpenseChart', label: 'Mostrar gráfico de despesas por categoria?' },
-  creditCardInfo: { id: 'creditCardInfo', label: 'Mostrar informações de cartão de crédito?' },
-  monthlyBalanceCard: { id: 'monthlyBalanceCard', label: 'Mostrar card do balanço mensal?' },
-  categoryIncomeChart: { id: 'categoryIncomeChart', label: 'Mostrar gráfico de receitas por categoria?' },
-  monthlyBalanceChart: { id: 'monthlyBalanceChart', label: 'Mostrar gráfico de evolução mensal (anual)?' },
-  recentTransactions: { id: 'recentTransactions', label: 'Mostrar últimas transações do mês?' },
+  categoryExpenseChart: { id: 'categoryExpenseChart', label: 'Gráfico de despesas por categoria' },
+  creditCardInfo: { id: 'creditCardInfo', label: 'Informações de cartão de crédito' },
+  monthlyBalanceCard: { id: 'monthlyBalanceCard', label: 'Card do balanço mensal' },
+  categoryIncomeChart: { id: 'categoryIncomeChart', label: 'Gráfico de receitas por categoria' },
+  monthlyBalanceChart: { id: 'monthlyBalanceChart', label: 'Gráfico de evolução mensal' },
+  recentTransactions: { id: 'recentTransactions', label: 'Últimas transações do mês' },
 };
 
 export interface DashboardLayoutPreferences {
