@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction } from '@/types/finance';
 import { useFinance } from '@/context/FinanceContext';
-import { formatCurrency, formatDateBR } from '@/lib/utils';
+import { formatCurrency, formatDateBR, getLocalDateString } from '@/lib/utils';
 import { getTransactionInvoicePeriod, getEffectiveTransactionDate } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { TransactionRowMenu } from './TransactionRowMenu';
@@ -26,7 +26,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   onAttach,
   onConvertTransfer,
 }) => {
-  const { categories, accounts, creditCards, updateTransaction, updateCreditCard, transactions: allTransactions } = useFinance();
+  const { categories, accounts, creditCards, selectedMonth, selectedYear, updateTransaction, updateCreditCard, transactions: allTransactions } = useFinance();
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [rowsPerPage, setRowsPerPage] = useState<number>(25);
@@ -48,6 +48,34 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     });
   }, [transactions, creditCards]);
 
+  // Identificar índice da data de Hoje ou Ontem para posicionamento inicial
+  const hasAutoScrolledRef = React.useRef(false);
+
+  React.useEffect(() => {
+    hasAutoScrolledRef.current = false;
+  }, [selectedMonth, selectedYear, transactions.length]);
+
+  React.useEffect(() => {
+    if (sortedTransactions.length === 0) return;
+
+    const now = new Date();
+    const todayStr = getLocalDateString(now);
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterdayStr = getLocalDateString(yesterdayDate);
+
+    // Encontrar se existe transação de hoje ou ontem
+    const targetIndex = sortedTransactions.findIndex((tx) => {
+      const d = getTxDate(tx);
+      return d === todayStr || d === yesterdayStr;
+    });
+
+    if (targetIndex !== -1) {
+      const targetPage = Math.floor(targetIndex / rowsPerPage) + 1;
+      setCurrentPage((prev) => (prev !== targetPage ? targetPage : prev));
+    }
+  }, [sortedTransactions, rowsPerPage, selectedMonth, selectedYear]);
+
   // Paginação
   const totalItems = sortedTransactions.length;
   const totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
@@ -57,6 +85,28 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     const start = (safeCurrentPage - 1) * rowsPerPage;
     return sortedTransactions.slice(start, start + rowsPerPage);
   }, [sortedTransactions, safeCurrentPage, rowsPerPage]);
+
+  // Auto-scroll para posicionar "Hoje" ou "Ontem" perfeitamente rente ao topo ao abrir a lista desktop
+  React.useEffect(() => {
+    if (hasAutoScrolledRef.current || paginatedTransactions.length === 0) return;
+
+    const timer = setTimeout(() => {
+      const targetEl = document.getElementById('desktop-tx-row-hoje') || document.getElementById('desktop-tx-row-ontem');
+      if (targetEl) {
+        // Compensação rente ao topo da janela
+        const targetRect = targetEl.getBoundingClientRect();
+        const scrollPosition = targetRect.top + window.scrollY - 10;
+
+        window.scrollTo({
+          top: Math.max(0, scrollPosition),
+          behavior: 'smooth',
+        });
+        hasAutoScrolledRef.current = true;
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [paginatedTransactions]);
 
   // Agrupamento por dia para calcular saldo do final do dia
   const dailyGroups = useMemo(() => {
@@ -155,9 +205,59 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60 text-xs">
-            {dailyGroups.map((group) => (
-              <React.Fragment key={group.date}>
-                {group.items.map((tx) => {
+            {dailyGroups.map((group) => {
+              const now = new Date();
+              const todayStr = getLocalDateString(now);
+              const yesterdayDate = new Date();
+              yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+              const yesterdayStr = getLocalDateString(yesterdayDate);
+
+              const isTodayGroup = group.date === todayStr;
+              const isYesterdayGroup = group.date === yesterdayStr;
+
+              return (
+                <React.Fragment key={group.date}>
+                  {/* Cabeçalho Diário (Acima das datas/transações) */}
+                  <tr
+                    id={isTodayGroup ? 'desktop-tx-row-hoje' : isYesterdayGroup ? 'desktop-tx-row-ontem' : undefined}
+                    className="bg-[#14171f]/90 border-t border-slate-800/80"
+                  >
+                    <td colSpan={showTypeColumn ? 9 : 8} className="py-2.5 px-4">
+                      <div className="flex items-center justify-between">
+                        {/* Canto Esquerdo: Data / Hoje / Ontem */}
+                        <div className="flex items-center gap-2">
+                          {isTodayGroup ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-sm">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                              Hoje
+                              <span className="text-indigo-400/70 font-normal">({formatDateBR(group.date)})</span>
+                            </span>
+                          ) : isYesterdayGroup ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700/70 shadow-sm">
+                              Ontem
+                              <span className="text-slate-400 font-normal">({formatDateBR(group.date)})</span>
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-semibold text-slate-300 px-1">
+                              {formatDateBR(group.date)}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Centro / Saldo do Final do Dia sem a data embutida */}
+                        <div className="flex-1 text-center pr-12">
+                          <span className="inline-block bg-[#232733] border border-slate-700/60 text-[11px] font-semibold text-slate-300 px-3.5 py-1 rounded-full shadow-sm">
+                            Saldo do Final do Dia:{' '}
+                            <strong className={group.dayBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                              {formatCurrency(group.dayBalance)}
+                            </strong>
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {group.items.map((tx) => {
                   const directCat = categories.find((c) => c.id === tx.categoryId);
                   const parentCat = directCat?.parentId ? categories.find((c) => c.id === directCat.parentId) : null;
                   const cat = parentCat || directCat;
@@ -180,12 +280,24 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
                   const isGroupedCard = tx.id.startsWith('grouped-card-') || tx.categoryId === 'grouped-card-category';
 
+                  const now = new Date();
+                  const todayStr = getLocalDateString(now);
+                  const yesterdayDate = new Date();
+                  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+                  const yesterdayStr = getLocalDateString(yesterdayDate);
+
+                  const isToday = effectiveDate === todayStr;
+                  const isYesterday = effectiveDate === yesterdayStr;
+
                   return (
                     <tr
                       key={tx.id}
+                      id={isToday ? 'desktop-tx-row-hoje' : isYesterday ? 'desktop-tx-row-ontem' : undefined}
                       className={`hover:bg-[#1e2330]/70 transition-colors ${
                         isSelected ? 'bg-indigo-950/20' : ''
-                      } ${isGroupedCard ? 'bg-[#151921]/60' : ''}`}
+                      } ${isGroupedCard ? 'bg-[#151921]/60' : ''} ${
+                        isToday ? 'bg-indigo-500/5' : ''
+                      }`}
                     >
                       {/* Checkbox */}
                       <td className="py-3 px-4">
@@ -252,7 +364,19 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
                       {/* Data */}
                       <td className="py-3 px-3 text-slate-300 whitespace-nowrap">
-                        {formatDateBR(effectiveDate)}
+                        <div className="flex items-center gap-1.5">
+                          <span>{formatDateBR(effectiveDate)}</span>
+                          {isToday && (
+                            <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                              Hoje
+                            </span>
+                          )}
+                          {!isToday && isYesterday && (
+                            <span className="px-1.5 py-0.5 text-[9px] font-medium rounded bg-slate-800 text-slate-400 border border-slate-700/60">
+                              Ontem
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Descrição */}
@@ -378,20 +502,9 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                     </tr>
                   );
                 })}
-
-                {/* Subtotal Diário (Saldo do Final do Dia) */}
-                <tr className="bg-[#14171f]/80">
-                  <td colSpan={showTypeColumn ? 9 : 8} className="py-2 text-center">
-                    <span className="inline-block bg-[#232733] border border-slate-700/60 text-[11px] font-semibold text-slate-300 px-3.5 py-1 rounded-full shadow-sm">
-                      Saldo do Final do Dia ({formatDateBR(group.date)}):{' '}
-                      <strong className={group.dayBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                        {formatCurrency(group.dayBalance)}
-                      </strong>
-                    </span>
-                  </td>
-                </tr>
               </React.Fragment>
-            ))}
+            );
+          })}
           </tbody>
         </table>
       </div>
