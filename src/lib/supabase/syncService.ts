@@ -234,6 +234,25 @@ export const syncAllToSupabase = async (data: {
       if (goalErr) console.warn('[Supabase Sync] Erro em metas:', goalErr.message)
     }
 
+    // 7. Sincronizar Conexões Open Finance
+    if (data.openFinanceConnections && data.openFinanceConnections.length > 0) {
+      const ofPayload = data.openFinanceConnections.map(o => ({
+        id: ensureValidUUID(o.id),
+        user_id: userId,
+        institution_id: o.institutionId,
+        institution_name: o.institutionName,
+        status: o.status,
+        last_sync_at: o.lastSyncAt,
+        consent_expires_at: o.consentExpiresAt,
+        synced_accounts_count: o.syncedAccountsCount,
+        synced_cards_count: o.syncedCardsCount,
+        auto_sync: o.autoSync,
+        created_at: o.createdAt,
+      }))
+      const { error: ofErr } = await supabase.from('open_finance_connections').upsert(ofPayload as any)
+      if (ofErr) console.warn('[Supabase Sync] Erro em conexões Open Finance:', ofErr.message)
+    }
+
     return {
       success: true,
       message: 'Dados sincronizados com sucesso!',

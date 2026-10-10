@@ -117,12 +117,15 @@ export const OpenFinanceView: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {openFinanceConnections.map(conn => {
-              const inst = SUPPORTED_INSTITUTIONS.find(i => i.id === conn.institutionId);
+            {/* Deduplica visualmente se houver mais de uma conexão com o mesmo nome */}
+            {openFinanceConnections
+              .filter((conn, index, self) => index === self.findIndex(c => c.institutionName.toLowerCase() === conn.institutionName.toLowerCase()))
+              .map(conn => {
+                const inst = SUPPORTED_INSTITUTIONS.find(i => i.id === conn.institutionId);
 
-              return (
-                <div
-                  key={conn.id}
+                return (
+                  <div
+                    key={conn.id}
                   className="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-5 shadow-xl flex items-center justify-between gap-4"
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
@@ -311,7 +314,6 @@ export const OpenFinanceView: React.FC = () => {
         onClose={() => setIsPluggyWidgetOpen(false)}
         onSuccess={({ itemId, institutionName }) => {
           connectBank(`pluggy-${itemId}`, institutionName);
-          // Opcionalmente, pode disparar a primeira sincronização instantaneamente
         }}
       />
     </div>

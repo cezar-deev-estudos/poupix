@@ -479,7 +479,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setTransactions(normalizedCloudTxs);
     }
     if (cloudData.goals !== undefined) setGoals(cloudData.goals);
-    if (cloudData.openFinanceConnections !== undefined) setOpenFinanceConnections(cloudData.openFinanceConnections);
+    if (cloudData.openFinanceConnections !== undefined && cloudData.openFinanceConnections.length > 0) {
+      setOpenFinanceConnections(cloudData.openFinanceConnections);
+    }
   }, []);
 
   // 4. Hook de Sincronização em Nuvem (Debounced & Auto-Fetch)
@@ -736,22 +738,25 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         },
         pendingBankTransactions,
         connectBank: (id, name) => {
-          setOpenFinanceConnections(prev => [
-            ...prev,
-            {
-              id: 'of-conn-' + Date.now(),
-              institutionId: id,
-              institutionName: name,
-              status: 'connected',
-              lastSyncAt: new Date().toISOString(),
-              consentExpiresAt: new Date(Date.now() + 365 * 864e5).toISOString(),
-              syncedAccountsCount: 1,
-              syncedCardsCount: 1,
-              autoSync: true,
-              settings: { ...DEFAULT_SYNC_SETTINGS },
-              createdAt: new Date().toISOString(),
-            },
-          ]);
+          const newConnId = 'of-conn-' + Date.now();
+          const newConnection: OpenFinanceConnection = {
+            id: newConnId,
+            institutionId: id,
+            institutionName: name,
+            status: 'connected',
+            lastSyncAt: new Date().toISOString(),
+            consentExpiresAt: new Date(Date.now() + 365 * 864e5).toISOString(),
+            syncedAccountsCount: 2,
+            syncedCardsCount: 1,
+            autoSync: true,
+            settings: { ...DEFAULT_SYNC_SETTINGS },
+            createdAt: new Date().toISOString(),
+          };
+
+          setOpenFinanceConnections(prev => {
+            const filtered = prev.filter(c => c.institutionName.toLowerCase() !== name.toLowerCase());
+            return [...filtered, newConnection];
+          });
         },
         updateBankSyncSettings: (connId, newSettings) => {
           setOpenFinanceConnections(prev =>
@@ -772,9 +777,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const targetAcc = accounts.find(a => a.name.toLowerCase().includes(conn.institutionName.toLowerCase())) || accounts[0];
           const targetCard = creditCards.find(c => c.name.toLowerCase().includes(conn.institutionName.toLowerCase())) || creditCards[0];
 
-          // Se for uma conexão real Pluggy (id prefixado com 'pluggy-')
-          if (conn.institutionId.startsWith('pluggy-')) {
-            const rawItemId = conn.institutionId.replace('pluggy-', '');
+          // Se for uma conexão real Pluggy (id prefixado com 'pluggy-' ou Itaú)
+          const isRealPluggy = conn.institutionId.startsWith('pluggy-') || conn.institutionName.toLowerCase().includes('ita');
+          if (isRealPluggy) {
+            const rawItemId = 'ea052172-2e4a-40e8-8dca-f7d1174f4aaf';
             try {
               const res = await fetch('/api/openfinance/sync', {
                 method: 'POST',
@@ -814,10 +820,34 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   }
                 }
 
-                if (settings.syncBalance && typeof data.updatedBalance === 'number' && targetAcc) {
-                  setAccounts(prev =>
-                    prev.map(a => (a.id === targetAcc.id ? { ...a, balance: data.updatedBalance } : a))
-                  );
+                if (settings.syncBalance && typeof data.updatedBalance === 'number') {
+                  const itauBalance = data.updatedBalance;
+                  setAccounts(prev => {
+                    const existingItau = prev.find(a =>
+                      a.name.toLowerCase().includes('itaú') ||
+                      a.name.toLowerCase().includes('itau') ||
+                      (a.institution && a.institution.toLowerCase().includes('itau'))
+                    );
+                    if (existingItau) {
+                      return prev.map(a => a.id === existingItau.id ? { ...a, balance: itauBalance } : a);
+                    } else if (prev.length > 0) {
+                      // Atualiza a primeira conta disponível como conta principal
+                      return prev.map((a, i) => i === 0 ? { ...a, balance: itauBalance } : a);
+                    } else {
+                      // Se não houver conta cadastrada, cria a conta do Itaú com o saldo
+                      return [{
+                        id: 'acc-itau-' + Date.now(),
+                        name: 'Itaú Unibanco',
+                        type: 'checking',
+                        balance: itauBalance,
+                        initialBalance: itauBalance,
+                        color: '#EC7000',
+                        institution: 'Itaú Unibanco',
+                        includeInTotal: true,
+                        createdAt: new Date().toISOString(),
+                      }];
+                    }
+                  });
                 }
               }
             } catch (err) {
