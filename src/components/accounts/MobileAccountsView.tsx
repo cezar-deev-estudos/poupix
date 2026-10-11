@@ -201,7 +201,19 @@ export const MobileAccountsView: React.FC<MobileAccountsViewProps> = ({
           <h1 className="text-lg font-semibold text-white tracking-tight">Contas</h1>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* Botão Nova Conta no Topo */}
+          <button
+            onClick={() => {
+              setAccountToEdit(null);
+              setIsAccountModalOpen(true);
+            }}
+            className="p-2 text-violet-400 hover:text-violet-300 transition-colors"
+            title="Nova conta"
+          >
+            <Plus className="w-5 h-5 stroke-[2.5]" />
+          </button>
+
           {/* Botão Gaveta / Arquivados */}
           <button
             onClick={() => setIsArchivedDrawerOpen(true)}
@@ -232,6 +244,17 @@ export const MobileAccountsView: React.FC<MobileAccountsViewProps> = ({
 
             {isHeaderMenuOpen && (
               <div className="absolute right-0 top-full mt-1.5 w-56 bg-[#2a2a30] border border-slate-700/80 rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100 text-xs">
+                <button
+                  onClick={() => {
+                    setIsHeaderMenuOpen(false);
+                    setAccountToEdit(null);
+                    setIsAccountModalOpen(true);
+                  }}
+                  className="w-full px-4 py-2.5 flex items-center gap-2.5 text-violet-300 hover:bg-slate-800/80 text-left transition-colors font-semibold"
+                >
+                  <Plus className="w-4 h-4 text-violet-400" />
+                  <span>Nova conta</span>
+                </button>
                 <button
                   onClick={() => setIncludeInHomeChecked(!includeInHomeChecked)}
                   className="w-full px-4 py-2.5 flex items-center justify-between text-slate-200 hover:bg-slate-800/80 text-left transition-colors"
@@ -444,16 +467,16 @@ export const MobileAccountsView: React.FC<MobileAccountsViewProps> = ({
         </div>
       </div>
 
-      {/* Floating Action Button (+) Roxo */}
+      {/* Floating Action Button (+) Roxo (elevado para ficar visível acima do menu inferior) */}
       <button
         onClick={() => {
           setAccountToEdit(null);
           setIsAccountModalOpen(true);
         }}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-violet-600 hover:bg-violet-500 text-white rounded-full flex items-center justify-center shadow-xl shadow-violet-600/40 z-30 transition-transform active:scale-95 cursor-pointer"
+        className="fixed bottom-20 right-5 w-14 h-14 bg-violet-600 hover:bg-violet-500 text-white rounded-full flex items-center justify-center shadow-xl shadow-violet-600/40 z-40 transition-transform active:scale-95 cursor-pointer"
         title="Nova conta"
       >
-        <Plus className="w-7 h-7" />
+        <Plus className="w-7 h-7 stroke-[2.5]" />
       </button>
 
       {/* Modais e Drawers */}

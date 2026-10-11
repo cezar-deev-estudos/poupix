@@ -18,81 +18,90 @@ export const MobileSpeedDial: React.FC<MobileSpeedDialProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-end items-center pb-24 bg-black/70 backdrop-blur-sm animate-fadeIn">
-      {/* Botões Radiais / Speed Dial */}
-      <div className="relative w-72 h-64 flex items-center justify-center">
-        {/* 1. Transferência (Esquerda) */}
-        <div className="absolute left-2 bottom-12 flex flex-col items-center gap-1.5 animate-scaleUp">
+    <div 
+      className="md:hidden fixed inset-0 z-50 flex flex-col justify-end items-center bg-black/60 backdrop-blur-md animate-fadeIn select-none"
+      onClick={onClose}
+    >
+      {/* Container dos botões radiais posicionados ao redor do botão roxo */}
+      <div 
+        className="relative w-[340px] h-[260px] pb-6 flex items-center justify-center pointer-events-auto"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* 1. Transferência (Lateral Esquerda, logo acima e à esquerda do botão central) */}
+        <div className="absolute left-6 bottom-10 flex flex-col items-center gap-1.5 animate-scaleUp">
           <button
             type="button"
             onClick={() => {
               onSelectFlow('transfer');
               onClose();
             }}
-            className="w-14 h-14 rounded-full bg-[#3d3858] hover:bg-[#4d4670] text-purple-300 flex items-center justify-center shadow-xl border border-purple-500/20 active:scale-95 transition-all cursor-pointer"
+            className="w-16 h-16 rounded-full bg-[#444854]/90 hover:bg-[#525766] text-[#b388ff] flex items-center justify-center shadow-xl border border-white/10 active:scale-95 transition-all cursor-pointer"
           >
-            <ArrowLeftRight className="w-6 h-6" />
+            <ArrowLeftRight className="w-6 h-6 stroke-[2]" />
           </button>
-          <span className="text-[11px] font-medium text-white tracking-tight">Transferência</span>
+          <span className="text-[11px] font-medium text-white/90 tracking-tight">Transferência</span>
         </div>
 
-        {/* 2. Receita (Noroeste / Topo Esquerdo) */}
-        <div className="absolute left-14 top-2 flex flex-col items-center gap-1.5 animate-scaleUp">
+        {/* 2. Receita (Superior Esquerda) */}
+        <div className="absolute left-[72px] top-6 flex flex-col items-center gap-1.5 animate-scaleUp">
           <button
             type="button"
             onClick={() => {
               onSelectFlow('income');
               onClose();
             }}
-            className="w-14 h-14 rounded-full bg-[#384e46] hover:bg-[#435e54] text-emerald-400 flex items-center justify-center shadow-xl border border-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+            className="w-16 h-16 rounded-full bg-[#444854]/90 hover:bg-[#525766] text-[#34d399] flex items-center justify-center shadow-xl border border-white/10 active:scale-95 transition-all cursor-pointer"
           >
-            <TrendingUp className="w-6 h-6" />
+            <TrendingUp className="w-6 h-6 stroke-[2.2]" />
           </button>
-          <span className="text-[11px] font-medium text-white tracking-tight">Receita</span>
+          <span className="text-[11px] font-medium text-white/90 tracking-tight">Receita</span>
         </div>
 
-        {/* 3. Despesa cartão (Nordeste / Topo Direito) */}
-        <div className="absolute right-14 top-2 flex flex-col items-center gap-1.5 animate-scaleUp">
+        {/* 3. Despesa cartão (Superior Direita) */}
+        <div className="absolute right-[72px] top-6 flex flex-col items-center gap-1.5 animate-scaleUp">
           <button
             type="button"
             onClick={() => {
               onSelectFlow('creditCard');
               onClose();
             }}
-            className="w-14 h-14 rounded-full bg-[#354854] hover:bg-[#405969] text-cyan-300 flex items-center justify-center shadow-xl border border-cyan-500/20 active:scale-95 transition-all cursor-pointer"
+            className="w-16 h-16 rounded-full bg-[#444854]/90 hover:bg-[#525766] text-[#22d3ee] flex items-center justify-center shadow-xl border border-white/10 active:scale-95 transition-all cursor-pointer"
           >
-            <CreditCard className="w-6 h-6" />
+            <CreditCard className="w-6 h-6 stroke-[2]" />
           </button>
-          <span className="text-[11px] font-medium text-white tracking-tight text-center leading-tight">
+          <span className="text-[11px] font-medium text-white/90 tracking-tight text-center leading-tight">
             Despesa<br />cartão
           </span>
         </div>
 
-        {/* 4. Despesa (Direita) */}
-        <div className="absolute right-2 bottom-12 flex flex-col items-center gap-1.5 animate-scaleUp">
+        {/* 4. Despesa (Lateral Direita, logo acima e à direita do botão central) */}
+        <div className="absolute right-6 bottom-10 flex flex-col items-center gap-1.5 animate-scaleUp">
           <button
             type="button"
             onClick={() => {
               onSelectFlow('expense');
               onClose();
             }}
-            className="w-14 h-14 rounded-full bg-[#4e383b] hover:bg-[#5f4448] text-rose-400 flex items-center justify-center shadow-xl border border-rose-500/20 active:scale-95 transition-all cursor-pointer"
+            className="w-16 h-16 rounded-full bg-[#444854]/90 hover:bg-[#525766] text-[#fb7185] flex items-center justify-center shadow-xl border border-white/10 active:scale-95 transition-all cursor-pointer"
           >
-            <TrendingDown className="w-6 h-6" />
+            <TrendingDown className="w-6 h-6 stroke-[2.2]" />
           </button>
-          <span className="text-[11px] font-medium text-white tracking-tight">Despesa</span>
+          <span className="text-[11px] font-medium text-white/90 tracking-tight">Despesa</span>
         </div>
       </div>
 
-      {/* Botão Central Roxo com 'X' para Fechar exatamente na posição do botão + central */}
-      <div className="fixed bottom-3.5 left-1/2 -translate-x-1/2 z-50">
+      {/* Botão Central Roxo com 'X' (alinhado perfeitamente na posição da barra inferior) */}
+      <div 
+        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 pointer-events-auto"
+        onClick={e => e.stopPropagation()}
+      >
         <button
           type="button"
           onClick={onClose}
-          className="w-12 h-12 rounded-full bg-purple-500 hover:bg-purple-400 text-white flex items-center justify-center shadow-2xl shadow-purple-500/50 border-2 border-[#161a23] active:scale-95 transition-all cursor-pointer"
+          className="w-16 h-16 rounded-full bg-[#8b5cf6] hover:bg-[#7c3aed] text-white flex items-center justify-center shadow-2xl shadow-purple-600/60 border-4 border-[#161a23] active:scale-95 transition-all cursor-pointer"
           title="Fechar menu"
         >
-          <X className="w-6 h-6 stroke-[2.5]" />
+          <X className="w-7 h-7 stroke-[2.5]" />
         </button>
       </div>
     </div>

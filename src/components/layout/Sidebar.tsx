@@ -187,10 +187,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           type="button"
           onClick={() => setIsMobileSpeedDialOpen(true)}
-          className="w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-500 text-white flex items-center justify-center -mt-5 shadow-lg shadow-purple-600/40 border-2 border-[#161a23] transition-transform active:scale-95 cursor-pointer shrink-0"
+          className="w-14 h-14 rounded-full bg-[#8b5cf6] hover:bg-[#7c3aed] text-white flex items-center justify-center -mt-6 shadow-xl shadow-purple-600/50 border-4 border-[#161a23] transition-transform active:scale-95 cursor-pointer shrink-0"
           title="Novo Lançamento"
         >
-          <Plus className="w-6 h-6 stroke-[3]" />
+          <Plus className="w-7 h-7 stroke-[3]" />
         </button>
 
         {/* 4. Planejamento (Orçamentos) */}
