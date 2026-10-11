@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency } from '@/lib/utils';
-import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
+import { isTransactionInInvoicePeriod, isInvoicePeriodPaid } from '@/lib/invoiceHelpers';
 import { ArrowDown, ArrowUp, FileText, Building2 } from 'lucide-react';
 import { ActiveTab } from '../layout/Sidebar';
 
@@ -70,9 +70,9 @@ export const PendingAlertsCards: React.FC<PendingAlertsCardsProps> = ({ onNaviga
       const invoiceAmount = Math.max(0, cardExpenses);
       if (invoiceAmount <= 0) return;
 
-      const manualStatus = card.manualInvoiceStatus?.[targetPeriodKey];
-      if (manualStatus === 'paid') return; // Se já está paga, não alerta
+      if (isInvoicePeriodPaid(card, transactions, selectedYear, selectedMonth)) return; // Se já está paga, não alerta
 
+      const manualStatus = card.manualInvoiceStatus?.[targetPeriodKey];
       const dueDate = new Date(selectedYear, selectedMonth, card.dueDay);
       dueDate.setHours(0, 0, 0, 0);
 

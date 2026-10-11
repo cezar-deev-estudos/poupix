@@ -5,7 +5,7 @@ import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency } from '@/lib/utils';
 import { CreditCard } from '@/types/finance';
 import { CardBrandLogo } from '@/components/cards/CardBrandLogo';
-import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
+import { isTransactionInInvoicePeriod, isInvoicePeriodPaid } from '@/lib/invoiceHelpers';
 import { Plus, CreditCard as CreditCardIcon, ArrowRight } from 'lucide-react';
 import { ActiveTab } from '@/components/layout/Sidebar';
 import { TransactionFlowType } from '@/components/transactions/modal/TransactionModal';
@@ -142,7 +142,7 @@ export const CreditCardsDashboardCard: React.FC<CreditCardsDashboardCardProps> =
               closingDate.setHours(0, 0, 0, 0);
 
               let invoiceStatus: 'open' | 'closed' | 'overdue' | 'paid' = 'open';
-              if (manualStatus === 'paid') {
+              if (isInvoicePeriodPaid(card, transactions, targetYear, targetMonth)) {
                 invoiceStatus = 'paid';
               } else if (manualStatus === 'open') {
                 invoiceStatus = 'open';

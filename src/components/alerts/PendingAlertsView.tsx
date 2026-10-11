@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency } from '@/lib/utils';
-import { isTransactionInInvoicePeriod, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
+import { isTransactionInInvoicePeriod, getTransactionInvoicePeriod, isInvoicePeriodPaid } from '@/lib/invoiceHelpers';
 import { CardBrandLogo } from '@/components/cards/CardBrandLogo';
 import { ConfirmPaymentModal } from '@/components/transactions/ConfirmPaymentModal';
 import { ArrowLeft, Bell, DollarSign, Check } from 'lucide-react';
@@ -93,9 +93,9 @@ export const PendingAlertsView: React.FC<PendingAlertsViewProps> = ({
       const invoiceAmount = Math.max(0, cardExpenses);
       if (invoiceAmount <= 0) return;
 
-      const manualStatus = card.manualInvoiceStatus?.[targetPeriodKey];
-      if (manualStatus === 'paid') return; // Se já está paga, não alerta
+      if (isInvoicePeriodPaid(card, transactions, selectedYear, selectedMonth)) return; // Se já está paga, não alerta
 
+      const manualStatus = card.manualInvoiceStatus?.[targetPeriodKey];
       const dueDate = new Date(selectedYear, selectedMonth, card.dueDay);
       dueDate.setHours(0, 0, 0, 0);
 

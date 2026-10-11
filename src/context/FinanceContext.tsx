@@ -207,7 +207,11 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setTags(savedTags ? JSON.parse(savedTags) : INITIAL_TAGS);
         setTransactions(normalizedTxs);
         setGoals(savedGoals ? JSON.parse(savedGoals) : []);
-        setOpenFinanceConnections(savedOpenFinance ? JSON.parse(savedOpenFinance) : []);
+        const rawSavedOF: OpenFinanceConnection[] = savedOpenFinance ? JSON.parse(savedOpenFinance) : [];
+        const cleanOF = rawSavedOF.filter(
+          (c, idx, arr) => idx === arr.findIndex(item => item.institutionName.toLowerCase() === c.institutionName.toLowerCase())
+        );
+        setOpenFinanceConnections(cleanOF);
 
         if (user.user_metadata?.group_by_card !== undefined) {
           setGroupByCard(Boolean(user.user_metadata.group_by_card));
@@ -232,7 +236,11 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setTags(savedTags ? JSON.parse(savedTags) : INITIAL_TAGS);
         setTransactions(normalizedTxs);
         setGoals(savedGoals ? JSON.parse(savedGoals) : INITIAL_GOALS);
-        setOpenFinanceConnections(savedOpenFinance ? JSON.parse(savedOpenFinance) : INITIAL_OPEN_FINANCE_CONNECTIONS);
+        const rawSavedOF: OpenFinanceConnection[] = savedOpenFinance ? JSON.parse(savedOpenFinance) : INITIAL_OPEN_FINANCE_CONNECTIONS;
+        const cleanOF = rawSavedOF.filter(
+          (c, idx, arr) => idx === arr.findIndex(item => item.institutionName.toLowerCase() === c.institutionName.toLowerCase())
+        );
+        setOpenFinanceConnections(cleanOF);
         if (savedPendingBank) {
           setPendingBankTransactions(JSON.parse(savedPendingBank));
         }
@@ -284,7 +292,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       document.documentElement.classList.add('light');
       document.documentElement.classList.remove('dark');
     }
-  }, [accounts, creditCards, categories, tags, transactions, goals, readAlertIds, openFinanceConnections, isPrivacyMode, groupByCard, theme, isInitialized, userStoragePrefix]);
+  }, [accounts, creditCards, categories, tags, transactions, goals, readAlertIds, openFinanceConnections, pendingBankTransactions, isPrivacyMode, groupByCard, theme, isInitialized, userStoragePrefix]);
 
   const toggleGroupByCard = useCallback(async () => {
     const nextVal = !groupByCard;
@@ -797,11 +805,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
               if (res.ok) {
                 const data = await res.json();
                 if (data.pendingTransactions && data.pendingTransactions.length > 0) {
-                  if (settings.requireApproval) {
+                  const shouldRequireApproval = settings.requireApproval !== false;
+                  if (shouldRequireApproval) {
                     setPendingBankTransactions(prev => {
                       const existingIds = new Set(prev.map(p => p.bankTransactionId));
                       const newItems = data.pendingTransactions.filter((p: PendingBankTransaction) => !existingIds.has(p.bankTransactionId));
-                      return [...newItems, ...prev];
+                      const merged = [...newItems, ...prev];
+                      try {
+                        localStorage.setItem(`${userStoragePrefix}pending_bank_txs`, JSON.stringify(merged));
+                      } catch {}
+                      return merged;
                     });
                   } else {
                     const toImport = data.pendingTransactions.map((p: PendingBankTransaction) => ({

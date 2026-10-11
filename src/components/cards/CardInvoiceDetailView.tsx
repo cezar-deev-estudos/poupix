@@ -32,7 +32,7 @@ import { AdvancePaymentModal } from './AdvancePaymentModal';
 import { AdvanceInstallmentModal } from './AdvanceInstallmentModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { TransactionScopeModal, ScopeMode } from '@/components/transactions/TransactionScopeModal';
-import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
+import { isTransactionInInvoicePeriod, isInvoicePeriodPaid } from '@/lib/invoiceHelpers';
 
 interface CardInvoiceDetailViewProps {
   card: CreditCard;
@@ -185,7 +185,7 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
   // Regra: se o usuário reabriu manualmente (manualInvoiceStatus === 'open'), permite editar nesta tela.
   // Caso contrário, se hoje > data de fechamento, a fatura fecha automaticamente.
   const invoiceStatus = useMemo((): 'open' | 'closed' | 'paid' => {
-    if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey] === 'paid') {
+    if (isInvoicePeriodPaid(card, transactions, selectedYear, selectedMonth)) {
       return 'paid';
     }
     if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey] === 'open') {
@@ -201,7 +201,7 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
       return 'closed';
     }
     return 'open';
-  }, [card.manualInvoiceStatus, periodKey, selectedYear, selectedMonth, card.closingDay]);
+  }, [card, transactions, periodKey, selectedYear, selectedMonth]);
 
   // Cálculo de Vencimento
   const isOverdue = useMemo(() => {

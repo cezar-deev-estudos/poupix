@@ -137,4 +137,28 @@ export function getEffectiveTransactionDate(tx: Transaction, card?: CreditCard):
   return tx.date || '';
 }
 
+/**
+ * Determina se a fatura de um período específico está paga.
+ * Considera paga se o status manual for 'paid' OU se houver compras e todas estiverem com paid = true.
+ */
+export function isInvoicePeriodPaid(
+  card: CreditCard | undefined,
+  transactions: Transaction[],
+  targetYear: number,
+  targetMonth: number
+): boolean {
+  if (!card) return false;
+  const periodKey = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
+  if (card.manualInvoiceStatus?.[periodKey] === 'paid') {
+    return true;
+  }
+
+  const periodTxs = transactions.filter(t => isTransactionInInvoicePeriod(t, card, targetYear, targetMonth));
+  if (periodTxs.length > 0 && periodTxs.every(t => t.paid)) {
+    return true;
+  }
+
+  return false;
+}
+
 

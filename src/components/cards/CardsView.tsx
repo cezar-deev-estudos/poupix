@@ -10,7 +10,7 @@ import { CreditCardModal } from './CreditCardModal';
 import { ArchivedCardsModal } from './ArchivedCardsModal';
 import { AdvancePaymentModal } from './AdvancePaymentModal';
 import { NewTransactionModal } from '../transactions/NewTransactionModal';
-import { isTransactionInInvoicePeriod, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
+import { isTransactionInInvoicePeriod, getTransactionInvoicePeriod, isInvoicePeriodPaid } from '@/lib/invoiceHelpers';
 import { Plus, MoreVertical, ThumbsUp, CreditCard as CardIcon, DollarSign } from 'lucide-react';
 
 const MONTH_NAMES = [
@@ -149,7 +149,7 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
   // Status da fatura de cada cartão (Aberta, Fechada, Vencida, Paga)
   // Regra: se hoje > data de fechamento, a fatura fecha automaticamente (mesmo que estivesse aberta temporariamente).
   const getCardInvoiceStatus = (card: CreditCard): 'open' | 'closed' | 'overdue' | 'paid' => {
-    if (card.manualInvoiceStatus && card.manualInvoiceStatus[targetPeriodKey] === 'paid') {
+    if (isInvoicePeriodPaid(card, transactions, targetYear, targetMonth)) {
       return 'paid';
     }
     const today = new Date();

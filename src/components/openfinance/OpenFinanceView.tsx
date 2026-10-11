@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { SUPPORTED_INSTITUTIONS } from '@/lib/openFinance';
 import { BankInstitution, OpenFinanceConnection } from '@/types/finance';
@@ -37,6 +37,13 @@ export const OpenFinanceView: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isReconciliationOpen, setIsReconciliationOpen] = useState(false);
   const [settingsModalConnection, setSettingsModalConnection] = useState<OpenFinanceConnection | null>(null);
+
+  const uniqueConnections = useMemo(() => {
+    return openFinanceConnections.filter(
+      (conn, index, self) =>
+        index === self.findIndex(c => c.institutionName.toLowerCase() === conn.institutionName.toLowerCase())
+    );
+  }, [openFinanceConnections]);
 
   const handleOpenConnect = (inst: BankInstitution) => {
     setSelectedInstitution(inst);
@@ -87,7 +94,7 @@ export const OpenFinanceView: React.FC = () => {
 
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl px-4 py-3 text-center">
             <span className="text-[10px] text-slate-400 block">Conexões Ativas</span>
-            <span className="text-lg font-black text-purple-400">{openFinanceConnections.length}</span>
+            <span className="text-lg font-black text-purple-400">{uniqueConnections.length}</span>
           </div>
 
           <button
@@ -107,7 +114,7 @@ export const OpenFinanceView: React.FC = () => {
           Instituições Conectadas
         </h3>
 
-        {openFinanceConnections.length === 0 ? (
+        {uniqueConnections.length === 0 ? (
           <div className="bg-slate-900/30 border border-slate-800 rounded-3xl p-8 text-center text-slate-400 space-y-2">
             <Building2 className="w-10 h-10 mx-auto text-slate-600" />
             <p className="text-sm font-semibold text-white">Nenhum banco conectado ainda</p>
@@ -117,10 +124,7 @@ export const OpenFinanceView: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Deduplica visualmente se houver mais de uma conexão com o mesmo nome */}
-            {openFinanceConnections
-              .filter((conn, index, self) => index === self.findIndex(c => c.institutionName.toLowerCase() === conn.institutionName.toLowerCase()))
-              .map(conn => {
+            {uniqueConnections.map(conn => {
                 const inst = SUPPORTED_INSTITUTIONS.find(i => i.id === conn.institutionId);
 
                 return (
