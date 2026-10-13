@@ -17,8 +17,9 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { itemId, connectionId, institutionName, targetAccountId, targetCardId } = body;
 
-    const REAL_PLUGGY_ITEM_ID = 'ea052172-2e4a-40e8-8dca-f7d1174f4aaf';
-    const effectiveItemId = (itemId && !itemId.includes('pluggy-itau-')) ? itemId : REAL_PLUGGY_ITEM_ID;
+    const fallbackItemId = 'ea052172-2e4a-40e8-8dca-f7d1174f4aaf';
+    const cleanItemId = itemId && !itemId.startsWith('pluggy-itau-') ? itemId.replace(/^pluggy-/, '') : null;
+    const effectiveItemId = cleanItemId || fallbackItemId;
 
     // 1. Obter API Key da Pluggy
     const authRes = await fetch('https://api.pluggy.ai/auth', {

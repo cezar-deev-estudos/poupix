@@ -189,6 +189,7 @@ export interface OpenFinanceConnection {
   id: string;
   institutionId: string;
   institutionName: string;
+  itemId?: string; // ID real do item na Pluggy (Open Finance)
   status: OpenFinanceStatus;
   lastSyncAt: string;
   consentExpiresAt: string;

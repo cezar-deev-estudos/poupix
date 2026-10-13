@@ -317,7 +317,7 @@ export const OpenFinanceView: React.FC = () => {
         isOpen={isPluggyWidgetOpen}
         onClose={() => setIsPluggyWidgetOpen(false)}
         onSuccess={({ itemId, institutionName }) => {
-          connectBank(`pluggy-${itemId}`, institutionName);
+          connectBank(`pluggy-${itemId}`, institutionName, itemId);
         }}
       />
     </div>

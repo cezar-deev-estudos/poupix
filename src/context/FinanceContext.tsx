@@ -89,7 +89,7 @@ interface FinanceContextType {
   updateGoal: (id: string, goal: Partial<Goal>) => void;
   deleteGoal: (id: string) => void;
   contributeToGoal: (goalId: string, amount: number, sourceAccountId?: string) => void;
-  connectBank: (institutionId: string, institutionName: string) => void;
+  connectBank: (institutionId: string, institutionName: string, itemId?: string) => void;
   syncBankConnection: (connectionId: string) => void;
   disconnectBank: (connectionId: string) => void;
   updateBankSyncSettings: (connectionId: string, settings: Partial<import('@/types/finance').OpenFinanceSyncSettings>) => void;
@@ -745,12 +745,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
         },
         pendingBankTransactions,
-        connectBank: (id, name) => {
+        connectBank: (id, name, itemId) => {
           const newConnId = 'of-conn-' + Date.now();
+          const resolvedItemId = itemId || (id.startsWith('pluggy-') ? id.replace('pluggy-', '') : undefined);
           const newConnection: OpenFinanceConnection = {
             id: newConnId,
             institutionId: id,
             institutionName: name,
+            itemId: resolvedItemId,
             status: 'connected',
             lastSyncAt: new Date().toISOString(),
             consentExpiresAt: new Date(Date.now() + 365 * 864e5).toISOString(),
@@ -785,16 +787,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const targetAcc = accounts.find(a => a.name.toLowerCase().includes(conn.institutionName.toLowerCase())) || accounts[0];
           const targetCard = creditCards.find(c => c.name.toLowerCase().includes(conn.institutionName.toLowerCase())) || creditCards[0];
 
-          // Se for uma conexão real Pluggy (id prefixado com 'pluggy-' ou Itaú)
-          const isRealPluggy = conn.institutionId.startsWith('pluggy-') || conn.institutionName.toLowerCase().includes('ita');
+          // Se for uma conexão real Pluggy (id prefixado com 'pluggy-' ou com itemId definido)
+          const rawItemId = conn.itemId || (conn.institutionId.startsWith('pluggy-') ? conn.institutionId.replace('pluggy-', '') : undefined);
+          const isRealPluggy = Boolean(rawItemId) || conn.institutionName.toLowerCase().includes('ita');
           if (isRealPluggy) {
-            const rawItemId = 'ea052172-2e4a-40e8-8dca-f7d1174f4aaf';
             try {
               const res = await fetch('/api/openfinance/sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  itemId: rawItemId,
+                  itemId: rawItemId || 'ea052172-2e4a-40e8-8dca-f7d1174f4aaf',
                   connectionId: conn.id,
                   institutionName: conn.institutionName,
                   targetAccountId: targetAcc?.id,
