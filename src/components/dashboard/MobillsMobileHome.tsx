@@ -28,6 +28,7 @@ import { useAuth } from '@/context/AuthContext';
 import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
 import { TransactionList } from '../transactions/TransactionList';
 import { DashboardLayoutPreferences } from '@/types/settings';
+import { ExpenseHeatmapCalendar } from './ExpenseHeatmapCalendar';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -679,6 +680,18 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           </div>
         </div>
       )}
+
+      {/* CARD: MAPA DE CALOR DO MÊS */}
+      <div className="space-y-2">
+        <ExpenseHeatmapCalendar
+          transactions={transactions}
+          year={selectedYear}
+          month={selectedMonth}
+          onSelectDate={(dateStr) => {
+            onNavigateTab('transactions', 'expense');
+          }}
+        />
+      </div>
 
       {/* 6. CARD: PLANEJAMENTO MENSAL */}
       <div className="space-y-2">

@@ -19,7 +19,14 @@ import {
   Filter,
   MoreVertical,
   Plus,
+  Flame,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  ArrowRight,
 } from 'lucide-react';
+import { ExpenseHeatmapCalendar } from '../dashboard/ExpenseHeatmapCalendar';
+import { CategoryIcon } from '../ui/CategoryIcon';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -64,6 +71,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false);
   const [alertPending, setAlertPending] = useState(false);
+  const [isHeatmapOpen, setIsHeatmapOpen] = useState(false);
+  const [selectedHeatmapDate, setSelectedHeatmapDate] = useState<string | null>(null);
 
   // Estados de Modais
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -200,6 +209,35 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
     return [...nonCardTransactions, ...aggregatedCardItems];
   }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter, groupByCard, creditCards, accounts, categories, selectedYear, selectedMonth]);
+
+  // Transações do dia selecionado no Mapa de Calor
+  const { selectedDateTransactions, selectedDateTotal, effectiveSelectedDate } = useMemo(() => {
+    let targetDate = selectedHeatmapDate;
+    if (!targetDate) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const [todayY, todayM] = todayStr.split('-').map(Number);
+      if (todayY === selectedYear && todayM === selectedMonth + 1) {
+        targetDate = todayStr;
+      }
+    }
+
+    if (!targetDate) {
+      return { selectedDateTransactions: [], selectedDateTotal: 0, effectiveSelectedDate: null };
+    }
+
+    const txs = displayedTransactions.filter(t => {
+      const d = t.date ? t.date.split('T')[0] : '';
+      return d === targetDate;
+    });
+
+    const total = txs.reduce((sum, t) => sum + (t.type === 'expense' || t.creditCardId ? t.amount : 0), 0);
+
+    return {
+      selectedDateTransactions: txs,
+      selectedDateTotal: total,
+      effectiveSelectedDate: targetDate,
+    };
+  }, [displayedTransactions, selectedHeatmapDate, selectedYear, selectedMonth]);
 
   // Exclusão
   const handleConfirmDelete = () => {
@@ -449,6 +487,148 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         >
           <ChevronRight className="w-5 h-5 text-indigo-400" />
         </button>
+      </div>
+
+      {/* Toggle Retrátil e Card do Mapa de Calor no Desktop */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setIsHeatmapOpen(!isHeatmapOpen)}
+            className="inline-flex items-center gap-2.5 px-4 py-2 bg-gradient-to-r from-orange-950/40 via-slate-900 to-slate-900 border border-orange-500/30 hover:border-orange-500/60 rounded-2xl text-xs font-semibold text-slate-200 transition-all cursor-pointer shadow-md"
+          >
+            <span className="w-6 h-6 rounded-lg bg-orange-500/20 border border-orange-500/40 flex items-center justify-center text-orange-400">
+              <Flame className="w-3.5 h-3.5 fill-orange-400/40 stroke-[2.5]" />
+            </span>
+            <span className="text-white font-bold tracking-tight">Mapa de Calor do Mês</span>
+            <span className="text-[10px] text-orange-300/80 bg-orange-950/60 px-2 py-0.5 rounded-full border border-orange-500/20">
+              {isHeatmapOpen ? 'Ocultar' : 'Ver ritmo diário de gastos'}
+            </span>
+            <span className="text-xs text-slate-400 font-bold ml-1">
+              {isHeatmapOpen ? '▲' : '▼'}
+            </span>
+          </button>
+        </div>
+
+        {isHeatmapOpen && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start animate-scaleUp">
+            {/* Coluna da Esquerda: Mapa de Calor (7 colunas no Desktop) */}
+            <div className="lg:col-span-7">
+              <ExpenseHeatmapCalendar
+                transactions={displayedTransactions}
+                year={selectedYear}
+                month={selectedMonth}
+                selectedDate={effectiveSelectedDate}
+                onSelectDate={(dateStr) => {
+                  setSelectedHeatmapDate(dateStr);
+                }}
+              />
+            </div>
+
+            {/* Coluna da Direita: Painel de Lançamentos do Dia Selecionado (5 colunas no Desktop) */}
+            <div className="lg:col-span-5 bg-[#181b24] border border-slate-800/90 rounded-3xl p-5 shadow-2xl flex flex-col h-full min-h-[380px]">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                    <Calendar className="w-4 h-4 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white tracking-tight">
+                      {effectiveSelectedDate
+                        ? `Lançamentos de ${effectiveSelectedDate.split('-').reverse().join('/')}`
+                        : 'Lançamentos do Dia'}
+                    </h4>
+                    <span className="text-[11px] text-slate-400">
+                      {selectedDateTransactions.length}{' '}
+                      {selectedDateTransactions.length === 1 ? 'lançamento' : 'lançamentos'}
+                    </span>
+                  </div>
+                </div>
+
+                {selectedDateTotal > 0 && (
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Gasto do dia</span>
+                    <span className="text-xs font-bold text-rose-400">
+                      {formatCurrency(selectedDateTotal)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Lista de Itens do Dia */}
+              {selectedDateTransactions.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-500 space-y-2">
+                  <Clock className="w-8 h-8 text-slate-600 stroke-[1.5]" />
+                  <p className="text-xs font-semibold text-slate-400">Nenhum gasto neste dia</p>
+                  <p className="text-[11px] text-slate-600 max-w-xs">
+                    Clique em outro dia com cor no mapa de calor para ver os lançamentos detalhados.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                  {selectedDateTransactions.map((tx) => {
+                    const cat = categories.find((c) => c.id === tx.categoryId);
+                    const isExpense = tx.type === 'expense' || !!tx.creditCardId;
+                    const card = tx.creditCardId ? creditCards.find((c) => c.id === tx.creditCardId) : null;
+                    const acc = tx.accountId ? accounts.find((a) => a.id === tx.accountId) : null;
+
+                    return (
+                      <div
+                        key={tx.id}
+                        onClick={() => setEditingTransaction(tx)}
+                        className="group flex items-center justify-between p-2.5 rounded-2xl bg-slate-900/50 hover:bg-slate-800/80 border border-slate-800/60 hover:border-slate-700 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+                            style={{ backgroundColor: `${cat?.color || '#94a3b8'}20`, color: cat?.color || '#94a3b8' }}
+                          >
+                            <CategoryIcon
+                              name={cat?.icon || 'HelpCircle'}
+                              size={16}
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs font-semibold text-slate-200 block truncate group-hover:text-white transition-colors">
+                              {tx.description}
+                            </span>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                              <span>{cat?.name || 'Sem categoria'}</span>
+                              <span>•</span>
+                              <span>{card ? `Cartão ${card.name}` : acc?.name || 'Conta'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0 ml-3">
+                          <span
+                            className={`text-xs font-bold block ${
+                              isExpense ? 'text-rose-400' : 'text-emerald-400'
+                            }`}
+                          >
+                            {isExpense ? '- ' : '+ '}
+                            {formatCurrency(tx.amount)}
+                          </span>
+                          <span className="text-[10px] text-slate-500 flex items-center justify-end gap-1 mt-0.5">
+                            {tx.paid ? (
+                              <span className="text-emerald-400 flex items-center gap-0.5">
+                                <CheckCircle2 className="w-2.5 h-2.5" /> Pago
+                              </span>
+                            ) : (
+                              <span className="text-amber-400 flex items-center gap-0.5">
+                                <Clock className="w-2.5 h-2.5" /> Pendente
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 4. Tabela de Transações Completa */}
