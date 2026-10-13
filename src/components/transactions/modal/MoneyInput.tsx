@@ -14,16 +14,18 @@ interface MoneyInputProps {
   onCurrencyChange?: (c: string) => void;
   showError?: boolean;
   autoOpenKeypadOnMobile?: boolean;
+  rightElement?: React.ReactNode;
 }
 
 export const MoneyInput: React.FC<MoneyInputProps> = ({
   value,
   onChange,
   variant = 'rose',
-  currency = 'BRL',
+  currency,
   onCurrencyChange,
   showError = false,
   autoOpenKeypadOnMobile = true,
+  rightElement,
 }) => {
   const [displayValue, setDisplayValue] = useState(value);
   const [isFocused, setIsFocused] = useState(false);
@@ -213,10 +215,16 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
           />
         </div>
 
-        <div className="flex items-center gap-1 text-slate-400 text-xs font-semibold px-2 py-1 bg-slate-900/60 rounded-lg border border-slate-800 shrink-0">
-          <span>{currency}</span>
-          <span className="text-[10px]">▾</span>
-        </div>
+        {rightElement ? (
+          <div className="shrink-0 pl-2">
+            {rightElement}
+          </div>
+        ) : currency ? (
+          <div className="flex items-center gap-1 text-slate-400 text-xs font-semibold px-2 py-1 bg-slate-900/60 rounded-lg border border-slate-800 shrink-0">
+            <span>{currency}</span>
+            <span className="text-[10px]">▾</span>
+          </div>
+        ) : null}
       </div>
 
       {isInvalid && (

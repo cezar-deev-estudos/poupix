@@ -242,25 +242,16 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
             </div>
           </div>
 
-          {/* Switch Ignorar Transação */}
-          <div className="flex items-center justify-between py-1">
-            <span className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
-              <span className="text-slate-500">ℹ️</span>
-              Ignorar transação
-            </span>
-            <button
-              type="button"
-              onClick={() => setIgnoreInTotals(!ignoreInTotals)}
-              className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                ignoreInTotals ? 'bg-cyan-500' : 'bg-slate-800'
-              }`}
-            >
-              <span
-                className={`block w-4 h-4 rounded-full bg-slate-950 transition-transform ${
-                  ignoreInTotals ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
+          {/* Observação (Altura de 1 linha) */}
+          <div className="flex items-center gap-2 border-b border-slate-800/80 pb-2">
+            <FileText className="w-4 h-4 text-slate-500 shrink-0" />
+            <input
+              type="text"
+              placeholder="Observação..."
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              className="w-full bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
+            />
           </div>
 
           {/* Botão de Alternância Mais Detalhes */}
@@ -281,16 +272,25 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
             {/* Tags em Chips */}
             <TagsChipSelector tags={tags} onChange={setTags} />
 
-            {/* Observação */}
-            <div className="space-y-1">
-              <label className="text-xs text-slate-400 font-medium">Observação</label>
-              <textarea
-                rows={3}
-                placeholder="Adicione anotações sobre esta compra no cartão..."
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 resize-none"
-              />
+            {/* Switch Ignorar Transação */}
+            <div className="flex items-center justify-between py-1">
+              <span className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
+                <span className="text-slate-500">ℹ️</span>
+                Ignorar transação
+              </span>
+              <button
+                type="button"
+                onClick={() => setIgnoreInTotals(!ignoreInTotals)}
+                className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                  ignoreInTotals ? 'bg-cyan-500' : 'bg-slate-800'
+                }`}
+              >
+                <span
+                  className={`block w-4 h-4 rounded-full bg-slate-950 transition-transform ${
+                    ignoreInTotals ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
 
             {/* Despesa Fixa */}

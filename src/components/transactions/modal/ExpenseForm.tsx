@@ -127,35 +127,35 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       <div className={`grid grid-cols-1 ${showMoreDetails ? 'md:grid-cols-2 gap-8' : 'gap-4'} transition-all`}>
         {/* Coluna Principal */}
         <div className="space-y-4">
-          {/* Valor com Calculadora */}
+          {/* Valor com Calculadora e Switch Foi Paga ao lado */}
           <MoneyInput
             value={amount}
             onChange={setAmount}
             variant="rose"
             showError={showValidation}
             autoOpenKeypadOnMobile={!initialData}
+            rightElement={
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-slate-300 flex items-center gap-1.5 whitespace-nowrap">
+                  <Check className="w-3.5 h-3.5 text-slate-500" />
+                  Foi paga
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPaid(!paid)}
+                  className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                    paid ? 'bg-emerald-500' : 'bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                      paid ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            }
           />
-
-          {/* Switch Foi Paga */}
-          <div className="flex items-center justify-between py-1 border-b border-slate-800/80">
-            <span className="text-xs font-medium text-slate-300 flex items-center gap-2">
-              <Check className="w-4 h-4 text-slate-500" />
-              Foi paga
-            </span>
-            <button
-              type="button"
-              onClick={() => setPaid(!paid)}
-              className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                paid ? 'bg-emerald-500' : 'bg-slate-800'
-              }`}
-            >
-              <span
-                className={`block w-4 h-4 rounded-full bg-white transition-transform ${
-                  paid ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
 
           {/* Seletor Rápido de Data */}
           <QuickDateSelector value={date} onChange={setDate} variant="rose" />
@@ -190,25 +190,16 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
             variant="rose"
           />
 
-          {/* Switch Ignorar Transação */}
-          <div className="flex items-center justify-between py-1">
-            <span className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
-              <span className="text-slate-500">ℹ️</span>
-              Ignorar transação
-            </span>
-            <button
-              type="button"
-              onClick={() => setIgnoreInTotals(!ignoreInTotals)}
-              className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                ignoreInTotals ? 'bg-rose-500' : 'bg-slate-800'
-              }`}
-            >
-              <span
-                className={`block w-4 h-4 rounded-full bg-white transition-transform ${
-                  ignoreInTotals ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
+          {/* Observação (Altura de 1 linha) */}
+          <div className="flex items-center gap-2 border-b border-slate-800/80 pb-2">
+            <FileText className="w-4 h-4 text-slate-500 shrink-0" />
+            <input
+              type="text"
+              placeholder="Observação..."
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              className="w-full bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
+            />
           </div>
 
           {/* Botão de Alternância Mais Detalhes */}
@@ -229,16 +220,25 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
             {/* Tags em Chips */}
             <TagsChipSelector tags={tags} onChange={setTags} />
 
-            {/* Observação */}
-            <div className="space-y-1">
-              <label className="text-xs text-slate-400 font-medium">Observação</label>
-              <textarea
-                rows={3}
-                placeholder="Adicione anotações ou detalhes sobre este gasto..."
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-rose-500 resize-none"
-              />
+            {/* Switch Ignorar Transação */}
+            <div className="flex items-center justify-between py-1">
+              <span className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
+                <span className="text-slate-500">ℹ️</span>
+                Ignorar transação
+              </span>
+              <button
+                type="button"
+                onClick={() => setIgnoreInTotals(!ignoreInTotals)}
+                className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                  ignoreInTotals ? 'bg-rose-500' : 'bg-slate-800'
+                }`}
+              >
+                <span
+                  className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                    ignoreInTotals ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
 
             {/* Despesa Fixa */}

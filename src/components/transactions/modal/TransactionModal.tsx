@@ -198,57 +198,57 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
           {/* Abas de Tipo Posicionadas Abaixo do Título */}
           {!transactionToEdit && (
-            <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 overflow-x-auto">
+            <div className="flex items-center gap-1 sm:gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
               <button
                 type="button"
                 onClick={() => setActiveFlow('expense')}
-                className={`flex-1 min-w-[80px] py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                className={`flex-1 min-w-0 py-1.5 px-1 sm:px-2 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   activeFlow === 'expense'
                     ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
                 }`}
               >
-                <TrendingDown className="w-3.5 h-3.5" />
-                <span>Despesa</span>
+                <TrendingDown className="w-3.5 h-3.5 hidden sm:inline-block shrink-0" />
+                <span className="truncate">Despesa</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveFlow('income')}
-                className={`flex-1 min-w-[80px] py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                className={`flex-1 min-w-0 py-1.5 px-1 sm:px-2 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   activeFlow === 'income'
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
                 }`}
               >
-                <TrendingUp className="w-3.5 h-3.5" />
-                <span>Receita</span>
+                <TrendingUp className="w-3.5 h-3.5 hidden sm:inline-block shrink-0" />
+                <span className="truncate">Receita</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveFlow('creditCard')}
-                className={`flex-1 min-w-[80px] py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                className={`flex-1 min-w-0 py-1.5 px-1 sm:px-2 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   activeFlow === 'creditCard'
                     ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
                 }`}
               >
-                <CreditCard className="w-3.5 h-3.5" />
-                <span>Cartão</span>
+                <CreditCard className="w-3.5 h-3.5 hidden sm:inline-block shrink-0" />
+                <span className="truncate">Cartão</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveFlow('transfer')}
-                className={`flex-1 min-w-[80px] py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                className={`flex-1 min-w-0 py-1.5 px-1 sm:px-2 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   activeFlow === 'transfer'
                     ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
                 }`}
               >
-                <ArrowRightLeft className="w-3.5 h-3.5" />
-                <span>Transferência</span>
+                <ArrowRightLeft className="w-3.5 h-3.5 hidden sm:inline-block shrink-0" />
+                <span className="truncate">Transferência</span>
               </button>
             </div>
           )}

@@ -8,7 +8,7 @@ import { MoneyInput } from './MoneyInput';
 import { QuickDateSelector } from './QuickDateSelector';
 import { TagsChipSelector } from './TagsChipSelector';
 import { AccountSelectorDropdown } from './AccountSelectorDropdown';
-import { Pin, Trash2 } from 'lucide-react';
+import { Pin, Trash2, FileText } from 'lucide-react';
 
 interface TransferFormProps {
   initialData?: Transaction | null;
@@ -145,6 +145,18 @@ export const TransferForm: React.FC<TransferFormProps> = ({
             label="Conta de destino (Entra em)"
           />
 
+          {/* Observação (Altura de 1 linha) */}
+          <div className="flex items-center gap-2 border-b border-slate-800/80 pb-2">
+            <FileText className="w-4 h-4 text-slate-500 shrink-0" />
+            <input
+              type="text"
+              placeholder="Observação..."
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              className="w-full bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
+            />
+          </div>
+
           {/* Botão de Alternância Mais Detalhes */}
           <div className="pt-2">
             <button
@@ -162,18 +174,6 @@ export const TransferForm: React.FC<TransferFormProps> = ({
           <div className="space-y-4 md:border-l md:border-slate-800 md:pl-8 pt-4 md:pt-0 animate-fadeIn">
             {/* Tags em Chips */}
             <TagsChipSelector tags={tags} onChange={setTags} />
-
-            {/* Observação */}
-            <div className="space-y-1">
-              <label className="text-xs text-slate-400 font-medium">Observação</label>
-              <textarea
-                rows={3}
-                placeholder="Adicione anotações sobre esta transferência..."
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 resize-none"
-              />
-            </div>
 
             {/* Transferência Fixa */}
             <div className="flex items-center justify-between py-2 border-t border-slate-800/80">
