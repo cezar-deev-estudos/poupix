@@ -309,7 +309,9 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
   const stickyHeaderRef = React.useRef<HTMLDivElement>(null);
   const hasAutoScrolledRef = React.useRef(false);
 
-  // Auto-scroll compensado: ao abrir a lista de transações, posiciona "Hoje" ou "Ontem" perfeitamente abaixo da barra fixa
+  // Auto-scroll robusto para dispositivos móveis:
+  // Ao abrir a lista de transações, posiciona "Hoje" (ou "Ontem", ou a data mais recente)
+  // perfeitamente visível abaixo do cabeçalho fixo.
   React.useEffect(() => {
     hasAutoScrolledRef.current = false;
   }, [activeTypeFilter, selectedMonth, selectedYear]);
@@ -317,26 +319,61 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
   React.useEffect(() => {
     if (hasAutoScrolledRef.current || groupedByDate.length === 0) return;
 
-    const timer = setTimeout(() => {
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    const tryScroll = () => {
+      // 1. Prioridade 1: 'Hoje'
+      // 2. Prioridade 2: 'Ontem'
+      // 3. Prioridade 3: Primeiro grupo com data menor ou igual a hoje (data passada mais próxima) ou o primeiro do mês
       const todayEl = document.getElementById('tx-group-hoje');
       const yesterdayEl = document.getElementById('tx-group-ontem');
-      const targetEl = todayEl || yesterdayEl;
+      
+      let targetEl = todayEl || yesterdayEl;
+
+      if (!targetEl) {
+        const todayStr = getLocalDateString(new Date());
+        // Encontra o grupo mais próximo do dia atual
+        const closestPastGroup = groupedByDate.find(g => g.dateKey <= todayStr);
+        const fallbackGroup = closestPastGroup || groupedByDate[0];
+        if (fallbackGroup) {
+          targetEl = document.getElementById(`tx-group-${fallbackGroup.dateKey}`) ||
+                     document.querySelector(`[data-date-key="${fallbackGroup.dateKey}"]`);
+        }
+      }
 
       if (targetEl) {
         const headerHeight = stickyHeaderRef.current?.offsetHeight || 190;
         const targetRect = targetEl.getBoundingClientRect();
-        const scrollPosition = targetRect.top + window.scrollY - headerHeight - 8;
+        
+        // Se a posição ainda não foi renderizada no layout (top = 0 enquanto outros elementos carregam)
+        if (targetRect.top === 0 && attempts < maxAttempts) {
+          attempts++;
+          requestAnimationFrame(tryScroll);
+          return;
+        }
+
+        const currentScrollY = window.pageYOffset || document.documentElement.scrollTop || window.scrollY || 0;
+        const scrollPosition = targetRect.top + currentScrollY - headerHeight - 10;
 
         window.scrollTo({
           top: Math.max(0, scrollPosition),
           behavior: 'smooth',
         });
+        document.documentElement.scrollTo({
+          top: Math.max(0, scrollPosition),
+          behavior: 'smooth',
+        });
+
         hasAutoScrolledRef.current = true;
-      } else {
-        window.scrollTo({ top: 0, behavior: 'instant' });
-        document.documentElement.scrollTo({ top: 0, behavior: 'instant' });
+      } else if (attempts < maxAttempts) {
+        attempts++;
+        setTimeout(tryScroll, 100);
       }
-    }, 150);
+    };
+
+    // Timeout inicial para permitir término da pintura no mobile
+    const timer = setTimeout(tryScroll, 100);
 
     return () => clearTimeout(timer);
   }, [groupedByDate]);
@@ -827,7 +864,10 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
           {groupedByDate.map((group) => (
             <div
               key={group.dateKey}
-              id={group.isToday ? 'tx-group-hoje' : group.isYesterday ? 'tx-group-ontem' : undefined}
+              id={group.isToday ? 'tx-group-hoje' : group.isYesterday ? 'tx-group-ontem' : `tx-group-${group.dateKey}`}
+              data-is-today={group.isToday ? 'true' : undefined}
+              data-is-yesterday={group.isYesterday ? 'true' : undefined}
+              data-date-key={group.dateKey}
               className="space-y-2 scroll-mt-52"
             >
               {/* Título do Dia */}
