@@ -271,7 +271,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn pb-12">
+    <div className="space-y-4 animate-fadeIn pb-12">
       {/* 1. Barra de Título Superior com Seletor Roxo e Ações */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -511,7 +511,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         </div>
 
         {isHeatmapOpen && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start animate-scaleUp">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch animate-scaleUp">
             {/* Coluna da Esquerda: Mapa de Calor (7 colunas no Desktop) */}
             <div className="lg:col-span-7">
               <ExpenseHeatmapCalendar
@@ -519,6 +519,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 year={selectedYear}
                 month={selectedMonth}
                 selectedDate={effectiveSelectedDate}
+                compact={true}
                 onSelectDate={(dateStr) => {
                   setSelectedHeatmapDate(dateStr);
                 }}
@@ -526,8 +527,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             </div>
 
             {/* Coluna da Direita: Painel de Lançamentos do Dia Selecionado (5 colunas no Desktop) */}
-            <div className="lg:col-span-5 bg-[#181b24] border border-slate-800/90 rounded-3xl p-5 shadow-2xl flex flex-col h-full min-h-[380px]">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
+            <div className="lg:col-span-5 bg-[#181b24] border border-slate-800/90 rounded-3xl p-4 shadow-2xl flex flex-col h-full min-h-[300px]">
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800/80 mb-2.5">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
                     <Calendar className="w-4 h-4 stroke-[2.5]" />
@@ -565,7 +566,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-[290px] overflow-y-auto pr-1">
                   {selectedDateTransactions.map((tx) => {
                     const cat = categories.find((c) => c.id === tx.categoryId);
                     const isExpense = tx.type === 'expense' || !!tx.creditCardId;

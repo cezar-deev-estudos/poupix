@@ -147,18 +147,18 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
   };
 
   return (
-    <div className="bg-[#181b24] border border-slate-800/90 rounded-3xl p-4 sm:p-5 shadow-2xl text-slate-100">
+    <div className={`bg-[#181b24] border border-slate-800/90 rounded-3xl shadow-2xl text-slate-100 ${compact ? 'p-3.5 sm:p-4' : 'p-4 sm:p-5'}`}>
       {/* Cabeçalho do Card */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400 shadow-inner">
-            <Flame className="w-4 h-4 fill-orange-400/30 stroke-[2.5]" />
+      <div className={`flex items-center justify-between ${compact ? 'mb-2.5' : 'mb-4'}`}>
+        <div className="flex items-center gap-2">
+          <div className={`${compact ? 'w-7 h-7 rounded-lg' : 'w-8 h-8 rounded-xl'} bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400 shadow-inner`}>
+            <Flame className={`${compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} fill-orange-400/30 stroke-[2.5]`} />
           </div>
           <div>
-            <h4 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
+            <h4 className="text-xs sm:text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
               Mapa de calor
             </h4>
-            <span className="text-[11px] text-orange-400/90 font-medium block">
+            <span className="text-[10px] sm:text-[11px] text-orange-400/90 font-medium block">
               gasto por dia
             </span>
           </div>
@@ -166,7 +166,7 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
 
         {totalMonthExpenses > 0 && (
           <div className="text-right">
-            <span className="text-[10px] text-slate-500 block uppercase font-medium">Total do mês</span>
+            <span className="text-[9px] sm:text-[10px] text-slate-500 block uppercase font-medium">Total do mês</span>
             <span className="text-xs font-bold text-white">
               {formatCurrency(totalMonthExpenses)}
             </span>
@@ -175,16 +175,16 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
       </div>
 
       {/* Grade dos Dias da Semana */}
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2 text-center mb-2">
+      <div className={`grid grid-cols-7 ${compact ? 'gap-1 text-center mb-1' : 'gap-1.5 sm:gap-2 text-center mb-2'}`}>
         {WEEKDAYS.map((w, idx) => (
-          <div key={idx} className="text-[11px] font-bold text-slate-500 py-0.5">
+          <div key={idx} className={`${compact ? 'text-[10px]' : 'text-[11px]'} font-bold text-slate-500 py-0.5`}>
             {w}
           </div>
         ))}
       </div>
 
       {/* Grade de Células do Calendário */}
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+      <div className={`grid grid-cols-7 ${compact ? 'gap-1' : 'gap-1.5 sm:gap-2'}`}>
         {calendarDays.map((cell, idx) => {
           if (!cell.dayNumber) {
             return <div key={`empty-${idx}`} className="aspect-square" />;
@@ -198,7 +198,7 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
               key={cell.dateStr}
               type="button"
               onClick={() => cell.dateStr && onSelectDate?.(cell.dateStr)}
-              className={`group relative aspect-square rounded-2xl flex flex-col justify-between p-1 sm:p-1.5 transition-all duration-150 cursor-pointer ${levelClass} ${
+              className={`group relative aspect-square rounded-xl sm:rounded-2xl flex flex-col justify-between ${compact ? 'p-1' : 'p-1 sm:p-1.5'} transition-all duration-150 cursor-pointer ${levelClass} ${
                 isSelected
                   ? 'ring-2 ring-white ring-offset-2 ring-offset-[#181b24] scale-105 z-10'
                   : cell.isToday
@@ -208,7 +208,7 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
             >
               {/* Número do dia */}
               <span
-                className={`text-[10px] sm:text-[11px] font-semibold leading-none text-left ${
+                className={`${compact ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-[11px]'} font-semibold leading-none text-left ${
                   cell.level > 0 ? 'text-white/90' : 'text-slate-500'
                 }`}
               >
@@ -217,11 +217,11 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
 
               {/* Valor abreviado no fundo da célula */}
               {cell.amount > 0 ? (
-                <span className="text-[9px] sm:text-[10px] font-bold text-right tracking-tight leading-none truncate">
+                <span className={`${compact ? 'text-[8.5px] sm:text-[9.5px]' : 'text-[9px] sm:text-[10px]'} font-bold text-right tracking-tight leading-none truncate`}>
                   {formatShortAmount(cell.amount)}
                 </span>
               ) : (
-                <span className="h-2" />
+                <span className="h-1.5" />
               )}
             </button>
           );
@@ -229,25 +229,25 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
       </div>
 
       {/* Rodapé com Legenda e Insight Comportamental */}
-      <div className="mt-4 pt-3.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className={`${compact ? 'mt-2.5 pt-2' : 'mt-4 pt-3.5'} border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs`}>
         {/* Legenda de Intensidade */}
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+        <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-400">
           <span>menos</span>
-          <span className="w-2.5 h-2.5 rounded-full bg-[#7c3f1b]" />
-          <span className="w-2.5 h-2.5 rounded-full bg-[#d95d13]" />
-          <span className="w-2.5 h-2.5 rounded-full bg-[#ea580c]" />
-          <span className="w-2.5 h-2.5 rounded-full bg-[#e11d74]" />
+          <span className="w-2 h-2 rounded-full bg-[#7c3f1b]" />
+          <span className="w-2 h-2 rounded-full bg-[#d95d13]" />
+          <span className="w-2 h-2 rounded-full bg-[#ea580c]" />
+          <span className="w-2 h-2 rounded-full bg-[#e11d74]" />
           <span>mais</span>
         </div>
 
         {/* Insight Inteligente */}
         {weekendRatio > 1.2 ? (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-950/40 border border-orange-500/30 text-orange-300 text-[11px] font-medium">
+          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-orange-950/40 border border-orange-500/30 text-orange-300 text-[10px] sm:text-[11px] font-medium">
             <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
             <span>fins de semana: {weekendRatio.toFixed(1)}x mais caros</span>
           </div>
         ) : activeDaysCount > 0 ? (
-          <div className="text-[11px] text-slate-400">
+          <div className="text-[10px] sm:text-[11px] text-slate-400">
             <span className="font-semibold text-slate-300">{activeDaysCount}</span> dias com gastos no mês
           </div>
         ) : null}
