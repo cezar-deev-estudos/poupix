@@ -83,7 +83,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false);
   const [alertPending, setAlertPending] = useState(false);
-  const [isHeatmapOpen, setIsHeatmapOpen] = useState(false);
+  const [isHeatmapOpen, setIsHeatmapOpen] = useState(true);
   const [selectedHeatmapDate, setSelectedHeatmapDate] = useState<string | null>(null);
   const [heatmapModalDate, setHeatmapModalDate] = useState<string | null>(null);
 
@@ -259,6 +259,16 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
   }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter, groupByCard, creditCards, accounts, categories, selectedYear, selectedMonth]);
 
   // Transações do dia selecionado para o card suspenso (Mobile)
+  const effectiveHeatmapDate = useMemo(() => {
+    if (selectedHeatmapDate) return selectedHeatmapDate;
+    const todayStr = getLocalDateString(new Date());
+    const [todayY, todayM] = todayStr.split('-').map(Number);
+    if (todayY === selectedYear && todayM === selectedMonth + 1) {
+      return todayStr;
+    }
+    return null;
+  }, [selectedHeatmapDate, selectedYear, selectedMonth]);
+
   const heatmapDayModalData = useMemo(() => {
     if (!heatmapModalDate) return { transactions: [], total: 0 };
     const txs = displayedTransactions.filter((t) => {
@@ -323,76 +333,6 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
   // Referência do cabeçalho fixo para medição dinâmica de altura
   const stickyHeaderRef = React.useRef<HTMLDivElement>(null);
-  const hasAutoScrolledRef = React.useRef(false);
-
-  // Auto-scroll robusto para dispositivos móveis:
-  // Ao abrir a lista de transações, posiciona "Hoje" (ou "Ontem", ou a data mais recente)
-  // perfeitamente visível abaixo do cabeçalho fixo.
-  React.useEffect(() => {
-    hasAutoScrolledRef.current = false;
-  }, [activeTypeFilter, selectedMonth, selectedYear]);
-
-  React.useEffect(() => {
-    if (hasAutoScrolledRef.current || groupedByDate.length === 0) return;
-
-    let attempts = 0;
-    const maxAttempts = 5;
-
-    const tryScroll = () => {
-      // 1. Prioridade 1: 'Hoje'
-      // 2. Prioridade 2: 'Ontem'
-      // 3. Prioridade 3: Primeiro grupo com data menor ou igual a hoje (data passada mais próxima) ou o primeiro do mês
-      const todayEl = document.getElementById('tx-group-hoje');
-      const yesterdayEl = document.getElementById('tx-group-ontem');
-      
-      let targetEl = todayEl || yesterdayEl;
-
-      if (!targetEl) {
-        const todayStr = getLocalDateString(new Date());
-        // Encontra o grupo mais próximo do dia atual
-        const closestPastGroup = groupedByDate.find(g => g.dateKey <= todayStr);
-        const fallbackGroup = closestPastGroup || groupedByDate[0];
-        if (fallbackGroup) {
-          targetEl = document.getElementById(`tx-group-${fallbackGroup.dateKey}`) ||
-                     document.querySelector(`[data-date-key="${fallbackGroup.dateKey}"]`);
-        }
-      }
-
-      if (targetEl) {
-        const headerHeight = stickyHeaderRef.current?.offsetHeight || 190;
-        const targetRect = targetEl.getBoundingClientRect();
-        
-        // Se a posição ainda não foi renderizada no layout (top = 0 enquanto outros elementos carregam)
-        if (targetRect.top === 0 && attempts < maxAttempts) {
-          attempts++;
-          requestAnimationFrame(tryScroll);
-          return;
-        }
-
-        const currentScrollY = window.pageYOffset || document.documentElement.scrollTop || window.scrollY || 0;
-        const scrollPosition = targetRect.top + currentScrollY - headerHeight - 10;
-
-        window.scrollTo({
-          top: Math.max(0, scrollPosition),
-          behavior: 'smooth',
-        });
-        document.documentElement.scrollTo({
-          top: Math.max(0, scrollPosition),
-          behavior: 'smooth',
-        });
-
-        hasAutoScrolledRef.current = true;
-      } else if (attempts < maxAttempts) {
-        attempts++;
-        setTimeout(tryScroll, 100);
-      }
-    };
-
-    // Timeout inicial para permitir término da pintura no mobile
-    const timer = setTimeout(tryScroll, 100);
-
-    return () => clearTimeout(timer);
-  }, [groupedByDate]);
 
   const [confirmingPayment, setConfirmingPayment] = useState<{
     tx: Transaction | null;
@@ -897,7 +837,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
               transactions={displayedTransactions}
               year={selectedYear}
               month={selectedMonth}
-              selectedDate={selectedHeatmapDate}
+              selectedDate={effectiveHeatmapDate}
               onSelectDate={(dateStr) => {
                 setSelectedHeatmapDate(dateStr);
                 setHeatmapModalDate(dateStr);

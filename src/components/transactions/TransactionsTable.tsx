@@ -59,34 +59,6 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     });
   }, [transactions, creditCards]);
 
-  // Identificar índice da data de Hoje ou Ontem para posicionamento inicial
-  const hasAutoScrolledRef = React.useRef(false);
-
-  React.useEffect(() => {
-    hasAutoScrolledRef.current = false;
-  }, [selectedMonth, selectedYear, transactions.length]);
-
-  React.useEffect(() => {
-    if (sortedTransactions.length === 0) return;
-
-    const now = new Date();
-    const todayStr = getLocalDateString(now);
-    const yesterdayDate = new Date();
-    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-    const yesterdayStr = getLocalDateString(yesterdayDate);
-
-    // Encontrar se existe transação de hoje ou ontem
-    const targetIndex = sortedTransactions.findIndex((tx) => {
-      const d = getTxDate(tx);
-      return d === todayStr || d === yesterdayStr;
-    });
-
-    if (targetIndex !== -1) {
-      const targetPage = Math.floor(targetIndex / rowsPerPage) + 1;
-      setCurrentPage((prev) => (prev !== targetPage ? targetPage : prev));
-    }
-  }, [sortedTransactions, rowsPerPage, selectedMonth, selectedYear]);
-
   // Paginação
   const totalItems = sortedTransactions.length;
   const totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
@@ -96,28 +68,6 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     const start = (safeCurrentPage - 1) * rowsPerPage;
     return sortedTransactions.slice(start, start + rowsPerPage);
   }, [sortedTransactions, safeCurrentPage, rowsPerPage]);
-
-  // Auto-scroll para posicionar "Hoje" ou "Ontem" perfeitamente rente ao topo ao abrir a lista desktop
-  React.useEffect(() => {
-    if (hasAutoScrolledRef.current || paginatedTransactions.length === 0) return;
-
-    const timer = setTimeout(() => {
-      const targetEl = document.getElementById('desktop-tx-row-hoje') || document.getElementById('desktop-tx-row-ontem');
-      if (targetEl) {
-        // Compensação rente ao topo da janela
-        const targetRect = targetEl.getBoundingClientRect();
-        const scrollPosition = targetRect.top + window.scrollY - 10;
-
-        window.scrollTo({
-          top: Math.max(0, scrollPosition),
-          behavior: 'smooth',
-        });
-        hasAutoScrolledRef.current = true;
-      }
-    }, 200);
-
-    return () => clearTimeout(timer);
-  }, [paginatedTransactions]);
 
   // Agrupamento por dia para calcular saldo do final do dia
   const dailyGroups = useMemo(() => {

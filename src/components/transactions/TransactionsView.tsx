@@ -71,7 +71,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false);
   const [alertPending, setAlertPending] = useState(false);
-  const [isHeatmapOpen, setIsHeatmapOpen] = useState(false);
+  const [isHeatmapOpen, setIsHeatmapOpen] = useState(true);
   const [selectedHeatmapDate, setSelectedHeatmapDate] = useState<string | null>(null);
 
   // Estados de Modais
