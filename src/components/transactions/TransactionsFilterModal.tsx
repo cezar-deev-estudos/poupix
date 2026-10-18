@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { useFinance } from '@/context/FinanceContext';
-import { X, Check } from 'lucide-react';
+import { X, Check, Bookmark, Trash2 } from 'lucide-react';
+import { SavedTransactionFilter } from '@/types/finance';
 
 export interface AdvancedFilterState {
   startDate: string;
@@ -14,6 +15,7 @@ export interface AdvancedFilterState {
   status: 'all' | 'paid' | 'pending';
   type: 'all' | 'expense' | 'income' | 'transfer';
   saveFilter: boolean;
+  filterName?: string;
 }
 
 interface TransactionsFilterModalProps {
@@ -22,6 +24,9 @@ interface TransactionsFilterModalProps {
   filter: AdvancedFilterState;
   onApplyFilter: (filter: AdvancedFilterState) => void;
   onResetFilter: () => void;
+  savedFilters?: SavedTransactionFilter[];
+  onApplySavedFilter?: (filter: SavedTransactionFilter) => void;
+  onDeleteSavedFilter?: (id: string) => void;
 }
 
 export const TransactionsFilterModal: React.FC<TransactionsFilterModalProps> = ({
@@ -30,6 +35,9 @@ export const TransactionsFilterModal: React.FC<TransactionsFilterModalProps> = (
   filter,
   onApplyFilter,
   onResetFilter,
+  savedFilters = [],
+  onApplySavedFilter,
+  onDeleteSavedFilter,
 }) => {
   const { categories, accounts, tags } = useFinance();
   const [activeTab, setActiveTab] = useState<'new' | 'saved'>('new');
@@ -101,7 +109,7 @@ export const TransactionsFilterModal: React.FC<TransactionsFilterModalProps> = (
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            FILTROS SALVOS
+            FILTROS SALVOS ({savedFilters.length})
           </button>
         </div>
 
@@ -137,7 +145,6 @@ export const TransactionsFilterModal: React.FC<TransactionsFilterModalProps> = (
                 onChange={(e) => {
                   const newCatId = e.target.value;
                   setCurrentFilter((prev) => {
-                    // Se mudou de categoria pai e a subcategoria atual não pertence a ela, limpa a subcategoria
                     const subBelongs = newCatId
                       ? categories.some((c) => c.id === prev.subcategoryId && c.parentId === newCatId)
                       : true;
@@ -171,7 +178,6 @@ export const TransactionsFilterModal: React.FC<TransactionsFilterModalProps> = (
                     return {
                       ...prev,
                       subcategoryId: selectedSubId,
-                      // Se selecionou subcategoria e não tinha pai selecionado, preenche o pai correspondente automaticamente
                       categoryId: sub?.parentId ? sub.parentId : prev.categoryId,
                     };
                   });
@@ -254,27 +260,113 @@ export const TransactionsFilterModal: React.FC<TransactionsFilterModalProps> = (
               </select>
             </div>
 
-            {/* Salvar filtro personalizado */}
-            <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-slate-300">Salvar filtro personalizado</span>
-              <button
-                type="button"
-                onClick={() => setCurrentFilter((prev) => ({ ...prev, saveFilter: !prev.saveFilter }))}
-                className={`w-10 h-5 rounded-full transition-colors relative cursor-pointer ${
-                  currentFilter.saveFilter ? 'bg-indigo-600' : 'bg-slate-700'
-                }`}
-              >
-                <span
-                  className={`block w-3.5 h-3.5 rounded-full bg-white transition-transform ${
-                    currentFilter.saveFilter ? 'translate-x-5' : 'translate-x-1'
+            {/* Salvar filtro personalizado com Nome */}
+            <div className="p-3 bg-slate-900/50 rounded-2xl border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
+                  <Bookmark className="w-3.5 h-3.5 text-indigo-400" />
+                  Salvar este filtro com um nome
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentFilter((prev) => ({ ...prev, saveFilter: !prev.saveFilter }))}
+                  className={`w-10 h-5 rounded-full transition-colors relative cursor-pointer ${
+                    currentFilter.saveFilter ? 'bg-indigo-600' : 'bg-slate-700'
                   }`}
-                />
-              </button>
+                >
+                  <span
+                    className={`block w-3.5 h-3.5 rounded-full bg-white transition-transform ${
+                      currentFilter.saveFilter ? 'translate-x-5' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {currentFilter.saveFilter && (
+                <div className="space-y-1 animate-fadeIn pt-1">
+                  <label className="text-[10px] text-slate-400">Nome do filtro</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Minhas Despesas Fixas"
+                    value={currentFilter.filterName || ''}
+                    onChange={(e) => setCurrentFilter((prev) => ({ ...prev, filterName: e.target.value }))}
+                    className="w-full bg-[#181b24] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              )}
             </div>
           </div>
         ) : (
-          <div className="py-8 text-center text-slate-500 text-xs">
-            <p>Nenhum filtro salvo no momento.</p>
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+            {savedFilters.length === 0 ? (
+              <div className="py-10 text-center text-slate-500 text-xs space-y-1">
+                <Bookmark className="w-7 h-7 mx-auto text-slate-600 mb-2" />
+                <p className="font-semibold text-slate-400">Nenhum filtro salvo no momento</p>
+                <p className="text-[11px] text-slate-600">
+                  Configure um filtro na aba "Novo Filtro" e marque a opção para salvar.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {savedFilters.map((sf) => (
+                  <div
+                    key={sf.id}
+                    className="flex items-center justify-between p-3 rounded-2xl bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 transition-all cursor-pointer group"
+                  >
+                    <div
+                      className="flex-1 min-w-0 mr-2"
+                      onClick={() => {
+                        onApplySavedFilter?.(sf);
+                        onClose();
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-100 truncate block">
+                          {sf.name}
+                        </span>
+                        {sf.scope === 'year' && (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-semibold shrink-0">
+                            Ano Todo
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5 truncate">
+                        {sf.searchQuery && <span>Busca: "{sf.searchQuery}"</span>}
+                        {sf.type && sf.type !== 'all' && <span>• Tipo: {sf.type}</span>}
+                        {sf.status && sf.status !== 'all' && <span>• Situação: {sf.status}</span>}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onApplySavedFilter?.(sf);
+                          onClose();
+                        }}
+                        className="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white rounded-xl text-[11px] font-semibold transition-all cursor-pointer"
+                      >
+                        Aplicar
+                      </button>
+
+                      {onDeleteSavedFilter && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteSavedFilter(sf.id);
+                          }}
+                          className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 rounded-xl transition-all cursor-pointer"
+                          title="Excluir filtro"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -288,15 +380,18 @@ export const TransactionsFilterModal: React.FC<TransactionsFilterModalProps> = (
             CANCELAR / LIMPAR
           </button>
 
-          <button
-            type="button"
-            onClick={handleApply}
-            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
-          >
-            APLICAR FILTROS
-          </button>
+          {activeTab === 'new' && (
+            <button
+              type="button"
+              onClick={handleApply}
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
+            >
+              APLICAR FILTROS
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 };
+

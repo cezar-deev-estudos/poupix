@@ -24,9 +24,10 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
   onSelectDate,
   compact = false,
 }) => {
-  // 1. Agrupar despesas por dia (YYYY-MM-DD)
-  const { dailyTotals, maxExpense, weekendRatio, activeDaysCount, totalMonthExpenses } = useMemo(() => {
+  // 1. Agrupar despesas e receitas por dia (YYYY-MM-DD)
+  const { dailyTotals, dailyIncomes, maxExpense, weekendRatio, activeDaysCount, totalMonthExpenses } = useMemo(() => {
     const totals: Record<string, number> = {};
+    const incomes: Record<string, number> = {};
     let max = 0;
     let weekendSum = 0;
     let weekendDays = 0;
@@ -35,15 +36,19 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
     let totalAll = 0;
 
     transactions.forEach(t => {
-      // Considerar apenas despesas (exceto ignoradas se houver flag)
-      if (t.type !== 'expense' && !t.creditCardId) return;
-      if (t.type === 'income') return;
-
       const dateStr = t.date ? t.date.split('T')[0] : '';
       if (!dateStr) return;
 
       const [y, m] = dateStr.split('-').map(Number);
-      if (y === year && m === month + 1) {
+      if (y !== year || m !== month + 1) return;
+
+      if (t.type === 'income') {
+        incomes[dateStr] = (incomes[dateStr] || 0) + t.amount;
+        return;
+      }
+
+      // Considerar apenas despesas (exceto ignoradas se houver flag)
+      if (t.type === 'expense' || t.creditCardId) {
         totals[dateStr] = (totals[dateStr] || 0) + t.amount;
         totalAll += t.amount;
       }
@@ -68,6 +73,7 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
 
     return {
       dailyTotals: totals,
+      dailyIncomes: incomes,
       maxExpense: max,
       weekendRatio: ratio,
       activeDaysCount: Object.keys(totals).length,
@@ -84,13 +90,14 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
       dayNumber: number | null;
       dateStr: string | null;
       amount: number;
+      incomeAmount: number;
       isToday: boolean;
       level: 0 | 1 | 2 | 3 | 4;
     }> = [];
 
     // Células vazias antes do dia 1
     for (let i = 0; i < firstDay; i++) {
-      days.push({ dayNumber: null, dateStr: null, amount: 0, isToday: false, level: 0 });
+      days.push({ dayNumber: null, dateStr: null, amount: 0, incomeAmount: 0, isToday: false, level: 0 });
     }
 
     const todayStr = new Date().toISOString().split('T')[0];
@@ -98,6 +105,7 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
     for (let d = 1; d <= totalDays; d++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const amount = dailyTotals[dateStr] || 0;
+      const incomeAmount = dailyIncomes[dateStr] || 0;
       let level: 0 | 1 | 2 | 3 | 4 = 0;
 
       if (amount > 0 && maxExpense > 0) {
@@ -112,28 +120,29 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
         dayNumber: d,
         dateStr,
         amount,
+        incomeAmount,
         isToday: dateStr === todayStr,
         level,
       });
     }
 
     return days;
-  }, [year, month, dailyTotals, maxExpense]);
+  }, [year, month, dailyTotals, dailyIncomes, maxExpense]);
 
   // Cores idênticas ao design do app (laranja escuro -> laranja brilhante -> magenta/rosa choque)
   const getLevelStyle = (level: number, isSelected: boolean) => {
     switch (level) {
       case 1:
-        return 'bg-[#7c3f1b] text-amber-200 border-transparent hover:brightness-110';
+        return 'bg-[#7c3f1b] border-transparent hover:brightness-110';
       case 2:
-        return 'bg-[#d95d13] text-white border-transparent hover:brightness-110';
+        return 'bg-[#d95d13] border-transparent hover:brightness-110';
       case 3:
-        return 'bg-[#ea580c] text-white shadow-md shadow-orange-950/40 border-transparent hover:brightness-110';
+        return 'bg-[#ea580c] shadow-md shadow-orange-950/40 border-transparent hover:brightness-110';
       case 4:
-        return 'bg-[#e11d74] text-white shadow-md shadow-pink-950/50 border-transparent hover:brightness-110';
+        return 'bg-[#e11d74] shadow-md shadow-pink-950/50 border-transparent hover:brightness-110';
       default:
         return isSelected
-          ? 'bg-slate-800 text-slate-200'
+          ? 'bg-slate-800'
           : 'bg-slate-900/40 text-slate-600 hover:text-slate-400 border-transparent';
     }
   };
@@ -206,22 +215,33 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
                   : ''
               }`}
             >
-              {/* Número do dia */}
-              <span
-                className={`${compact ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-[11px]'} font-semibold leading-none text-left ${
-                  cell.level > 0 ? 'text-white/90' : 'text-slate-500'
-                }`}
-              >
-                {cell.dayNumber}
-              </span>
+              {/* Linha Superior: Número do dia à esquerda e Crédito (verde) à direita */}
+              <div className="w-full flex items-center justify-between leading-none">
+                <span
+                  className={`${compact ? 'text-[9px] sm:text-[10px] md:text-[14px]' : 'text-[10px] sm:text-[11px] md:text-[15px]'} font-bold text-left ${
+                    cell.level > 0 ? 'text-white/95' : 'text-slate-500'
+                  }`}
+                >
+                  {cell.dayNumber}
+                </span>
 
-              {/* Valor abreviado no fundo da célula */}
+                {cell.incomeAmount > 0 && (
+                  <span
+                    className={`${compact ? 'text-[8px] sm:text-[9px] md:text-[12.5px]' : 'text-[8.5px] sm:text-[9.5px] md:text-[13.5px]'} font-normal text-emerald-400 text-right tracking-tight drop-shadow-sm`}
+                    title={`Crédito: ${formatCurrency(cell.incomeAmount)}`}
+                  >
+                    +{formatShortAmount(cell.incomeAmount)}
+                  </span>
+                )}
+              </div>
+
+              {/* Linha Inferior: Valor de despesas (sempre branco) */}
               {cell.amount > 0 ? (
-                <span className={`${compact ? 'text-[8.5px] sm:text-[9.5px]' : 'text-[9px] sm:text-[10px]'} font-bold text-right tracking-tight leading-none truncate`}>
+                <span className={`${compact ? 'text-[8.5px] sm:text-[9.5px] md:text-[13.5px]' : 'text-[9px] sm:text-[10px] md:text-[14px]'} font-normal text-white text-right tracking-tight leading-none truncate drop-shadow-sm`}>
                   {formatShortAmount(cell.amount)}
                 </span>
               ) : (
-                <span className="h-1.5" />
+                <span className="h-1.5 md:h-2.5" />
               )}
             </button>
           );

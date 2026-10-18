@@ -241,16 +241,6 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                             </span>
                           )}
                         </div>
-
-                        {/* Centro / Saldo do Final do Dia sem a data embutida */}
-                        <div className="flex-1 text-center pr-12">
-                          <span className="inline-block bg-[#232733] border border-slate-700/60 text-[11px] font-semibold text-slate-300 px-3.5 py-1 rounded-full shadow-sm">
-                            Saldo do Final do Dia:{' '}
-                            <strong className={group.dayBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                              {formatCurrency(group.dayBalance)}
-                            </strong>
-                          </span>
-                        </div>
                       </div>
                     </td>
                   </tr>

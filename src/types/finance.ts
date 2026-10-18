@@ -240,5 +240,21 @@ export interface UserProfile {
   createdAt: string;
 }
 
+// ---- FILTROS SALVOS DE TRANSAÇÕES ----
 
-
+export interface SavedTransactionFilter {
+  id: string;
+  name: string;
+  searchQuery?: string;
+  scope?: 'month' | 'year'; // mês atual ou ano inteiro
+  year?: number;
+  type?: 'all' | 'expense' | 'income' | 'transfer';
+  status?: 'all' | 'paid' | 'pending';
+  categoryId?: string;
+  subcategoryId?: string;
+  accountId?: string;
+  tag?: string;
+  startDate?: string;
+  endDate?: string;
+  createdAt: string;
+}

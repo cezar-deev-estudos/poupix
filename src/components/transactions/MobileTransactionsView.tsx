@@ -7,6 +7,9 @@ import { formatCurrency, formatDateBR, getLocalDateString } from '@/lib/utils';
 import { getTransactionInvoicePeriod, getEffectiveTransactionDate } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { MobileTransactionDetailDrawer } from './MobileTransactionDetailDrawer';
+import { SavedTransactionFilter } from '@/types/finance';
+import { useSavedFilters } from '@/hooks/useSavedFilters';
+import { SaveFilterModal } from './SaveFilterModal';
 import {
   Check,
   Clock,
@@ -24,6 +27,8 @@ import {
   Repeat,
   Layers,
   Flame,
+  Bookmark,
+  Calendar,
 } from 'lucide-react';
 import { ExpenseHeatmapCalendar } from '../dashboard/ExpenseHeatmapCalendar';
 import { TransactionsFilterModal, AdvancedFilterState } from './TransactionsFilterModal';
@@ -68,9 +73,17 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     toggleGroupByCard,
   } = useFinance();
 
+  // Filtros salvos
+  const { savedFilters, saveFilter, deleteFilter } = useSavedFilters();
+  const [activeSavedFilter, setActiveSavedFilter] = useState<SavedTransactionFilter | null>(null);
+  const [isSaveFilterModalOpen, setIsSaveFilterModalOpen] = useState(false);
+
   // Estados de Filtros e Visualização
   const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
   const [activeTypeFilter, setActiveTypeFilter] = useState<'all' | 'income' | 'expense' | 'transfer'>(initialTypeFilter);
+
+  // Escopo de Período: 'month' (mês selecionado) ou 'year' (ano inteiro)
+  const [timeScope, setTimeScope] = useState<'month' | 'year'>('month');
 
   React.useEffect(() => {
     if (initialTypeFilter) {
@@ -112,13 +125,72 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     }
   }, [initialStatusFilter]);
 
+  // Aplicação de Filtro Salvo
+  const handleApplySavedFilter = (sf: SavedTransactionFilter) => {
+    setActiveSavedFilter(sf);
+    if (sf.searchQuery !== undefined) setSearchQuery(sf.searchQuery);
+    if (sf.scope) setTimeScope(sf.scope);
+    if (sf.year) setSelectedYear(sf.year);
+    if (sf.type) setActiveTypeFilter(sf.type);
+
+    setAdvancedFilter({
+      startDate: sf.startDate || '',
+      endDate: sf.endDate || '',
+      categoryId: sf.categoryId || '',
+      subcategoryId: sf.subcategoryId || '',
+      accountId: sf.accountId || '',
+      tag: sf.tag || '',
+      status: sf.status || 'all',
+      type: sf.type || 'all',
+      saveFilter: false,
+    });
+  };
+
+  const handleClearActiveSavedFilter = () => {
+    setActiveSavedFilter(null);
+    setSearchQuery('');
+    setTimeScope('month');
+    setAdvancedFilter({
+      startDate: '',
+      endDate: '',
+      categoryId: '',
+      subcategoryId: '',
+      accountId: '',
+      tag: '',
+      status: 'all',
+      type: 'all',
+      saveFilter: false,
+    });
+  };
+
+  // Base de transações de acordo com o escopo (mês ou ano inteiro)
+  const baseTransactions = useMemo(() => {
+    if (timeScope === 'year') {
+      return (allTransactions || []).filter((t) => {
+        if (t.creditCardId) {
+          const card = creditCards.find((c) => c.id === t.creditCardId);
+          const { year } = getTransactionInvoicePeriod(t, card);
+          return year === selectedYear;
+        }
+        if (!t.date) return false;
+        const [tYear] = t.date.split('-').map(Number);
+        return tYear === selectedYear;
+      });
+    }
+    return filteredTransactions;
+  }, [timeScope, allTransactions, filteredTransactions, selectedYear, creditCards]);
+
   const displayVal = (amount: number) => {
     if (isPrivacyMode) return 'R$ ••••••';
     return formatCurrency(amount);
   };
 
-  // Navegação de Mês
+  // Navegação de Mês ou Ano
   const handlePrevMonth = () => {
+    if (timeScope === 'year') {
+      setSelectedYear(selectedYear - 1);
+      return;
+    }
     if (selectedMonth === 0) {
       setSelectedMonth(11);
       setSelectedYear(selectedYear - 1);
@@ -128,6 +200,10 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
   };
 
   const handleNextMonth = () => {
+    if (timeScope === 'year') {
+      setSelectedYear(selectedYear + 1);
+      return;
+    }
     if (selectedMonth === 11) {
       setSelectedMonth(0);
       setSelectedYear(selectedYear + 1);
@@ -138,31 +214,31 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
   // Cálculos de Despesas (pendentes, pagas e total)
   const pendingExpense = useMemo(() => {
-    return filteredTransactions
+    return baseTransactions
       .filter((t) => t.type === 'expense' && !t.paid)
       .reduce((acc, t) => acc + t.amount, 0);
-  }, [filteredTransactions]);
+  }, [baseTransactions]);
 
   const paidExpense = useMemo(() => {
-    return filteredTransactions
+    return baseTransactions
       .filter((t) => t.type === 'expense' && t.paid)
       .reduce((acc, t) => acc + t.amount, 0);
-  }, [filteredTransactions]);
+  }, [baseTransactions]);
 
   const totalExpense = pendingExpense + paidExpense;
 
   // Cálculos de Receitas (pendentes, recebidas e total)
   const pendingIncome = useMemo(() => {
-    return filteredTransactions
+    return baseTransactions
       .filter((t) => t.type === 'income' && !t.paid)
       .reduce((acc, t) => acc + t.amount, 0);
-  }, [filteredTransactions]);
+  }, [baseTransactions]);
 
   const paidIncome = useMemo(() => {
-    return filteredTransactions
+    return baseTransactions
       .filter((t) => t.type === 'income' && t.paid)
       .reduce((acc, t) => acc + t.amount, 0);
-  }, [filteredTransactions]);
+  }, [baseTransactions]);
 
   const totalIncome = pendingIncome + paidIncome;
 
@@ -173,7 +249,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
   // Filtragem Dinâmica
   const displayedTransactions = useMemo(() => {
-    const filtered = filteredTransactions.filter((tx) => {
+    const filtered = baseTransactions.filter((tx) => {
       if (activeTypeFilter !== 'all' && tx.type !== activeTypeFilter) return false;
 
       if (searchQuery.trim()) {
@@ -270,13 +346,28 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
   }, [selectedHeatmapDate, selectedYear, selectedMonth]);
 
   const heatmapDayModalData = useMemo(() => {
-    if (!heatmapModalDate) return { transactions: [], total: 0 };
+    if (!heatmapModalDate) {
+      return { transactions: [], expenses: [], incomes: [], expenseTotal: 0, incomeTotal: 0, total: 0 };
+    }
     const txs = displayedTransactions.filter((t) => {
       const d = t.date ? t.date.split('T')[0] : '';
       return d === heatmapModalDate;
     });
-    const total = txs.reduce((acc, t) => acc + (t.type === 'expense' || t.creditCardId ? t.amount : 0), 0);
-    return { transactions: txs, total };
+
+    const expenseTxs = txs.filter(t => t.type === 'expense' || !!t.creditCardId);
+    const incomeTxs = txs.filter(t => t.type === 'income');
+
+    const expenseTotal = expenseTxs.reduce((acc, t) => acc + t.amount, 0);
+    const incomeTotal = incomeTxs.reduce((acc, t) => acc + t.amount, 0);
+
+    return {
+      transactions: txs,
+      expenses: expenseTxs,
+      incomes: incomeTxs,
+      expenseTotal,
+      incomeTotal,
+      total: expenseTotal,
+    };
   }, [displayedTransactions, heatmapModalDate]);
 
 
@@ -568,21 +659,78 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                 onToggleGroupByCard={toggleGroupByCard}
                 alertPending={alertPending}
                 onToggleAlertPending={() => setAlertPending(!alertPending)}
+                savedFilters={savedFilters}
+                activeFilterId={activeSavedFilter?.id}
+                onApplySavedFilter={handleApplySavedFilter}
+                onOpenSaveFilterModal={() => setIsSaveFilterModalOpen(true)}
+                onDeleteSavedFilter={deleteFilter}
+                onClearActiveSavedFilter={handleClearActiveSavedFilter}
               />
             </div>
           </div>
         </div>
 
-        {/* 2. Navegador de Mês Centralizado */}
-        <div className="flex items-center justify-center gap-6 py-1 text-xs font-semibold text-slate-300">
-          <button type="button" onClick={handlePrevMonth} className="p-1 text-slate-400 hover:text-white">
-            <ChevronLeft className="w-4 h-4" />
+        {/* Badge de Filtro Ativo / Ano Inteiro Mobile */}
+        {(timeScope === 'year' || activeSavedFilter) && (
+          <div className="flex items-center justify-between px-3 py-1.5 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl text-[11px] text-indigo-300 animate-fadeIn">
+            <div className="flex items-center gap-1.5 truncate">
+              <Bookmark className="w-3 h-3 text-indigo-400 shrink-0" />
+              <span className="font-bold truncate text-indigo-200">
+                {activeSavedFilter ? activeSavedFilter.name : `Ano todo: ${selectedYear}`}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleClearActiveSavedFilter}
+              className="font-bold text-indigo-400 hover:text-white underline text-[10px] ml-2 shrink-0"
+            >
+              Limpar
+            </button>
+          </div>
+        )}
+
+        {/* 2. Navegador de Mês / Ano Centralizado Mobile */}
+        <div className="flex items-center justify-center gap-3 py-1 text-xs font-semibold text-slate-300">
+          <button
+            type="button"
+            onClick={handlePrevMonth}
+            className="p-1 text-slate-400 hover:text-white"
+            title={timeScope === 'year' ? 'Ano anterior' : 'Mês anterior'}
+          >
+            <ChevronLeft className="w-4 h-4 text-indigo-400" />
           </button>
 
-          <span>{MONTH_NAMES[selectedMonth]}</span>
+          <div className="flex items-center gap-1.5 bg-[#242042] border border-[#6366f1]/40 rounded-full px-3 py-1 shadow-inner">
+            <button
+              type="button"
+              onClick={() => setTimeScope(timeScope === 'month' ? 'year' : 'month')}
+              className="text-xs font-bold text-indigo-200 hover:text-white flex items-center gap-1.5"
+            >
+              <Calendar className="w-3 h-3 text-indigo-400" />
+              <span>
+                {timeScope === 'year'
+                  ? `Ano: ${selectedYear}`
+                  : `${MONTH_NAMES[selectedMonth]} ${selectedYear}`}
+              </span>
+            </button>
 
-          <button type="button" onClick={handleNextMonth} className="p-1 text-slate-400 hover:text-white">
-            <ChevronRight className="w-4 h-4" />
+            <button
+              type="button"
+              onClick={() => setTimeScope(timeScope === 'month' ? 'year' : 'month')}
+              className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-indigo-900/60 text-indigo-300 uppercase"
+            >
+              {timeScope === 'year' ? 'Mês' : 'Ano'}
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleNextMonth}
+            className="p-1 text-slate-400 hover:text-white"
+            title={timeScope === 'year' ? 'Próximo ano' : 'Próximo mês'}
+          >
+            <ChevronRight className="w-4 h-4 text-indigo-400" />
           </button>
         </div>
 
@@ -834,7 +982,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
         {isHeatmapOpen && (
           <div className="animate-scaleUp">
             <ExpenseHeatmapCalendar
-              transactions={displayedTransactions}
+              transactions={filteredTransactions}
               year={selectedYear}
               month={selectedMonth}
               selectedDate={effectiveHeatmapDate}
@@ -1054,7 +1202,25 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
         isOpen={isFilterModalOpen}
         onClose={() => setIsFilterModalOpen(false)}
         filter={advancedFilter}
-        onApplyFilter={setAdvancedFilter}
+        onApplyFilter={(newFilter) => {
+          setAdvancedFilter(newFilter);
+          if (newFilter.saveFilter && newFilter.filterName) {
+            saveFilter({
+              name: newFilter.filterName,
+              searchQuery,
+              scope: timeScope,
+              year: selectedYear,
+              type: newFilter.type,
+              status: newFilter.status,
+              categoryId: newFilter.categoryId,
+              subcategoryId: newFilter.subcategoryId,
+              accountId: newFilter.accountId,
+              tag: newFilter.tag,
+              startDate: newFilter.startDate,
+              endDate: newFilter.endDate,
+            });
+          }
+        }}
         onResetFilter={() =>
           setAdvancedFilter({
             startDate: '',
@@ -1067,6 +1233,36 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
             saveFilter: false,
           })
         }
+        savedFilters={savedFilters}
+        onApplySavedFilter={handleApplySavedFilter}
+        onDeleteSavedFilter={deleteFilter}
+      />
+
+      {/* Modal para Salvar Filtro Atual com Nome (Mobile) */}
+      <SaveFilterModal
+        isOpen={isSaveFilterModalOpen}
+        onClose={() => setIsSaveFilterModalOpen(false)}
+        currentSearchQuery={searchQuery}
+        currentYear={selectedYear}
+        currentScope={timeScope}
+        onSave={(name, scope) => {
+          const sf = saveFilter({
+            name,
+            searchQuery,
+            scope,
+            year: selectedYear,
+            type: activeTypeFilter,
+            status: advancedFilter.status,
+            categoryId: advancedFilter.categoryId,
+            subcategoryId: advancedFilter.subcategoryId,
+            accountId: advancedFilter.accountId,
+            tag: advancedFilter.tag,
+            startDate: advancedFilter.startDate,
+            endDate: advancedFilter.endDate,
+          });
+          setActiveSavedFilter(sf);
+          setTimeScope(scope);
+        }}
       />
 
       {/* Modal de Edição */}
@@ -1134,15 +1330,19 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                 </span>
               </div>
 
-              <div className="text-right flex items-center gap-3">
-                {heatmapDayModalData.total > 0 && (
-                  <div>
-                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total</span>
-                    <span className="text-sm font-bold text-rose-400">
-                      {formatCurrency(heatmapDayModalData.total)}
+              <div className="text-right flex items-center gap-2.5">
+                <div className="flex flex-col items-end gap-0.5">
+                  {heatmapDayModalData.incomeTotal > 0 && (
+                    <span className="text-xs font-bold text-emerald-400">
+                      + {formatCurrency(heatmapDayModalData.incomeTotal)}
                     </span>
-                  </div>
-                )}
+                  )}
+                  {heatmapDayModalData.expenseTotal > 0 && (
+                    <span className="text-xs font-bold text-rose-400">
+                      - {formatCurrency(heatmapDayModalData.expenseTotal)}
+                    </span>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => setHeatmapModalDate(null)}
@@ -1154,70 +1354,137 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
             </div>
 
             {/* Lista com scroll suave */}
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 py-1">
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1 py-1">
               {heatmapDayModalData.transactions.length === 0 ? (
                 <div className="text-center py-10 text-slate-500 text-xs space-y-1">
-                  <p className="font-semibold text-slate-400">Nenhum gasto neste dia</p>
-                  <p className="text-[11px] text-slate-600">Este dia foi livre de despesas.</p>
+                  <p className="font-semibold text-slate-400">Nenhum lançamento neste dia</p>
+                  <p className="text-[11px] text-slate-600">Este dia foi livre de movimentações.</p>
                 </div>
               ) : (
-                heatmapDayModalData.transactions.map((tx) => {
-                  const cat = categories.find((c) => c.id === tx.categoryId);
-                  const isExpense = tx.type === 'expense' || !!tx.creditCardId;
-                  const card = tx.creditCardId ? creditCards.find((c) => c.id === tx.creditCardId) : null;
-                  const acc = tx.accountId ? accounts.find((a) => a.id === tx.accountId) : null;
+                <>
+                  {/* Bloco de Receitas no Mobile */}
+                  {heatmapDayModalData.incomes.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between px-1 border-b border-emerald-500/10 pb-1">
+                        <span className="text-xs sm:text-sm font-bold text-emerald-400 tracking-wider uppercase">
+                          Receitas ({heatmapDayModalData.incomes.length})
+                        </span>
+                        <span className="text-xs sm:text-sm font-bold text-emerald-400">
+                          {formatCurrency(heatmapDayModalData.incomeTotal)}
+                        </span>
+                      </div>
+                      {heatmapDayModalData.incomes.map((tx) => {
+                        const cat = categories.find((c) => c.id === tx.categoryId);
+                        const acc = tx.accountId ? accounts.find((a) => a.id === tx.accountId) : null;
 
-                  return (
-                    <div
-                      key={tx.id}
-                      onClick={() => {
-                        setHeatmapModalDate(null);
-                        setSelectedTxDetail(tx);
-                      }}
-                      className="flex items-center justify-between p-3 rounded-2xl bg-slate-900/60 active:bg-slate-800/80 border border-slate-800/80 transition-all cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div
-                          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
-                          style={{ backgroundColor: `${cat?.color || '#94a3b8'}20`, color: cat?.color || '#94a3b8' }}
-                        >
-                          <CategoryIcon
-                            name={cat?.icon || 'HelpCircle'}
-                            size={18}
-                          />
-                        </div>
-                        <div className="min-w-0">
-                          <span className="text-xs font-semibold text-slate-100 block truncate">
-                            {tx.description}
-                          </span>
-                          <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                            <span>{cat?.name || 'Sem categoria'}</span>
-                            <span>•</span>
-                            <span>{card ? `Cartão ${card.name}` : acc?.name || 'Conta'}</span>
+                        return (
+                          <div
+                            key={tx.id}
+                            onClick={() => {
+                              setHeatmapModalDate(null);
+                              setSelectedTxDetail(tx);
+                            }}
+                            className="flex items-center justify-between p-3 rounded-2xl bg-emerald-950/20 active:bg-emerald-950/40 border border-emerald-500/20 transition-all cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+                                style={{ backgroundColor: `${cat?.color || '#10b981'}25`, color: cat?.color || '#10b981' }}
+                              >
+                                <CategoryIcon name={cat?.icon || 'HelpCircle'} size={16} />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="text-xs font-normal text-slate-100 block truncate">
+                                  {tx.description}
+                                </span>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                                  <span>{cat?.name || 'Sem categoria'}</span>
+                                  <span>•</span>
+                                  <span>{acc?.name || 'Conta'}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0 ml-3">
+                              <span className="text-xs font-normal text-emerald-400 block">
+                                + {formatCurrency(tx.amount)}
+                              </span>
+                              <span className="text-[10px] text-slate-500 mt-0.5 block">
+                                {tx.paid ? (
+                                  <span className="text-emerald-400">✓ Pago</span>
+                                ) : (
+                                  <span className="text-amber-400">⏳ Pendente</span>
+                                )}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-
-                      <div className="text-right shrink-0 ml-3">
-                        <span
-                          className={`text-xs font-bold block ${
-                            isExpense ? 'text-rose-400' : 'text-emerald-400'
-                          }`}
-                        >
-                          {isExpense ? '- ' : '+ '}
-                          {formatCurrency(tx.amount)}
-                        </span>
-                        <span className="text-[10px] text-slate-500 mt-0.5 block">
-                          {tx.paid ? (
-                            <span className="text-emerald-400">✓ Pago</span>
-                          ) : (
-                            <span className="text-amber-400">⏳ Pendente</span>
-                          )}
-                        </span>
-                      </div>
+                        );
+                      })}
                     </div>
-                  );
-                })
+                  )}
+
+                  {/* Bloco de Despesas no Mobile */}
+                  {heatmapDayModalData.expenses.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between px-1 pt-2 border-b border-rose-500/10 pb-1">
+                        <span className="text-xs sm:text-sm font-bold text-rose-400 tracking-wider uppercase">
+                          Despesas ({heatmapDayModalData.expenses.length})
+                        </span>
+                        <span className="text-xs sm:text-sm font-bold text-rose-400">
+                          {formatCurrency(heatmapDayModalData.expenseTotal)}
+                        </span>
+                      </div>
+                      {heatmapDayModalData.expenses.map((tx) => {
+                        const cat = categories.find((c) => c.id === tx.categoryId);
+                        const card = tx.creditCardId ? creditCards.find((c) => c.id === tx.creditCardId) : null;
+                        const acc = tx.accountId ? accounts.find((a) => a.id === tx.accountId) : null;
+
+                        return (
+                          <div
+                            key={tx.id}
+                            onClick={() => {
+                              setHeatmapModalDate(null);
+                              setSelectedTxDetail(tx);
+                            }}
+                            className="flex items-center justify-between p-3 rounded-2xl bg-slate-900/60 active:bg-slate-800/80 border border-slate-800/80 transition-all cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+                                style={{ backgroundColor: `${cat?.color || '#94a3b8'}20`, color: cat?.color || '#94a3b8' }}
+                              >
+                                <CategoryIcon name={cat?.icon || 'HelpCircle'} size={16} />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="text-xs font-normal text-slate-100 block truncate">
+                                  {tx.description}
+                                </span>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                                  <span>{cat?.name || 'Sem categoria'}</span>
+                                  <span>•</span>
+                                  <span>{card ? `Cartão ${card.name}` : acc?.name || 'Conta'}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0 ml-3">
+                              <span className="text-xs font-normal text-rose-400 block">
+                                - {formatCurrency(tx.amount)}
+                              </span>
+                              <span className="text-[10px] text-slate-500 mt-0.5 block">
+                                {tx.paid ? (
+                                  <span className="text-emerald-400">✓ Pago</span>
+                                ) : (
+                                  <span className="text-amber-400">⏳ Pendente</span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

@@ -12,6 +12,9 @@ import { NewTransactionModal } from './NewTransactionModal';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { formatCurrency } from '@/lib/utils';
 import { getEffectiveTransactionDate, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
+import { SavedTransactionFilter } from '@/types/finance';
+import { useSavedFilters } from '@/hooks/useSavedFilters';
+import { SaveFilterModal } from './SaveFilterModal';
 import {
   ChevronLeft,
   ChevronRight,
@@ -24,6 +27,7 @@ import {
   CheckCircle2,
   Clock,
   ArrowRight,
+  Bookmark,
 } from 'lucide-react';
 import { ExpenseHeatmapCalendar } from '../dashboard/ExpenseHeatmapCalendar';
 import { CategoryIcon } from '../ui/CategoryIcon';
@@ -44,6 +48,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 }) => {
   const {
     filteredTransactions,
+    transactions: allTransactions,
     selectedMonth,
     selectedYear,
     setSelectedMonth,
@@ -57,9 +62,17 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     toggleGroupByCard,
   } = useFinance();
 
+  // Filtros salvos via Hook
+  const { savedFilters, saveFilter, deleteFilter } = useSavedFilters();
+  const [activeSavedFilter, setActiveSavedFilter] = useState<SavedTransactionFilter | null>(null);
+  const [isSaveFilterModalOpen, setIsSaveFilterModalOpen] = useState(false);
+
   // Estados de Filtros e Visualização
   const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
   const [activeTypeFilter, setActiveTypeFilter] = useState<'all' | 'income' | 'expense' | 'transfer'>(initialTypeFilter);
+
+  // Escopo de Período: 'month' (mês selecionado) ou 'year' (ano inteiro)
+  const [timeScope, setTimeScope] = useState<'month' | 'year'>('month');
 
   React.useEffect(() => {
     if (initialTypeFilter) {
@@ -98,8 +111,67 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     }
   }, [initialStatusFilter]);
 
-  // Navegação de Mês
+  // Aplicação de Filtro Salvo
+  const handleApplySavedFilter = (sf: SavedTransactionFilter) => {
+    setActiveSavedFilter(sf);
+    if (sf.searchQuery !== undefined) setSearchQuery(sf.searchQuery);
+    if (sf.scope) setTimeScope(sf.scope);
+    if (sf.year) setSelectedYear(sf.year);
+    if (sf.type) setActiveTypeFilter(sf.type);
+
+    setAdvancedFilter({
+      startDate: sf.startDate || '',
+      endDate: sf.endDate || '',
+      categoryId: sf.categoryId || '',
+      subcategoryId: sf.subcategoryId || '',
+      accountId: sf.accountId || '',
+      tag: sf.tag || '',
+      status: sf.status || 'all',
+      type: sf.type || 'all',
+      saveFilter: false,
+    });
+  };
+
+  const handleClearActiveSavedFilter = () => {
+    setActiveSavedFilter(null);
+    setSearchQuery('');
+    setTimeScope('month');
+    setAdvancedFilter({
+      startDate: '',
+      endDate: '',
+      categoryId: '',
+      subcategoryId: '',
+      accountId: '',
+      tag: '',
+      status: 'all',
+      type: 'all',
+      saveFilter: false,
+    });
+  };
+
+  // Base de transações de acordo com o escopo (mês ou ano inteiro)
+  const baseTransactions = useMemo(() => {
+    if (timeScope === 'year') {
+      return (allTransactions || []).filter((t) => {
+        if (t.creditCardId) {
+          const card = creditCards.find((c) => c.id === t.creditCardId);
+          const { year } = getTransactionInvoicePeriod(t, card);
+          return year === selectedYear;
+        }
+        if (!t.date) return false;
+        const [tYear] = t.date.split('-').map(Number);
+        return tYear === selectedYear;
+      });
+    }
+    return filteredTransactions;
+  }, [timeScope, allTransactions, filteredTransactions, selectedYear, creditCards]);
+
+  // Navegação de Mês ou Ano
   const handlePrevMonth = () => {
+    if (timeScope === 'year') {
+      setSelectedYear(selectedYear - 1);
+      return;
+    }
     if (selectedMonth === 0) {
       setSelectedMonth(11);
       setSelectedYear(selectedYear - 1);
@@ -109,6 +181,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   };
 
   const handleNextMonth = () => {
+    if (timeScope === 'year') {
+      setSelectedYear(selectedYear + 1);
+      return;
+    }
     if (selectedMonth === 11) {
       setSelectedMonth(0);
       setSelectedYear(selectedYear + 1);
@@ -119,7 +195,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
   // Filtragem Dinâmica
   const displayedTransactions = useMemo(() => {
-    const filtered = filteredTransactions.filter((tx) => {
+    const filtered = baseTransactions.filter((tx) => {
       // 1. Tipo Rápido
       if (activeTypeFilter !== 'all' && tx.type !== activeTypeFilter) return false;
 
@@ -208,10 +284,18 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     });
 
     return [...nonCardTransactions, ...aggregatedCardItems];
-  }, [filteredTransactions, activeTypeFilter, searchQuery, advancedFilter, groupByCard, creditCards, accounts, categories, selectedYear, selectedMonth]);
+  }, [baseTransactions, activeTypeFilter, searchQuery, advancedFilter, groupByCard, creditCards, accounts, categories, selectedYear, selectedMonth]);
 
   // Transações do dia selecionado no Mapa de Calor
-  const { selectedDateTransactions, selectedDateTotal, effectiveSelectedDate } = useMemo(() => {
+  const {
+    selectedDateTransactions,
+    selectedDateExpenses,
+    selectedDateIncomes,
+    selectedDateExpenseTotal,
+    selectedDateIncomeTotal,
+    selectedDateTotal,
+    effectiveSelectedDate,
+  } = useMemo(() => {
     let targetDate = selectedHeatmapDate;
     if (!targetDate) {
       const todayStr = new Date().toISOString().split('T')[0];
@@ -222,7 +306,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     }
 
     if (!targetDate) {
-      return { selectedDateTransactions: [], selectedDateTotal: 0, effectiveSelectedDate: null };
+      return {
+        selectedDateTransactions: [],
+        selectedDateExpenses: [],
+        selectedDateIncomes: [],
+        selectedDateExpenseTotal: 0,
+        selectedDateIncomeTotal: 0,
+        selectedDateTotal: 0,
+        effectiveSelectedDate: null,
+      };
     }
 
     const txs = displayedTransactions.filter(t => {
@@ -230,11 +322,19 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       return d === targetDate;
     });
 
-    const total = txs.reduce((sum, t) => sum + (t.type === 'expense' || t.creditCardId ? t.amount : 0), 0);
+    const expenseTxs = txs.filter(t => t.type === 'expense' || !!t.creditCardId);
+    const incomeTxs = txs.filter(t => t.type === 'income');
+
+    const expenseTotal = expenseTxs.reduce((sum, t) => sum + t.amount, 0);
+    const incomeTotal = incomeTxs.reduce((sum, t) => sum + t.amount, 0);
 
     return {
       selectedDateTransactions: txs,
-      selectedDateTotal: total,
+      selectedDateExpenses: expenseTxs,
+      selectedDateIncomes: incomeTxs,
+      selectedDateExpenseTotal: expenseTotal,
+      selectedDateIncomeTotal: incomeTotal,
+      selectedDateTotal: expenseTotal,
       effectiveSelectedDate: targetDate,
     };
   }, [displayedTransactions, selectedHeatmapDate, selectedYear, selectedMonth]);
@@ -419,6 +519,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               onToggleGroupByCard={toggleGroupByCard}
               alertPending={alertPending}
               onToggleAlertPending={() => setAlertPending(!alertPending)}
+              savedFilters={savedFilters}
+              activeFilterId={activeSavedFilter?.id}
+              onApplySavedFilter={handleApplySavedFilter}
+              onOpenSaveFilterModal={() => setIsSaveFilterModalOpen(true)}
+              onDeleteSavedFilter={deleteFilter}
+              onClearActiveSavedFilter={handleClearActiveSavedFilter}
             />
           </div>
 
@@ -454,6 +560,29 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         </div>
       </div>
 
+      {/* Badge de Filtro Ativo / Ano Inteiro */}
+      {(timeScope === 'year' || activeSavedFilter) && (
+        <div className="flex items-center justify-between px-3.5 py-2 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl text-xs text-indigo-300 animate-fadeIn">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold flex items-center gap-1.5 text-indigo-200">
+              <Bookmark className="w-3.5 h-3.5" />
+              {activeSavedFilter ? `Filtro ativo: "${activeSavedFilter.name}"` : 'Visualização Anual Ativa'}
+            </span>
+            <span className="text-[11px] text-indigo-400">
+              {timeScope === 'year' ? `Exibindo lançamentos de todos os 12 meses de ${selectedYear}` : ''}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleClearActiveSavedFilter}
+            className="text-[11px] font-bold text-indigo-300 hover:text-white underline cursor-pointer shrink-0 ml-2"
+          >
+            Voltar para visualização mensal padrão
+          </button>
+        </div>
+      )}
+
       {/* 2. Cards de Resumo Superior com Suporte a Despesas, Receitas e Todas */}
       <TransactionsHeaderCards
         activeTypeFilter={activeTypeFilter}
@@ -464,26 +593,52 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         }
       />
 
-      {/* 3. Seletor de Período Centralizado no Card da Tabela */}
+      {/* 3. Seletor de Período Centralizado no Card da Tabela (Permite Mês ou Ano Inteiro) */}
       <div className="flex items-center justify-center gap-3 py-1">
         <button
           type="button"
           onClick={handlePrevMonth}
           className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-          title="Mês anterior"
+          title={timeScope === 'year' ? 'Ano anterior' : 'Mês anterior'}
         >
           <ChevronLeft className="w-5 h-5 text-indigo-400" />
         </button>
 
-        <span className="bg-[#242042] border border-[#6366f1]/40 text-indigo-200 px-5 py-1.5 rounded-full text-xs font-bold shadow-inner">
-          {MONTH_NAMES[selectedMonth]} {selectedYear}
-        </span>
+        <div className="flex items-center gap-1.5 bg-[#242042] border border-[#6366f1]/40 rounded-full p-1 shadow-inner">
+          <button
+            type="button"
+            onClick={() => setTimeScope(timeScope === 'month' ? 'year' : 'month')}
+            className={`px-4 py-1 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              timeScope === 'year'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-indigo-200 hover:text-white'
+            }`}
+            title="Clique para alternar entre ver o Mês Selecionado ou o Ano Inteiro"
+          >
+            <Calendar className="w-3.5 h-3.5 text-indigo-300" />
+            <span>
+              {timeScope === 'year'
+                ? `Ano Inteiro: ${selectedYear}`
+                : `${MONTH_NAMES[selectedMonth]} ${selectedYear}`}
+            </span>
+          </button>
+
+          {/* Botão de Toggle Rápido para Mês / Ano */}
+          <button
+            type="button"
+            onClick={() => setTimeScope(timeScope === 'month' ? 'year' : 'month')}
+            className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-900/60 hover:bg-indigo-800 text-indigo-300 transition-colors cursor-pointer"
+            title="Alternar entre ver só este mês ou o ano todo"
+          >
+            {timeScope === 'year' ? 'Ver Mês' : 'Ver Ano Todo'}
+          </button>
+        </div>
 
         <button
           type="button"
           onClick={handleNextMonth}
           className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-          title="Próximo mês"
+          title={timeScope === 'year' ? 'Próximo ano' : 'Próximo mês'}
         >
           <ChevronRight className="w-5 h-5 text-indigo-400" />
         </button>
@@ -515,7 +670,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             {/* Coluna da Esquerda: Mapa de Calor (7 colunas no Desktop) */}
             <div className="lg:col-span-7">
               <ExpenseHeatmapCalendar
-                transactions={displayedTransactions}
+                transactions={filteredTransactions}
                 year={selectedYear}
                 month={selectedMonth}
                 selectedDate={effectiveSelectedDate}
@@ -546,85 +701,161 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                   </div>
                 </div>
 
-                {selectedDateTotal > 0 && (
-                  <div className="text-right">
-                    <span className="text-[10px] text-slate-500 uppercase font-semibold block">Gasto do dia</span>
-                    <span className="text-xs font-bold text-rose-400">
-                      {formatCurrency(selectedDateTotal)}
-                    </span>
-                  </div>
-                )}
+                <div className="flex items-center gap-3">
+                  {selectedDateIncomeTotal > 0 && (
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-500 uppercase font-semibold block">Receitas</span>
+                      <span className="text-xs font-bold text-emerald-400">
+                        + {formatCurrency(selectedDateIncomeTotal)}
+                      </span>
+                    </div>
+                  )}
+                  {selectedDateExpenseTotal > 0 && (
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-500 uppercase font-semibold block">Despesas</span>
+                      <span className="text-xs font-bold text-rose-400">
+                        - {formatCurrency(selectedDateExpenseTotal)}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Lista de Itens do Dia */}
               {selectedDateTransactions.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-500 space-y-2">
                   <Clock className="w-8 h-8 text-slate-600 stroke-[1.5]" />
-                  <p className="text-xs font-semibold text-slate-400">Nenhum gasto neste dia</p>
+                  <p className="text-xs font-semibold text-slate-400">Nenhum lançamento neste dia</p>
                   <p className="text-[11px] text-slate-600 max-w-xs">
-                    Clique em outro dia com cor no mapa de calor para ver os lançamentos detalhados.
+                    Clique em outro dia no mapa de calor para ver os lançamentos detalhados.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[290px] overflow-y-auto pr-1">
-                  {selectedDateTransactions.map((tx) => {
-                    const cat = categories.find((c) => c.id === tx.categoryId);
-                    const isExpense = tx.type === 'expense' || !!tx.creditCardId;
-                    const card = tx.creditCardId ? creditCards.find((c) => c.id === tx.creditCardId) : null;
-                    const acc = tx.accountId ? accounts.find((a) => a.id === tx.accountId) : null;
+                <div className="space-y-3 max-h-[290px] overflow-y-auto pr-1">
+                  {/* Bloco de Receitas (se houver) */}
+                  {selectedDateIncomes.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between px-1 border-b border-emerald-500/10 pb-1">
+                        <span className="text-xs sm:text-sm font-bold text-emerald-400 tracking-wider uppercase">
+                          Receitas ({selectedDateIncomes.length})
+                        </span>
+                        <span className="text-xs sm:text-sm font-bold text-emerald-400">
+                          {formatCurrency(selectedDateIncomeTotal)}
+                        </span>
+                      </div>
+                      {selectedDateIncomes.map((tx) => {
+                        const cat = categories.find((c) => c.id === tx.categoryId);
+                        const acc = tx.accountId ? accounts.find((a) => a.id === tx.accountId) : null;
 
-                    return (
-                      <div
-                        key={tx.id}
-                        onClick={() => setEditingTransaction(tx)}
-                        className="group flex items-center justify-between p-2.5 rounded-2xl bg-slate-900/50 hover:bg-slate-800/80 border border-slate-800/60 hover:border-slate-700 transition-all cursor-pointer"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
+                        return (
                           <div
-                            className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
-                            style={{ backgroundColor: `${cat?.color || '#94a3b8'}20`, color: cat?.color || '#94a3b8' }}
+                            key={tx.id}
+                            onClick={() => setEditingTransaction(tx)}
+                            className="group flex items-center justify-between p-2 rounded-2xl bg-emerald-950/20 hover:bg-emerald-950/30 border border-emerald-500/20 hover:border-emerald-500/40 transition-all cursor-pointer"
                           >
-                            <CategoryIcon
-                              name={cat?.icon || 'HelpCircle'}
-                              size={16}
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <span className="text-xs font-semibold text-slate-200 block truncate group-hover:text-white transition-colors">
-                              {tx.description}
-                            </span>
-                            <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                              <span>{cat?.name || 'Sem categoria'}</span>
-                              <span>•</span>
-                              <span>{card ? `Cartão ${card.name}` : acc?.name || 'Conta'}</span>
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div
+                                className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+                                style={{ backgroundColor: `${cat?.color || '#10b981'}25`, color: cat?.color || '#10b981' }}
+                              >
+                                <CategoryIcon name={cat?.icon || 'HelpCircle'} size={15} />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="text-xs font-normal text-slate-200 block truncate group-hover:text-white transition-colors">
+                                  {tx.description}
+                                </span>
+                                <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                  <span>{cat?.name || 'Sem categoria'}</span>
+                                  <span>•</span>
+                                  <span>{acc?.name || 'Conta'}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0 ml-2">
+                              <span className="text-xs font-normal text-emerald-400 block">
+                                + {formatCurrency(tx.amount)}
+                              </span>
+                              <span className="text-[10px] text-slate-500 flex items-center justify-end gap-0.5">
+                                {tx.paid ? (
+                                  <span className="text-emerald-400 flex items-center gap-0.5">
+                                    <CheckCircle2 className="w-2.5 h-2.5" /> Pago
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-400 flex items-center gap-0.5">
+                                    <Clock className="w-2.5 h-2.5" /> Pendente
+                                  </span>
+                                )}
+                              </span>
                             </div>
                           </div>
-                        </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                        <div className="text-right shrink-0 ml-3">
-                          <span
-                            className={`text-xs font-bold block ${
-                              isExpense ? 'text-rose-400' : 'text-emerald-400'
-                            }`}
-                          >
-                            {isExpense ? '- ' : '+ '}
-                            {formatCurrency(tx.amount)}
-                          </span>
-                          <span className="text-[10px] text-slate-500 flex items-center justify-end gap-1 mt-0.5">
-                            {tx.paid ? (
-                              <span className="text-emerald-400 flex items-center gap-0.5">
-                                <CheckCircle2 className="w-2.5 h-2.5" /> Pago
-                              </span>
-                            ) : (
-                              <span className="text-amber-400 flex items-center gap-0.5">
-                                <Clock className="w-2.5 h-2.5" /> Pendente
-                              </span>
-                            )}
-                          </span>
-                        </div>
+                  {/* Bloco de Despesas (se houver) */}
+                  {selectedDateExpenses.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between px-1 pt-2 border-b border-rose-500/10 pb-1">
+                        <span className="text-xs sm:text-sm font-bold text-rose-400 tracking-wider uppercase">
+                          Despesas ({selectedDateExpenses.length})
+                        </span>
+                        <span className="text-xs sm:text-sm font-bold text-rose-400">
+                          {formatCurrency(selectedDateExpenseTotal)}
+                        </span>
                       </div>
-                    );
-                  })}
+                      {selectedDateExpenses.map((tx) => {
+                        const cat = categories.find((c) => c.id === tx.categoryId);
+                        const card = tx.creditCardId ? creditCards.find((c) => c.id === tx.creditCardId) : null;
+                        const acc = tx.accountId ? accounts.find((a) => a.id === tx.accountId) : null;
+
+                        return (
+                          <div
+                            key={tx.id}
+                            onClick={() => setEditingTransaction(tx)}
+                            className="group flex items-center justify-between p-2 rounded-2xl bg-slate-900/50 hover:bg-slate-800/80 border border-slate-800/60 hover:border-slate-700 transition-all cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div
+                                className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+                                style={{ backgroundColor: `${cat?.color || '#94a3b8'}20`, color: cat?.color || '#94a3b8' }}
+                              >
+                                <CategoryIcon name={cat?.icon || 'HelpCircle'} size={15} />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="text-xs font-normal text-slate-200 block truncate group-hover:text-white transition-colors">
+                                  {tx.description}
+                                </span>
+                                <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                  <span>{cat?.name || 'Sem categoria'}</span>
+                                  <span>•</span>
+                                  <span>{card ? `Cartão ${card.name}` : acc?.name || 'Conta'}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0 ml-2">
+                              <span className="text-xs font-normal text-rose-400 block">
+                                - {formatCurrency(tx.amount)}
+                              </span>
+                              <span className="text-[10px] text-slate-500 flex items-center justify-end gap-0.5">
+                                {tx.paid ? (
+                                  <span className="text-emerald-400 flex items-center gap-0.5">
+                                    <CheckCircle2 className="w-2.5 h-2.5" /> Pago
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-400 flex items-center gap-0.5">
+                                    <Clock className="w-2.5 h-2.5" /> Pendente
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -652,7 +883,25 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         isOpen={isFilterModalOpen}
         onClose={() => setIsFilterModalOpen(false)}
         filter={advancedFilter}
-        onApplyFilter={setAdvancedFilter}
+        onApplyFilter={(newFilter) => {
+          setAdvancedFilter(newFilter);
+          if (newFilter.saveFilter && newFilter.filterName) {
+            saveFilter({
+              name: newFilter.filterName,
+              searchQuery,
+              scope: timeScope,
+              year: selectedYear,
+              type: newFilter.type,
+              status: newFilter.status,
+              categoryId: newFilter.categoryId,
+              subcategoryId: newFilter.subcategoryId,
+              accountId: newFilter.accountId,
+              tag: newFilter.tag,
+              startDate: newFilter.startDate,
+              endDate: newFilter.endDate,
+            });
+          }
+        }}
         onResetFilter={() =>
           setAdvancedFilter({
             startDate: '',
@@ -665,6 +914,36 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             saveFilter: false,
           })
         }
+        savedFilters={savedFilters}
+        onApplySavedFilter={handleApplySavedFilter}
+        onDeleteSavedFilter={deleteFilter}
+      />
+
+      {/* Modal para Salvar Filtro Atual com Nome */}
+      <SaveFilterModal
+        isOpen={isSaveFilterModalOpen}
+        onClose={() => setIsSaveFilterModalOpen(false)}
+        currentSearchQuery={searchQuery}
+        currentYear={selectedYear}
+        currentScope={timeScope}
+        onSave={(name, scope) => {
+          const sf = saveFilter({
+            name,
+            searchQuery,
+            scope,
+            year: selectedYear,
+            type: activeTypeFilter,
+            status: advancedFilter.status,
+            categoryId: advancedFilter.categoryId,
+            subcategoryId: advancedFilter.subcategoryId,
+            accountId: advancedFilter.accountId,
+            tag: advancedFilter.tag,
+            startDate: advancedFilter.startDate,
+            endDate: advancedFilter.endDate,
+          });
+          setActiveSavedFilter(sf);
+          setTimeScope(scope);
+        }}
       />
 
       {/* Modal de Criação / Edição */}
@@ -672,6 +951,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         <NewTransactionModal
           isOpen={isNewTxModalOpen}
           onClose={() => setIsNewTxModalOpen(false)}
+          defaultType={activeTypeFilter === 'income' ? 'income' : activeTypeFilter === 'transfer' ? 'transfer' : 'expense'}
+          flowType={activeTypeFilter === 'income' ? 'income' : activeTypeFilter === 'transfer' ? 'transfer' : 'expense'}
         />
       )}
 
