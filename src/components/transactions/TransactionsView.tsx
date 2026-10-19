@@ -168,6 +168,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
   // Navegação de Mês ou Ano
   const handlePrevMonth = () => {
+    setSelectedHeatmapDate(null);
     if (timeScope === 'year') {
       setSelectedYear(selectedYear - 1);
       return;
@@ -181,6 +182,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   };
 
   const handleNextMonth = () => {
+    setSelectedHeatmapDate(null);
     if (timeScope === 'year') {
       setSelectedYear(selectedYear + 1);
       return;
@@ -286,7 +288,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     return [...nonCardTransactions, ...aggregatedCardItems];
   }, [baseTransactions, activeTypeFilter, searchQuery, advancedFilter, groupByCard, creditCards, accounts, categories, selectedYear, selectedMonth]);
 
-  // Transações do dia selecionado no Mapa de Calor
+  // Transações do dia selecionado no Mapa de Calor (usando baseTransactions para manter Receitas e Despesas intactas)
   const {
     selectedDateTransactions,
     selectedDateExpenses,
@@ -317,7 +319,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       };
     }
 
-    const txs = displayedTransactions.filter(t => {
+    // Filtrar de baseTransactions (itens individuais reais daquele dia, sem cortes de filtro de tipo ou agrupamento sintético)
+    const txs = baseTransactions.filter(t => {
       const d = t.date ? t.date.split('T')[0] : '';
       return d === targetDate;
     });
@@ -337,7 +340,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       selectedDateTotal: expenseTotal,
       effectiveSelectedDate: targetDate,
     };
-  }, [displayedTransactions, selectedHeatmapDate, selectedYear, selectedMonth]);
+  }, [baseTransactions, selectedHeatmapDate, selectedYear, selectedMonth]);
 
   // Exclusão
   const handleConfirmDelete = () => {

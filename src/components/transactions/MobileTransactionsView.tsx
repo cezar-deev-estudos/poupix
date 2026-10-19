@@ -187,6 +187,8 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
   // Navegação de Mês ou Ano
   const handlePrevMonth = () => {
+    setSelectedHeatmapDate(null);
+    setHeatmapModalDate(null);
     if (timeScope === 'year') {
       setSelectedYear(selectedYear - 1);
       return;
@@ -200,6 +202,8 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
   };
 
   const handleNextMonth = () => {
+    setSelectedHeatmapDate(null);
+    setHeatmapModalDate(null);
     if (timeScope === 'year') {
       setSelectedYear(selectedYear + 1);
       return;
@@ -349,7 +353,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     if (!heatmapModalDate) {
       return { transactions: [], expenses: [], incomes: [], expenseTotal: 0, incomeTotal: 0, total: 0 };
     }
-    const txs = displayedTransactions.filter((t) => {
+    const txs = baseTransactions.filter((t) => {
       const d = t.date ? t.date.split('T')[0] : '';
       return d === heatmapModalDate;
     });
@@ -368,7 +372,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
       incomeTotal,
       total: expenseTotal,
     };
-  }, [displayedTransactions, heatmapModalDate]);
+  }, [baseTransactions, heatmapModalDate]);
 
 
   // Agrupamento por Dias no padrão Mobills: "Ontem", "Hoje", "Segunda, 21", etc.
