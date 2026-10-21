@@ -33,7 +33,7 @@ export const CreditCardsDashboardCard: React.FC<CreditCardsDashboardCardProps> =
     setSelectedYear,
     isPrivacyMode,
   } = useFinance();
-  const [invoiceTab, setInvoiceTab] = useState<'current_month' | 'next_month'>('current_month');
+  const [invoiceTab, setInvoiceTab] = useState<'previous_month' | 'current_month' | 'next_month'>('current_month');
 
   const activeCards = useMemo(() => {
     return creditCards.filter(c => !c.isArchived);
@@ -41,6 +41,9 @@ export const CreditCardsDashboardCard: React.FC<CreditCardsDashboardCardProps> =
 
   // Determinar o mês/ano alvo para os cálculos baseado na aba ativa
   const targetMonth = useMemo(() => {
+    if (invoiceTab === 'previous_month') {
+      return (selectedMonth + 11) % 12;
+    }
     if (invoiceTab === 'next_month') {
       return (selectedMonth + 1) % 12;
     }
@@ -48,6 +51,9 @@ export const CreditCardsDashboardCard: React.FC<CreditCardsDashboardCardProps> =
   }, [invoiceTab, selectedMonth]);
 
   const targetYear = useMemo(() => {
+    if (invoiceTab === 'previous_month' && selectedMonth === 0) {
+      return selectedYear - 1;
+    }
     if (invoiceTab === 'next_month' && selectedMonth === 11) {
       return selectedYear + 1;
     }
@@ -93,29 +99,40 @@ export const CreditCardsDashboardCard: React.FC<CreditCardsDashboardCardProps> =
           </button>
         </div>
 
-        {/* Alternador de Abas: Fatura Mês Atual | Fatura Próximo Mês */}
+        {/* Alternador de Abas: Mês Anterior | Mês Atual | Próximo Mês */}
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setInvoiceTab('previous_month')}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              invoiceTab === 'previous_month'
+                ? 'bg-teal-500 text-slate-950 font-bold shadow-md shadow-teal-500/20'
+                : 'text-slate-400 hover:text-white bg-slate-900/60'
+            }`}
+          >
+            Mês Anterior
+          </button>
+          <button
+            type="button"
             onClick={() => setInvoiceTab('current_month')}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
               invoiceTab === 'current_month'
                 ? 'bg-teal-500 text-slate-950 font-bold shadow-md shadow-teal-500/20'
                 : 'text-slate-400 hover:text-white bg-slate-900/60'
             }`}
           >
-            Fatura Mês Atual
+            Mês Atual
           </button>
           <button
             type="button"
             onClick={() => setInvoiceTab('next_month')}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
               invoiceTab === 'next_month'
                 ? 'bg-teal-500 text-slate-950 font-bold shadow-md shadow-teal-500/20'
                 : 'text-slate-400 hover:text-white bg-slate-900/60'
             }`}
           >
-            Fatura Próximo Mês
+            Próximo Mês
           </button>
         </div>
 
@@ -151,6 +168,14 @@ export const CreditCardsDashboardCard: React.FC<CreditCardsDashboardCardProps> =
               } else if (today > closingDate || manualStatus === 'closed') {
                 invoiceStatus = 'closed';
               }
+
+              const isClosedOrOverdue = invoiceStatus === 'closed' || invoiceStatus === 'overdue' || invoiceStatus === 'paid';
+              const datePrefix = invoiceStatus === 'overdue'
+                ? 'Venceu em'
+                : isClosedOrOverdue
+                ? 'Vence em'
+                : 'Fecha em';
+              const targetDay = isClosedOrOverdue ? card.dueDay : card.closingDay;
 
               return (
                 <div
@@ -203,10 +228,10 @@ export const CreditCardsDashboardCard: React.FC<CreditCardsDashboardCardProps> =
                     </button>
                   </div>
 
-                  {/* Linha 2: Fecha em [data] e Valor */}
+                  {/* Linha 2: Data contextuizada e Valor */}
                   <div className="text-xs space-y-0.5">
                     <div className="text-slate-400">
-                      Fecha em {card.closingDay} de {MONTH_NAMES[targetMonth]} de {targetYear}
+                      {datePrefix} {targetDay} de {MONTH_NAMES[targetMonth]} de {targetYear}
                     </div>
                     <div className="font-bold text-rose-500 text-sm tracking-tight">
                       {displayVal(invoiceAmount)}

@@ -71,11 +71,14 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
   } = useFinance();
   const { user, isDemoMode } = useAuth();
 
-  const [cardInvoiceTab, setCardInvoiceTab] = useState<'current_month' | 'next_month'>('current_month');
+  const [cardInvoiceTab, setCardInvoiceTab] = useState<'previous_month' | 'current_month' | 'next_month'>('current_month');
   const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
 
   // Mês alvo para as faturas
   const targetCardMonth = useMemo(() => {
+    if (cardInvoiceTab === 'previous_month') {
+      return (selectedMonth + 11) % 12;
+    }
     if (cardInvoiceTab === 'next_month') {
       return (selectedMonth + 1) % 12;
     }
@@ -83,6 +86,9 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
   }, [cardInvoiceTab, selectedMonth]);
 
   const targetCardYear = useMemo(() => {
+    if (cardInvoiceTab === 'previous_month' && selectedMonth === 0) {
+      return selectedYear - 1;
+    }
     if (cardInvoiceTab === 'next_month' && selectedMonth === 11) {
       return selectedYear + 1;
     }
@@ -463,8 +469,19 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
         </div>
 
         <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-5 shadow-xl space-y-4">
-          {/* Tabs Fatura Mês Atual / Fatura Próximo Mês */}
+          {/* Tabs Mês Anterior / Mês Atual / Próximo Mês */}
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCardInvoiceTab('previous_month')}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
+                cardInvoiceTab === 'previous_month'
+                  ? 'bg-teal-500 text-slate-950 font-bold shadow-sm shadow-teal-500/20'
+                  : 'bg-slate-800/60 text-slate-400 hover:text-white'
+              }`}
+            >
+              Mês Anterior
+            </button>
             <button
               type="button"
               onClick={() => setCardInvoiceTab('current_month')}
@@ -474,7 +491,7 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
                   : 'bg-slate-800/60 text-slate-400 hover:text-white'
               }`}
             >
-              Fatura Mês Atual
+              Mês Atual
             </button>
             <button
               type="button"
@@ -485,7 +502,7 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
                   : 'bg-slate-800/60 text-slate-400 hover:text-white'
               }`}
             >
-              Fatura Próximo Mês
+              Próximo Mês
             </button>
           </div>
 
@@ -528,7 +545,8 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
                 const closingMonthStr = String(closingDate.getMonth() + 1).padStart(2, '0');
                 const closingDateFormatted = `${closingDayStr}/${closingMonthStr}`;
 
-                const hasClosed = today > closingDate;
+                const isClosedOrOverdue = invoiceStatus === 'closed' || invoiceStatus === 'overdue' || invoiceStatus === 'paid';
+                const hasClosed = today > closingDate || isClosedOrOverdue;
                 const closingLabel = hasClosed ? `fechou ${closingDateFormatted}` : `fecha ${closingDateFormatted}`;
 
                 const isOverdue = invoiceStatus === 'overdue';
