@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { CreditCard, Transaction } from '@/types/finance';
 import { useFinance } from '@/context/FinanceContext';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, getMonthName } from '@/lib/utils';
 import { CardBrandLogo } from './CardBrandLogo';
 import { CreditCardModal } from './CreditCardModal';
 import { ArchivedCardsDrawer } from './ArchivedCardsDrawer';
@@ -26,6 +26,9 @@ import {
   Lock,
   Unlock,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
   CreditCard as CardIcon,
 } from 'lucide-react';
 
@@ -50,14 +53,13 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
     transactions,
     selectedMonth,
     selectedYear,
+    setSelectedMonth,
+    setSelectedYear,
     addCreditCard,
     updateCreditCard,
     deleteCreditCard,
     updateTransaction,
   } = useFinance();
-
-  // Aba Superior: Mês Anterior | Mês Atual | Próximo Mês
-  const [invoiceTab, setInvoiceTab] = useState<'previous_month' | 'current_month' | 'next_month'>('current_month');
 
   // Seleção para Detalhe da Fatura
   const [selectedCardForDetail, setSelectedCardForDetail] = useState<CreditCard | null>(() => {
@@ -107,26 +109,70 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
     return creditCards.filter(c => !!c.isArchived);
   }, [creditCards]);
 
-  // Determinar o mês alvo para os cálculos baseado na aba ativa
-  const targetMonth = useMemo(() => {
-    if (invoiceTab === 'previous_month') {
-      return (selectedMonth + 11) % 12;
-    }
-    if (invoiceTab === 'next_month') {
-      return (selectedMonth + 1) % 12;
-    }
-    return selectedMonth;
-  }, [invoiceTab, selectedMonth]);
+  // Mês e Ano de Referência (Mês Atual Real do Sistema)
+  const currentRealMonth = useMemo(() => new Date().getMonth(), []);
+  const currentRealYear = useMemo(() => new Date().getFullYear(), []);
 
-  const targetYear = useMemo(() => {
-    if (invoiceTab === 'previous_month' && selectedMonth === 0) {
-      return selectedYear - 1;
+  // Determinar qual aba está ativa comparando selectedMonth/selectedYear com o mês atual real
+  const activeTabKey = useMemo((): 'previous_month' | 'current_month' | 'next_month' | 'custom' => {
+    const prevMonth = (currentRealMonth + 11) % 12;
+    const prevYear = currentRealMonth === 0 ? currentRealYear - 1 : currentRealYear;
+    if (selectedMonth === prevMonth && selectedYear === prevYear) {
+      return 'previous_month';
     }
-    if (invoiceTab === 'next_month' && selectedMonth === 11) {
-      return selectedYear + 1;
+    if (selectedMonth === currentRealMonth && selectedYear === currentRealYear) {
+      return 'current_month';
     }
-    return selectedYear;
-  }, [invoiceTab, selectedMonth, selectedYear]);
+    const nextMonth = (currentRealMonth + 1) % 12;
+    const nextYear = currentRealMonth === 11 ? currentRealYear + 1 : currentRealYear;
+    if (selectedMonth === nextMonth && selectedYear === nextYear) {
+      return 'next_month';
+    }
+    return 'custom';
+  }, [selectedMonth, selectedYear, currentRealMonth, currentRealYear]);
+
+  // Handlers para os 3 botões de meses (atualizam diretamente o contexto global)
+  const handleSelectPreviousMonth = () => {
+    const prevMonth = (currentRealMonth + 11) % 12;
+    const prevYear = currentRealMonth === 0 ? currentRealYear - 1 : currentRealYear;
+    setSelectedMonth(prevMonth);
+    setSelectedYear(prevYear);
+  };
+
+  const handleSelectCurrentMonth = () => {
+    setSelectedMonth(currentRealMonth);
+    setSelectedYear(currentRealYear);
+  };
+
+  const handleSelectNextMonth = () => {
+    const nextMonth = (currentRealMonth + 1) % 12;
+    const nextYear = currentRealMonth === 11 ? currentRealYear + 1 : currentRealYear;
+    setSelectedMonth(nextMonth);
+    setSelectedYear(nextYear);
+  };
+
+  // Handlers para as setas do seletor de mês mobile
+  const handleStepPrevMonth = () => {
+    if (selectedMonth === 0) {
+      setSelectedMonth(11);
+      setSelectedYear(selectedYear - 1);
+    } else {
+      setSelectedMonth(selectedMonth - 1);
+    }
+  };
+
+  const handleStepNextMonth = () => {
+    if (selectedMonth === 11) {
+      setSelectedMonth(0);
+      setSelectedYear(selectedYear + 1);
+    } else {
+      setSelectedMonth(selectedMonth + 1);
+    }
+  };
+
+  // Período alvo para as faturas (diretamente o mês e ano selecionados no seletor)
+  const targetMonth = selectedMonth;
+  const targetYear = selectedYear;
 
   // Chave do período
   const targetPeriodKey = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
@@ -425,13 +471,47 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
         </div>
       </div>
 
+      {/* Seletor de Mês Mobile com Setas */}
+      <div className="px-4 pt-1 pb-1 flex justify-center">
+        <div className="flex items-center justify-between bg-slate-900/80 border border-slate-800 rounded-2xl px-3 py-1.5 w-full max-w-sm shadow-md">
+          <button
+            type="button"
+            onClick={handleStepPrevMonth}
+            className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            title="Mês anterior"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <div
+            className="flex items-center gap-1.5 px-2 py-0.5 cursor-pointer hover:bg-slate-800/60 rounded-lg transition-colors"
+            onClick={handleSelectCurrentMonth}
+            title="Ir para o mês atual"
+          >
+            <Calendar className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+            <span className="font-bold text-white text-xs select-none">
+              {getMonthName(selectedMonth)} {selectedYear}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleStepNextMonth}
+            className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            title="Próximo mês"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
       {/* Abas Pílula: Mês Anterior | Mês Atual | Próximo Mês */}
       <div className="px-4 py-2 flex justify-center">
         <div className="flex bg-[#25252c] p-1 rounded-2xl border border-slate-800 w-full max-w-sm">
           <button
-            onClick={() => setInvoiceTab('previous_month')}
+            onClick={handleSelectPreviousMonth}
             className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              invoiceTab === 'previous_month'
+              activeTabKey === 'previous_month'
                 ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
                 : 'text-slate-400 hover:text-white'
             }`}
@@ -439,9 +519,9 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
             Mês Anterior
           </button>
           <button
-            onClick={() => setInvoiceTab('current_month')}
+            onClick={handleSelectCurrentMonth}
             className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              invoiceTab === 'current_month'
+              activeTabKey === 'current_month'
                 ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
                 : 'text-slate-400 hover:text-white'
             }`}
@@ -449,9 +529,9 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
             Mês Atual
           </button>
           <button
-            onClick={() => setInvoiceTab('next_month')}
+            onClick={handleSelectNextMonth}
             className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              invoiceTab === 'next_month'
+              activeTabKey === 'next_month'
                 ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
                 : 'text-slate-400 hover:text-white'
             }`}
@@ -544,7 +624,7 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
                   ) : isClosedOrPaid ? (
                     <button
                       onClick={() => handlePayInvoice(card)}
-                      className="text-xs font-bold text-white hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1.5 shadow-xs"
+                      className="text-xs font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1.5 shadow-xs"
                     >
                       PAGAR FATURA
                     </button>
@@ -555,7 +635,7 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
                         setTransactionToEdit(null);
                         setIsTxModalOpen(true);
                       }}
-                      className="text-xs font-bold text-teal-400 hover:text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1 shadow-xs"
+                      className="text-xs font-bold text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1 shadow-xs"
                     >
                       ADICIONAR DESPESA
                     </button>

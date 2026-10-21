@@ -259,14 +259,14 @@ export const CreditCardCard: React.FC<CreditCardCardProps> = ({
         ) : isClosedOrOverdue ? (
           <button
             onClick={() => onPayInvoice(card)}
-            className="text-xs font-bold text-white hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1.5 shadow-xs"
+            className="text-xs font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1.5 shadow-xs"
           >
             PAGAR FATURA
           </button>
         ) : (
           <button
             onClick={() => onAddExpense(card)}
-            className="text-xs font-bold text-teal-400 hover:text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1 shadow-xs"
+            className="text-xs font-bold text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1 shadow-xs"
           >
             ADICIONAR DESPESA
           </button>
