@@ -224,8 +224,14 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
               {/* Linha Superior: Número do dia à esquerda e Crédito (verde) à direita */}
               <div className="w-full flex items-center justify-between leading-none">
                 <span
-                  className={`${compact ? 'text-[9px] sm:text-[10px] md:text-[14px]' : 'text-[10px] sm:text-[11px] md:text-[15px]'} font-bold text-left ${
-                    cell.level > 0 ? 'text-white/95' : 'text-slate-500'
+                  className={`inline-flex items-center justify-center rounded-full border transition-all ${
+                    compact
+                      ? 'w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-[9px] sm:text-[10px] md:text-[12px]'
+                      : 'w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 md:w-6.5 md:h-6.5 text-[10px] sm:text-[11px] md:text-[13px]'
+                  } font-bold ${
+                    cell.level > 0
+                      ? 'border-white/30 bg-black/20 text-white/95 shadow-sm'
+                      : 'border-slate-700/60 bg-slate-900/40 text-slate-500'
                   }`}
                 >
                   {cell.dayNumber}

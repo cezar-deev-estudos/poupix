@@ -28,6 +28,7 @@ import {
   Clock,
   ArrowRight,
   Bookmark,
+  CreditCard,
 } from 'lucide-react';
 import { ExpenseHeatmapCalendar } from '../dashboard/ExpenseHeatmapCalendar';
 import { CategoryIcon } from '../ui/CategoryIcon';
@@ -342,14 +343,55 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       return d === targetDate;
     });
 
-    const expenseTxs = txs.filter(t => t.type === 'expense' || !!t.creditCardId);
+    const rawExpenseTxs = txs.filter(t => t.type === 'expense' || !!t.creditCardId);
     const incomeTxs = txs.filter(t => t.type === 'income');
 
-    const expenseTotal = expenseTxs.reduce((sum, t) => sum + t.amount, 0);
+    const expenseTotal = rawExpenseTxs.reduce((sum, t) => sum + t.amount, 0);
     const incomeTotal = incomeTxs.reduce((sum, t) => sum + t.amount, 0);
 
+    // Se estiver agrupando por cartão, agrupar as despesas de cartão por cartão de crédito
+    let expenseTxs = rawExpenseTxs;
+    if (groupByCard) {
+      const nonCardExpenses = rawExpenseTxs.filter(t => !t.creditCardId);
+      const cardMap = new Map<string, Transaction[]>();
+      rawExpenseTxs.forEach(t => {
+        if (t.creditCardId) {
+          const list = cardMap.get(t.creditCardId) || [];
+          list.push(t);
+          cardMap.set(t.creditCardId, list);
+        }
+      });
+
+      const currentPeriodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+      const groupedCardItems: Transaction[] = [];
+
+      cardMap.forEach((txList, cardId) => {
+        const card = creditCards.find(c => isSameId(c.id, cardId));
+        const totalAmount = txList.reduce((acc, t) => acc + t.amount, 0);
+        const isPaid = card?.manualInvoiceStatus?.[currentPeriodKey] === 'paid' || txList.every(t => t.paid);
+        const linkedAccountId = txList.find(t => t.accountId)?.accountId || accounts[0]?.id;
+
+        groupedCardItems.push({
+          id: `grouped-heatmap-${cardId}-${targetDate}`,
+          description: card ? `Cartão ${card.name}` : 'Cartão de Crédito',
+          amount: totalAmount,
+          date: targetDate,
+          invoiceDate: targetDate,
+          type: 'expense',
+          categoryId: 'grouped-card-category',
+          creditCardId: cardId,
+          accountId: linkedAccountId,
+          paid: isPaid,
+          createdAt: new Date().toISOString(),
+          notes: `${txList.length} compras agrupadas na fatura`,
+        });
+      });
+
+      expenseTxs = [...nonCardExpenses, ...groupedCardItems];
+    }
+
     return {
-      selectedDateTransactions: txs,
+      selectedDateTransactions: [...incomeTxs, ...expenseTxs],
       selectedDateExpenses: expenseTxs,
       selectedDateIncomes: incomeTxs,
       selectedDateExpenseTotal: expenseTotal,
@@ -357,7 +399,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       selectedDateTotal: expenseTotal,
       effectiveSelectedDate: targetDate,
     };
-  }, [baseTransactions, selectedHeatmapDate, selectedYear, selectedMonth, creditCards]);
+  }, [baseTransactions, selectedHeatmapDate, selectedYear, selectedMonth, creditCards, groupByCard, accounts]);
 
   // Exclusão
   const handleConfirmDelete = () => {
@@ -721,23 +763,40 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  {selectedDateIncomeTotal > 0 && (
-                    <div className="text-right">
-                      <span className="text-[10px] text-slate-500 uppercase font-semibold block">Receitas</span>
-                      <span className="text-xs font-bold text-emerald-400">
-                        + {formatCurrency(selectedDateIncomeTotal)}
-                      </span>
-                    </div>
-                  )}
-                  {selectedDateExpenseTotal > 0 && (
-                    <div className="text-right">
-                      <span className="text-[10px] text-slate-500 uppercase font-semibold block">Despesas</span>
-                      <span className="text-xs font-bold text-rose-400">
-                        - {formatCurrency(selectedDateExpenseTotal)}
-                      </span>
-                    </div>
-                  )}
+                <div className="flex items-center gap-2.5">
+                  {/* Botão de Toggle Agrupar Cartões no Painel do Mapa de Calor */}
+                  <button
+                    type="button"
+                    onClick={toggleGroupByCard}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold border transition-all cursor-pointer ${
+                      groupByCard
+                        ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-sm'
+                        : 'bg-slate-800/60 text-slate-400 border-slate-700/60 hover:text-white hover:bg-slate-700/60'
+                    }`}
+                    title={groupByCard ? 'Desagrupar itens de cartão de crédito' : 'Agrupar itens de cartão de crédito nesta data'}
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    <span>{groupByCard ? 'Agrupado' : 'Agrupar'}</span>
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    {selectedDateIncomeTotal > 0 && (
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Receitas</span>
+                        <span className="text-xs font-bold text-emerald-400">
+                          + {formatCurrency(selectedDateIncomeTotal)}
+                        </span>
+                      </div>
+                    )}
+                    {selectedDateExpenseTotal > 0 && (
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Despesas</span>
+                        <span className="text-xs font-bold text-rose-400">
+                          - {formatCurrency(selectedDateExpenseTotal)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -826,7 +885,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         </span>
                       </div>
                       {selectedDateExpenses.map((tx) => {
-                        const cat = categories.find((c) => c.id === tx.categoryId);
+                        const isGrouped = tx.id.startsWith('grouped-heatmap-') || tx.categoryId === 'grouped-card-category';
+                        const directCat = categories.find((c) => c.id === tx.categoryId);
+                        const parentCat = directCat?.parentId ? categories.find((c) => c.id === directCat.parentId) : null;
+                        const cat = parentCat || directCat;
                         const card = tx.creditCardId ? creditCards.find((c) => isSameId(c.id, tx.creditCardId)) : null;
                         const acc = tx.accountId ? accounts.find((a) => a.id === tx.accountId) : null;
                         const invoicePeriod = card ? getTransactionInvoicePeriod(tx, card) : null;
@@ -839,24 +901,46 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         return (
                           <div
                             key={tx.id}
-                            onClick={() => setEditingTransaction(tx)}
-                            className="group flex items-center justify-between p-2 rounded-2xl bg-slate-900/50 hover:bg-slate-800/80 border border-slate-800/60 hover:border-slate-700 transition-all cursor-pointer"
+                            onClick={() => {
+                              if (!isGrouped) setEditingTransaction(tx);
+                            }}
+                            className={`group flex items-center justify-between p-2 rounded-2xl border transition-all cursor-pointer ${
+                              isGrouped
+                                ? 'bg-teal-950/20 hover:bg-teal-950/30 border-teal-500/30'
+                                : 'bg-slate-900/50 hover:bg-slate-800/80 border-slate-800/60 hover:border-slate-700'
+                            }`}
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
-                              <div
-                                className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
-                                style={{ backgroundColor: `${cat?.color || '#94a3b8'}20`, color: cat?.color || '#94a3b8' }}
-                              >
-                                <CategoryIcon name={cat?.icon || 'HelpCircle'} size={15} />
-                              </div>
+                              {isGrouped ? (
+                                <div className="w-7 h-7 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30 flex items-center justify-center shrink-0 shadow-sm">
+                                  <CreditCard className="w-4 h-4 stroke-[2]" />
+                                </div>
+                              ) : (
+                                <div
+                                  className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+                                  style={{ backgroundColor: `${cat?.color || '#94a3b8'}20`, color: cat?.color || '#94a3b8' }}
+                                >
+                                  <CategoryIcon name={cat?.icon || 'HelpCircle'} size={15} />
+                                </div>
+                              )}
                               <div className="min-w-0">
                                 <span className="text-xs font-normal text-slate-200 block truncate group-hover:text-white transition-colors">
                                   {tx.description}
                                 </span>
                                 <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                                  <span>{cat?.name || 'Sem categoria'}</span>
-                                  <span>•</span>
-                                  <span>{card ? `Cartão ${card.name}` : acc?.name || 'Conta'}</span>
+                                  {isGrouped ? (
+                                    <>
+                                      <span className="text-teal-400 font-medium">Fatura Agrupada</span>
+                                      <span>•</span>
+                                      <span className="text-slate-400">{tx.notes}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span>{cat?.name || 'Sem categoria'}</span>
+                                      <span>•</span>
+                                      <span>{card ? `Cartão ${card.name}` : acc?.name || 'Conta'}</span>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             </div>

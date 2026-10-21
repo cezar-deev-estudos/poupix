@@ -393,21 +393,61 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
       return d === heatmapModalDate;
     });
 
-    const expenseTxs = txs.filter(t => t.type === 'expense' || !!t.creditCardId);
+    const rawExpenseTxs = txs.filter(t => t.type === 'expense' || !!t.creditCardId);
     const incomeTxs = txs.filter(t => t.type === 'income');
 
-    const expenseTotal = expenseTxs.reduce((acc, t) => acc + t.amount, 0);
+    const expenseTotal = rawExpenseTxs.reduce((acc, t) => acc + t.amount, 0);
     const incomeTotal = incomeTxs.reduce((acc, t) => acc + t.amount, 0);
 
+    let expenseTxs = rawExpenseTxs;
+    if (groupByCard) {
+      const nonCardExpenses = rawExpenseTxs.filter(t => !t.creditCardId);
+      const cardMap = new Map<string, Transaction[]>();
+      rawExpenseTxs.forEach(t => {
+        if (t.creditCardId) {
+          const list = cardMap.get(t.creditCardId) || [];
+          list.push(t);
+          cardMap.set(t.creditCardId, list);
+        }
+      });
+
+      const currentPeriodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+      const groupedCardItems: Transaction[] = [];
+
+      cardMap.forEach((txList, cardId) => {
+        const card = creditCards.find(c => isSameId(c.id, cardId));
+        const totalAmount = txList.reduce((acc, t) => acc + t.amount, 0);
+        const isPaid = card?.manualInvoiceStatus?.[currentPeriodKey] === 'paid' || txList.every(t => t.paid);
+        const linkedAccountId = txList.find(t => t.accountId)?.accountId || accounts[0]?.id;
+
+        groupedCardItems.push({
+          id: `grouped-heatmap-${cardId}-${heatmapModalDate}`,
+          description: card ? `Cartão ${card.name}` : 'Cartão de Crédito',
+          amount: totalAmount,
+          date: heatmapModalDate,
+          invoiceDate: heatmapModalDate,
+          type: 'expense',
+          categoryId: 'grouped-card-category',
+          creditCardId: cardId,
+          accountId: linkedAccountId,
+          paid: isPaid,
+          createdAt: new Date().toISOString(),
+          notes: `${txList.length} compras agrupadas na fatura`,
+        });
+      });
+
+      expenseTxs = [...nonCardExpenses, ...groupedCardItems];
+    }
+
     return {
-      transactions: txs,
+      transactions: [...incomeTxs, ...expenseTxs],
       expenses: expenseTxs,
       incomes: incomeTxs,
       expenseTotal,
       incomeTotal,
       total: expenseTotal,
     };
-  }, [baseTransactions, heatmapModalDate, creditCards]);
+  }, [baseTransactions, heatmapModalDate, creditCards, groupByCard, accounts, selectedYear, selectedMonth]);
 
 
   // Agrupamento por Dias no padrão Mobills: "Ontem", "Hoje", "Segunda, 21", etc.
@@ -1369,7 +1409,22 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                 </span>
               </div>
 
-              <div className="text-right flex items-center gap-2.5">
+              <div className="text-right flex items-center gap-2">
+                {/* Botão de Toggle Agrupar Cartões Mobile */}
+                <button
+                  type="button"
+                  onClick={toggleGroupByCard}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-semibold border transition-all cursor-pointer ${
+                    groupByCard
+                      ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-sm'
+                      : 'bg-slate-800/80 text-slate-400 border-slate-700/60'
+                  }`}
+                  title={groupByCard ? 'Desagrupar itens de cartão de crédito' : 'Agrupar itens de cartão de crédito'}
+                >
+                  <CreditCard className="w-3 h-3" />
+                  <span>{groupByCard ? 'Agrupado' : 'Agrupar'}</span>
+                </button>
+
                 <div className="flex flex-col items-end gap-0.5">
                   {heatmapDayModalData.incomeTotal > 0 && (
                     <span className="text-xs font-bold text-emerald-400">
@@ -1385,7 +1440,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setHeatmapModalDate(null)}
-                  className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors text-xs font-bold"
+                  className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors text-xs font-bold ml-1"
                 >
                   ✕
                 </button>
@@ -1474,34 +1529,65 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                         </span>
                       </div>
                       {heatmapDayModalData.expenses.map((tx) => {
-                        const cat = categories.find((c) => c.id === tx.categoryId);
+                        const isGrouped = tx.id.startsWith('grouped-heatmap-') || tx.categoryId === 'grouped-card-category';
+                        const directCat = categories.find((c) => c.id === tx.categoryId);
+                        const parentCat = directCat?.parentId ? categories.find((c) => c.id === directCat.parentId) : null;
+                        const cat = parentCat || directCat;
                         const card = tx.creditCardId ? creditCards.find((c) => isSameId(c.id, tx.creditCardId)) : null;
                         const acc = tx.accountId ? accounts.find((a) => a.id === tx.accountId) : null;
+                        const invoicePeriod = card ? getTransactionInvoicePeriod(tx, card) : null;
+                        const isEffectivelyPaid =
+                          tx.paid ||
+                          (card && invoicePeriod
+                            ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
+                            : false);
 
                         return (
                           <div
                             key={tx.id}
                             onClick={() => {
-                              setHeatmapModalDate(null);
-                              setSelectedTxDetail(tx);
+                              if (!isGrouped) {
+                                setHeatmapModalDate(null);
+                                setSelectedTxDetail(tx);
+                              }
                             }}
-                            className="flex items-center justify-between p-3 rounded-2xl bg-slate-900/60 active:bg-slate-800/80 border border-slate-800/80 transition-all cursor-pointer"
+                            className={`flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer ${
+                              isGrouped
+                                ? 'bg-teal-950/20 active:bg-teal-950/40 border-teal-500/30'
+                                : 'bg-slate-900/60 active:bg-slate-800/80 border border-slate-800/80'
+                            }`}
                           >
                             <div className="flex items-center gap-3 min-w-0">
-                              <div
-                                className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
-                                style={{ backgroundColor: `${cat?.color || '#94a3b8'}20`, color: cat?.color || '#94a3b8' }}
-                              >
-                                <CategoryIcon name={cat?.icon || 'HelpCircle'} size={16} />
-                              </div>
+                              {isGrouped ? (
+                                <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30 flex items-center justify-center shrink-0 shadow-sm">
+                                  <CreditCard className="w-4 h-4 stroke-[2]" />
+                                </div>
+                              ) : (
+                                <div
+                                  className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+                                  style={{ backgroundColor: `${cat?.color || '#94a3b8'}20`, color: cat?.color || '#94a3b8' }}
+                                >
+                                  <CategoryIcon name={cat?.icon || 'HelpCircle'} size={16} />
+                                </div>
+                              )}
                               <div className="min-w-0">
                                 <span className="text-xs font-normal text-slate-100 block truncate">
                                   {tx.description}
                                 </span>
                                 <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                                  <span>{cat?.name || 'Sem categoria'}</span>
-                                  <span>•</span>
-                                  <span>{card ? `Cartão ${card.name}` : acc?.name || 'Conta'}</span>
+                                  {isGrouped ? (
+                                    <>
+                                      <span className="text-teal-400 font-medium">Fatura Agrupada</span>
+                                      <span>•</span>
+                                      <span className="text-slate-400">{tx.notes}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span>{cat?.name || 'Sem categoria'}</span>
+                                      <span>•</span>
+                                      <span>{card ? `Cartão ${card.name}` : acc?.name || 'Conta'}</span>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -1511,7 +1597,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                                 - {formatCurrency(tx.amount)}
                               </span>
                               <span className="text-[10px] text-slate-500 mt-0.5 block">
-                                {tx.paid ? (
+                                {isEffectivelyPaid ? (
                                   <span className="text-emerald-400">✓ Pago</span>
                                 ) : (
                                   <span className="text-amber-400">⏳ Pendente</span>
