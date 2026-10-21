@@ -334,9 +334,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       };
     }
 
-    // Filtrar de baseTransactions (itens individuais reais daquele dia, sem cortes de filtro de tipo ou agrupamento sintético)
+    // Filtrar de baseTransactions (itens individuais reais daquele dia usando data efetiva de vencimento para cartões)
     const txs = baseTransactions.filter(t => {
-      const d = t.date ? t.date.split('T')[0] : '';
+      const card = t.creditCardId ? creditCards.find(c => isSameId(c.id, t.creditCardId)) : undefined;
+      const effectiveDateStr = getEffectiveTransactionDate(t, card);
+      const d = effectiveDateStr ? effectiveDateStr.split('T')[0] : '';
       return d === targetDate;
     });
 
@@ -355,7 +357,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       selectedDateTotal: expenseTotal,
       effectiveSelectedDate: targetDate,
     };
-  }, [baseTransactions, selectedHeatmapDate, selectedYear, selectedMonth]);
+  }, [baseTransactions, selectedHeatmapDate, selectedYear, selectedMonth, creditCards]);
 
   // Exclusão
   const handleConfirmDelete = () => {

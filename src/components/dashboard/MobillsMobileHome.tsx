@@ -740,7 +740,7 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
             return (
               <div key="expenseHeatmap" className="space-y-2">
                 <ExpenseHeatmapCalendar
-                  transactions={transactions}
+                  transactions={filteredTransactions}
                   year={selectedYear}
                   month={selectedMonth}
                   onSelectDate={() => {

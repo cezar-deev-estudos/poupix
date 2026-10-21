@@ -4,6 +4,8 @@ import React, { useMemo } from 'react';
 import { Transaction } from '@/types/finance';
 import { Flame, Info } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { useFinance } from '@/context/FinanceContext';
+import { getEffectiveTransactionDate, isSameId } from '@/lib/invoiceHelpers';
 
 interface ExpenseHeatmapCalendarProps {
   transactions: Transaction[];
@@ -24,6 +26,8 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
   onSelectDate,
   compact = false,
 }) => {
+  const { creditCards } = useFinance();
+
   // 1. Agrupar despesas e receitas por dia (YYYY-MM-DD)
   const { dailyTotals, dailyIncomes, maxExpense, weekendRatio, activeDaysCount, totalMonthExpenses } = useMemo(() => {
     const totals: Record<string, number> = {};
@@ -36,7 +40,9 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
     let totalAll = 0;
 
     transactions.forEach(t => {
-      const dateStr = t.date ? t.date.split('T')[0] : '';
+      const card = t.creditCardId ? creditCards.find(c => isSameId(c.id, t.creditCardId)) : undefined;
+      const effectiveDateStr = getEffectiveTransactionDate(t, card);
+      const dateStr = effectiveDateStr ? effectiveDateStr.split('T')[0] : '';
       if (!dateStr) return;
 
       const [y, m] = dateStr.split('-').map(Number);

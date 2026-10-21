@@ -388,7 +388,8 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
       return { transactions: [], expenses: [], incomes: [], expenseTotal: 0, incomeTotal: 0, total: 0 };
     }
     const txs = baseTransactions.filter((t) => {
-      const d = t.date ? t.date.split('T')[0] : '';
+      const effectiveDateStr = getTxDate(t);
+      const d = effectiveDateStr ? effectiveDateStr.split('T')[0] : '';
       return d === heatmapModalDate;
     });
 
@@ -406,7 +407,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
       incomeTotal,
       total: expenseTotal,
     };
-  }, [baseTransactions, heatmapModalDate]);
+  }, [baseTransactions, heatmapModalDate, creditCards]);
 
 
   // Agrupamento por Dias no padrão Mobills: "Ontem", "Hoje", "Segunda, 21", etc.
