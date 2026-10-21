@@ -25,7 +25,7 @@ import { TransactionFlowType } from '../transactions/modal/TransactionModal';
 import { MonthDropdownModal } from '../layout/MonthDropdownModal';
 import { PendingAlertsCards } from './PendingAlertsCards';
 import { useAuth } from '@/context/AuthContext';
-import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
+import { isTransactionInInvoicePeriod, isInvoicePeriodPaid } from '@/lib/invoiceHelpers';
 import { TransactionList } from '../transactions/TransactionList';
 import { DashboardLayoutPreferences } from '@/types/settings';
 import { ExpenseHeatmapCalendar } from './ExpenseHeatmapCalendar';
@@ -498,6 +498,7 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
                 const cardTotal = cardExpensesMap[card.id] || 0;
 
                 // Cálculo de Status do Cartão / Fatura
+                const isPaid = isInvoicePeriodPaid(card, transactions, targetCardYear, targetCardMonth);
                 const periodKey = `${targetCardYear}-${String(targetCardMonth + 1).padStart(2, '0')}`;
                 const manualStatus = card.manualInvoiceStatus?.[periodKey];
                 const today = new Date();
@@ -508,7 +509,7 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
                 closingDate.setHours(0, 0, 0, 0);
 
                 let invoiceStatus: 'open' | 'closed' | 'overdue' | 'paid' = 'open';
-                if (manualStatus === 'paid') {
+                if (isPaid || manualStatus === 'paid') {
                   invoiceStatus = 'paid';
                 } else if (manualStatus === 'open') {
                   invoiceStatus = 'open';

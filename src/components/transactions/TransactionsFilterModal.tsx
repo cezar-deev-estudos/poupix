@@ -13,7 +13,7 @@ export interface AdvancedFilterState {
   accountId: string;
   tag: string;
   status: 'all' | 'paid' | 'pending';
-  type: 'all' | 'expense' | 'income' | 'transfer';
+  type: 'all' | 'expense' | 'income' | 'transfer' | 'creditCard';
   saveFilter: boolean;
   filterName?: string;
 }
@@ -254,7 +254,8 @@ export const TransactionsFilterModal: React.FC<TransactionsFilterModalProps> = (
                 className="w-full bg-[#181b24] border border-slate-700 rounded-2xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
               >
                 <option value="all">Todos os tipos</option>
-                <option value="expense">Despesas</option>
+                <option value="expense">Despesas (Conta)</option>
+                <option value="creditCard">Despesas de Cartão</option>
                 <option value="income">Receitas</option>
                 <option value="transfer">Transferências</option>
               </select>

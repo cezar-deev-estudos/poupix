@@ -5,6 +5,8 @@ import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency } from '@/lib/utils';
 import { Landmark, ArrowUp, ArrowDown, Scale, ChevronRight } from 'lucide-react';
 
+import { isSameId, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
+
 interface TransactionsHeaderCardsProps {
   activeTypeFilter: 'all' | 'income' | 'expense' | 'transfer';
   onSelectTypeFilter: (type: 'all' | 'income' | 'expense' | 'transfer') => void;
@@ -18,7 +20,7 @@ export const TransactionsHeaderCards: React.FC<TransactionsHeaderCardsProps> = (
   activeStatusFilter = 'all',
   onSelectStatusFilter,
 }) => {
-  const { summary, filteredTransactions, isPrivacyMode } = useFinance();
+  const { summary, filteredTransactions, isPrivacyMode, creditCards } = useFinance();
 
   const displayVal = (amount: number) => {
     if (isPrivacyMode) return 'R$ ••••••';
@@ -28,15 +30,35 @@ export const TransactionsHeaderCards: React.FC<TransactionsHeaderCardsProps> = (
   // Cálculos de Despesas (pendentes, pagas e total)
   const pendingExpense = useMemo(() => {
     return filteredTransactions
-      .filter((t) => t.type === 'expense' && !t.paid)
+      .filter((t) => {
+        if (t.type !== 'expense') return false;
+        const card = t.creditCardId ? creditCards.find((c) => isSameId(c.id, t.creditCardId)) : undefined;
+        const invoicePeriod = card ? getTransactionInvoicePeriod(t, card) : null;
+        const isEffectivelyPaid =
+          t.paid ||
+          (card && invoicePeriod
+            ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
+            : false);
+        return !isEffectivelyPaid;
+      })
       .reduce((acc, t) => acc + t.amount, 0);
-  }, [filteredTransactions]);
+  }, [filteredTransactions, creditCards]);
 
   const paidExpense = useMemo(() => {
     return filteredTransactions
-      .filter((t) => t.type === 'expense' && t.paid)
+      .filter((t) => {
+        if (t.type !== 'expense') return false;
+        const card = t.creditCardId ? creditCards.find((c) => isSameId(c.id, t.creditCardId)) : undefined;
+        const invoicePeriod = card ? getTransactionInvoicePeriod(t, card) : null;
+        const isEffectivelyPaid =
+          t.paid ||
+          (card && invoicePeriod
+            ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
+            : false);
+        return isEffectivelyPaid;
+      })
       .reduce((acc, t) => acc + t.amount, 0);
-  }, [filteredTransactions]);
+  }, [filteredTransactions, creditCards]);
 
   const totalExpense = pendingExpense + paidExpense;
 

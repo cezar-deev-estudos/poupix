@@ -11,7 +11,7 @@ import { TransactionScopeModal } from './TransactionScopeModal';
 import { NewTransactionModal } from './NewTransactionModal';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { formatCurrency } from '@/lib/utils';
-import { getEffectiveTransactionDate, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
+import { getEffectiveTransactionDate, getTransactionInvoicePeriod, isSameId } from '@/lib/invoiceHelpers';
 import { SavedTransactionFilter } from '@/types/finance';
 import { useSavedFilters } from '@/hooks/useSavedFilters';
 import { SaveFilterModal } from './SaveFilterModal';
@@ -117,7 +117,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     if (sf.searchQuery !== undefined) setSearchQuery(sf.searchQuery);
     if (sf.scope) setTimeScope(sf.scope);
     if (sf.year) setSelectedYear(sf.year);
-    if (sf.type) setActiveTypeFilter(sf.type);
+    if (sf.type && sf.type !== 'creditCard') setActiveTypeFilter(sf.type);
 
     setAdvancedFilter({
       startDate: sf.startDate || '',
@@ -154,7 +154,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     if (timeScope === 'year') {
       return (allTransactions || []).filter((t) => {
         if (t.creditCardId) {
-          const card = creditCards.find((c) => c.id === t.creditCardId);
+          const card = creditCards.find((c) => isSameId(c.id, t.creditCardId));
           const { year } = getTransactionInvoicePeriod(t, card);
           return year === selectedYear;
         }
@@ -210,8 +210,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       }
 
       // 3. Filtros Avançados
-      if (advancedFilter.startDate && tx.date < advancedFilter.startDate) return false;
-      if (advancedFilter.endDate && tx.date > advancedFilter.endDate) return false;
+      const card = tx.creditCardId ? creditCards.find((c) => isSameId(c.id, tx.creditCardId)) : undefined;
+      const effectiveTxDate = getEffectiveTransactionDate(tx, card);
+      if (advancedFilter.startDate && effectiveTxDate < advancedFilter.startDate) return false;
+      if (advancedFilter.endDate && effectiveTxDate > advancedFilter.endDate) return false;
 
       // Filtro de Categoria e Subcategoria
       if (advancedFilter.subcategoryId) {
@@ -228,9 +230,22 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
       if (advancedFilter.accountId && tx.accountId !== advancedFilter.accountId) return false;
       if (advancedFilter.tag && (!tx.tags || !tx.tags.includes(advancedFilter.tag))) return false;
-      if (advancedFilter.status === 'paid' && !tx.paid) return false;
-      if (advancedFilter.status === 'pending' && tx.paid) return false;
-      if (advancedFilter.type !== 'all' && tx.type !== advancedFilter.type) return false;
+      const invoicePeriod = card ? getTransactionInvoicePeriod(tx, card) : null;
+      const isTxEffectivelyPaid =
+        tx.paid ||
+        (card && invoicePeriod
+          ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
+          : false);
+
+      if (advancedFilter.status === 'paid' && !isTxEffectivelyPaid) return false;
+      if (advancedFilter.status === 'pending' && isTxEffectivelyPaid) return false;
+      if (advancedFilter.type === 'creditCard') {
+        if (!tx.creditCardId) return false;
+      } else if (advancedFilter.type === 'expense') {
+        if (tx.type !== 'expense' || Boolean(tx.creditCardId)) return false;
+      } else if (advancedFilter.type !== 'all' && tx.type !== advancedFilter.type) {
+        return false;
+      }
 
       return true;
     });
@@ -259,7 +274,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     // 3. Gerar item sintético de fatura para cada cartão que tem compras
     const aggregatedCardItems: Transaction[] = [];
     cardGroupsMap.forEach((txList, cardId) => {
-      const card = creditCards.find(c => c.id === cardId);
+      const card = creditCards.find(c => isSameId(c.id, cardId));
       const totalAmount = txList.reduce((acc, t) => acc + t.amount, 0);
       const isPaid = card?.manualInvoiceStatus?.[currentPeriodKey] === 'paid' || txList.every(t => t.paid);
       
@@ -810,7 +825,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                       </div>
                       {selectedDateExpenses.map((tx) => {
                         const cat = categories.find((c) => c.id === tx.categoryId);
-                        const card = tx.creditCardId ? creditCards.find((c) => c.id === tx.creditCardId) : null;
+                        const card = tx.creditCardId ? creditCards.find((c) => isSameId(c.id, tx.creditCardId)) : null;
                         const acc = tx.accountId ? accounts.find((a) => a.id === tx.accountId) : null;
 
                         return (

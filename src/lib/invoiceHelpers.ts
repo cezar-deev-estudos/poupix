@@ -1,4 +1,18 @@
 import { CreditCard, Transaction } from '@/types/finance';
+import { ensureValidUUID } from './supabase/syncService';
+
+/**
+ * Compara dois identificadores (seja ID direto ou UUID gerado), garantindo resiliência.
+ */
+export function isSameId(id1?: string | null, id2?: string | null): boolean {
+  if (!id1 || !id2) return false;
+  if (id1 === id2) return true;
+  try {
+    return ensureValidUUID(id1).toLowerCase() === ensureValidUUID(id2).toLowerCase();
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Calcula a data de vencimento padrão da fatura com base na data da compra e no dia de fechamento do cartão.
@@ -76,13 +90,10 @@ export function normalizeTransactionsInvoiceDates(
   transactions: Transaction[],
   creditCards: CreditCard[]
 ): Transaction[] {
-  const cardMap = new Map<string, CreditCard>();
-  creditCards.forEach(c => cardMap.set(c.id, c));
-
   return transactions.map(tx => {
     if (!tx.creditCardId) return tx;
     if (tx.invoiceDate) return tx; // Respeita o invoiceDate já salvo
-    const card = cardMap.get(tx.creditCardId);
+    const card = creditCards.find(c => isSameId(c.id, tx.creditCardId));
     const { invoiceDueDateStr } = getTransactionInvoicePeriod(tx, card);
     return {
       ...tx,
@@ -116,7 +127,8 @@ export function isTransactionInInvoicePeriod(
   targetYear: number,
   targetMonth: number
 ): boolean {
-  if (tx.creditCardId !== card?.id) return false;
+  if (!card || !tx.creditCardId) return false;
+  if (!isSameId(tx.creditCardId, card.id)) return false;
   const { year, month } = getTransactionInvoicePeriod(tx, card);
   return year === targetYear && month === targetMonth;
 }

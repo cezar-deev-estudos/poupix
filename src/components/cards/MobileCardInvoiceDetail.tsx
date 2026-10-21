@@ -439,16 +439,8 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
                   return (
                     <div
                       key={tx.id}
-                      onClick={() => {
-                        if (invoiceStatus === 'open') {
-                          onEditTransaction(tx);
-                        }
-                      }}
-                      className={`bg-[#1c1c20]/90 border border-slate-800/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 transition-transform ${
-                        invoiceStatus === 'open'
-                          ? 'active:scale-[0.99] cursor-pointer hover:border-slate-700'
-                          : 'cursor-default opacity-90'
-                      }`}
+                      onClick={() => onEditTransaction(tx)}
+                      className="bg-[#1c1c20]/90 border border-slate-800/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 transition-transform active:scale-[0.99] cursor-pointer hover:border-slate-700"
                     >
                       {/* Ícone Categoria + Descrição */}
                       <div className="flex items-center gap-3 min-w-0">

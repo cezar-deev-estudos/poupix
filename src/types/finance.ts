@@ -248,7 +248,7 @@ export interface SavedTransactionFilter {
   searchQuery?: string;
   scope?: 'month' | 'year'; // mês atual ou ano inteiro
   year?: number;
-  type?: 'all' | 'expense' | 'income' | 'transfer';
+  type?: 'all' | 'expense' | 'income' | 'transfer' | 'creditCard';
   status?: 'all' | 'paid' | 'pending';
   categoryId?: string;
   subcategoryId?: string;

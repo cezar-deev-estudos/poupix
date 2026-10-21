@@ -450,7 +450,7 @@ export const deleteTransactionFromSupabase = async (
       const uuid = ensureValidUUID(txId)
       let query = supabase.from('transactions').delete()
       if (effectiveUserId) query = query.eq('user_id', effectiveUserId)
-      const { error: delErr } = uuid === txId 
+      const { error: delErr } = uuid === txId
         ? await query.eq('id', uuid)
         : await query.or(`id.eq.${uuid},id.eq.${txId}`)
       if (delErr) console.error('[Supabase Delete Tx Single Error]:', delErr)

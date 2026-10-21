@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Transaction } from '@/types/finance';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency, formatDateBR, getLocalDateString } from '@/lib/utils';
-import { getTransactionInvoicePeriod, getEffectiveTransactionDate } from '@/lib/invoiceHelpers';
+import { getTransactionInvoicePeriod, getEffectiveTransactionDate, isSameId } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { MobileTransactionDetailDrawer } from './MobileTransactionDetailDrawer';
 import { SavedTransactionFilter } from '@/types/finance';
@@ -131,7 +131,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     if (sf.searchQuery !== undefined) setSearchQuery(sf.searchQuery);
     if (sf.scope) setTimeScope(sf.scope);
     if (sf.year) setSelectedYear(sf.year);
-    if (sf.type) setActiveTypeFilter(sf.type);
+    if (sf.type && sf.type !== 'creditCard') setActiveTypeFilter(sf.type);
 
     setAdvancedFilter({
       startDate: sf.startDate || '',
@@ -168,7 +168,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     if (timeScope === 'year') {
       return (allTransactions || []).filter((t) => {
         if (t.creditCardId) {
-          const card = creditCards.find((c) => c.id === t.creditCardId);
+          const card = creditCards.find((c) => isSameId(c.id, t.creditCardId));
           const { year } = getTransactionInvoicePeriod(t, card);
           return year === selectedYear;
         }
@@ -247,7 +247,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
   const totalIncome = pendingIncome + paidIncome;
 
   const getTxDate = (tx: Transaction) => {
-    const card = creditCards.find((c) => c.id === tx.creditCardId);
+    const card = creditCards.find((c) => isSameId(c.id, tx.creditCardId));
     return getEffectiveTransactionDate(tx, card);
   };
 
@@ -282,9 +282,23 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
       if (advancedFilter.accountId && tx.accountId !== advancedFilter.accountId) return false;
       if (advancedFilter.tag && (!tx.tags || !tx.tags.includes(advancedFilter.tag))) return false;
-      if (advancedFilter.status === 'paid' && !tx.paid) return false;
-      if (advancedFilter.status === 'pending' && tx.paid) return false;
-      if (advancedFilter.type !== 'all' && tx.type !== advancedFilter.type) return false;
+      const card = tx.creditCardId ? creditCards.find((c) => isSameId(c.id, tx.creditCardId)) : undefined;
+      const invoicePeriod = card ? getTransactionInvoicePeriod(tx, card) : null;
+      const isTxEffectivelyPaid =
+        tx.paid ||
+        (card && invoicePeriod
+          ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
+          : false);
+
+      if (advancedFilter.status === 'paid' && !isTxEffectivelyPaid) return false;
+      if (advancedFilter.status === 'pending' && isTxEffectivelyPaid) return false;
+      if (advancedFilter.type === 'creditCard') {
+        if (!tx.creditCardId) return false;
+      } else if (advancedFilter.type === 'expense') {
+        if (tx.type !== 'expense' || Boolean(tx.creditCardId)) return false;
+      } else if (advancedFilter.type !== 'all' && tx.type !== advancedFilter.type) {
+        return false;
+      }
 
       return true;
     });
@@ -312,7 +326,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     // 3. Gerar item sintético de fatura para cada cartão com compras
     const aggregatedCardItems: Transaction[] = [];
     cardGroupsMap.forEach((txList, cardId) => {
-      const card = creditCards.find(c => c.id === cardId);
+      const card = creditCards.find(c => isSameId(c.id, cardId));
       const totalAmount = txList.reduce((acc, t) => acc + t.amount, 0);
       const isPaid = card?.manualInvoiceStatus?.[currentPeriodKey] === 'paid' || txList.every(t => t.paid);
       
@@ -1025,7 +1039,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                   const parentCat = directCat?.parentId ? categories.find((c) => c.id === directCat.parentId) : null;
                   const cat = parentCat || directCat;
                   const acc = accounts.find((a) => a.id === tx.accountId);
-                  const card = creditCards.find((c) => c.id === tx.creditCardId);
+                  const card = creditCards.find((c) => isSameId(c.id, tx.creditCardId));
                   const destAcc = accounts.find((a) => a.id === tx.destinationAccountId);
 
                   const isExpense = tx.type === 'expense';
@@ -1440,7 +1454,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                       </div>
                       {heatmapDayModalData.expenses.map((tx) => {
                         const cat = categories.find((c) => c.id === tx.categoryId);
-                        const card = tx.creditCardId ? creditCards.find((c) => c.id === tx.creditCardId) : null;
+                        const card = tx.creditCardId ? creditCards.find((c) => isSameId(c.id, tx.creditCardId)) : null;
                         const acc = tx.accountId ? accounts.find((a) => a.id === tx.accountId) : null;
 
                         return (

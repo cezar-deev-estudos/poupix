@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Transaction } from '@/types/finance';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency, formatDateBR, getLocalDateString } from '@/lib/utils';
-import { getTransactionInvoicePeriod, getEffectiveTransactionDate } from '@/lib/invoiceHelpers';
+import { getTransactionInvoicePeriod, getEffectiveTransactionDate, isSameId } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { TransactionRowMenu } from './TransactionRowMenu';
 import { ConfirmPaymentModal } from './ConfirmPaymentModal';
@@ -250,7 +250,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                   const parentCat = directCat?.parentId ? categories.find((c) => c.id === directCat.parentId) : null;
                   const cat = parentCat || directCat;
                   const acc = accounts.find((a) => a.id === tx.accountId);
-                  const card = creditCards.find((c) => c.id === tx.creditCardId);
+                  const card = creditCards.find((c) => isSameId(c.id, tx.creditCardId));
                   const destAcc = accounts.find((a) => a.id === tx.destinationAccountId);
 
                   const effectiveDate = getEffectiveTransactionDate(tx, card);
@@ -338,9 +338,15 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                             </span>
                           )}
                           {isExpense && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
-                              {Boolean(tx.creditCardId || isGroupedCard) ? 'Despesa Cartão' : 'Despesa'}
-                            </span>
+                            Boolean(tx.creditCardId || isGroupedCard) ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                                Despesa Cartão
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                                Despesa
+                              </span>
+                            )
                           )}
                           {isTransfer && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30">
