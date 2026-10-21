@@ -20,6 +20,88 @@ export const ALL_DASHBOARD_CARDS: Record<DashboardCardId, DashboardCardDefinitio
   recentTransactions: { id: 'recentTransactions', label: 'Últimas transações do mês' },
 };
 
+export type MobileDashboardCardId =
+  | 'pendingAlerts'
+  | 'monthlyBalance'
+  | 'categoryExpenses'
+  | 'creditCards'
+  | 'accounts'
+  | 'recentTransactions'
+  | 'expenseHeatmap'
+  | 'monthlyPlanning';
+
+export interface MobileDashboardCardDefinition {
+  id: MobileDashboardCardId;
+  label: string;
+}
+
+export const ALL_MOBILE_DASHBOARD_CARDS: Record<MobileDashboardCardId, MobileDashboardCardDefinition> = {
+  pendingAlerts: { id: 'pendingAlerts', label: 'Pendências e alertas' },
+  monthlyBalance: { id: 'monthlyBalance', label: 'Balanço mensal' },
+  categoryExpenses: { id: 'categoryExpenses', label: 'Despesas por categoria' },
+  creditCards: { id: 'creditCards', label: 'Cartões de crédito' },
+  accounts: { id: 'accounts', label: 'Contas' },
+  recentTransactions: { id: 'recentTransactions', label: 'Últimas transações do mês' },
+  expenseHeatmap: { id: 'expenseHeatmap', label: 'Mapa de calor de despesas' },
+  monthlyPlanning: { id: 'monthlyPlanning', label: 'Planejamento mensal' },
+};
+
+export interface MobileDashboardLayoutPreferences {
+  order: MobileDashboardCardId[];
+  enabled: Record<MobileDashboardCardId, boolean>;
+}
+
+export const DEFAULT_MOBILE_DASHBOARD_LAYOUT: MobileDashboardLayoutPreferences = {
+  order: [
+    'pendingAlerts',
+    'monthlyBalance',
+    'categoryExpenses',
+    'creditCards',
+    'accounts',
+    'recentTransactions',
+    'expenseHeatmap',
+    'monthlyPlanning',
+  ],
+  enabled: {
+    pendingAlerts: true,
+    monthlyBalance: true,
+    categoryExpenses: true,
+    creditCards: true,
+    accounts: true,
+    recentTransactions: true,
+    expenseHeatmap: true,
+    monthlyPlanning: true,
+  },
+};
+
+export function mergeMobileDashboardLayout(savedRaw?: any): MobileDashboardLayoutPreferences {
+  if (!savedRaw) return DEFAULT_MOBILE_DASHBOARD_LAYOUT;
+  try {
+    const parsed = typeof savedRaw === 'string' ? JSON.parse(savedRaw) : savedRaw;
+    if (!parsed || typeof parsed !== 'object') return DEFAULT_MOBILE_DASHBOARD_LAYOUT;
+
+    const allValidIds = Object.keys(ALL_MOBILE_DASHBOARD_CARDS) as MobileDashboardCardId[];
+    const savedOrder = (parsed.order || []).filter((id: any) => allValidIds.includes(id));
+
+    // Adiciona cards novos que não estavam salvos
+    allValidIds.forEach(id => {
+      if (!savedOrder.includes(id)) {
+        savedOrder.push(id);
+      }
+    });
+
+    return {
+      order: savedOrder.length ? savedOrder : DEFAULT_MOBILE_DASHBOARD_LAYOUT.order,
+      enabled: {
+        ...DEFAULT_MOBILE_DASHBOARD_LAYOUT.enabled,
+        ...(parsed.enabled || {}),
+      },
+    };
+  } catch {
+    return DEFAULT_MOBILE_DASHBOARD_LAYOUT;
+  }
+}
+
 export interface DashboardLayoutPreferences {
   leftColumn: DashboardCardId[];
   rightColumn: DashboardCardId[];

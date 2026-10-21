@@ -27,8 +27,15 @@ import { PendingAlertsCards } from './PendingAlertsCards';
 import { useAuth } from '@/context/AuthContext';
 import { isTransactionInInvoicePeriod, isInvoicePeriodPaid } from '@/lib/invoiceHelpers';
 import { TransactionList } from '../transactions/TransactionList';
-import { DashboardLayoutPreferences } from '@/types/settings';
+import {
+  DashboardLayoutPreferences,
+  MobileDashboardCardId,
+  MobileDashboardLayoutPreferences,
+  DEFAULT_MOBILE_DASHBOARD_LAYOUT,
+  mergeMobileDashboardLayout,
+} from '@/types/settings';
 import { ExpenseHeatmapCalendar } from './ExpenseHeatmapCalendar';
+import { MobileDashboardCardsDrawer } from './MobileDashboardCardsDrawer';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -73,6 +80,20 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
 
   const [cardInvoiceTab, setCardInvoiceTab] = useState<'previous_month' | 'current_month' | 'next_month'>('current_month');
   const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
+  const [isCardsDrawerOpen, setIsCardsDrawerOpen] = useState(false);
+
+  // Layout dos cards no mobile (ordem e visibilidade)
+  const [mobileLayout, setMobileLayout] = useState<MobileDashboardLayoutPreferences>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('mobills_mobile_dashboard_layout');
+        if (saved) return mergeMobileDashboardLayout(saved);
+      } catch {
+        // fallback
+      }
+    }
+    return DEFAULT_MOBILE_DASHBOARD_LAYOUT;
+  });
 
   // Mês alvo para as faturas
   const targetCardMonth = useMemo(() => {
@@ -341,396 +362,420 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
         onClose={() => setIsMonthModalOpen(false)}
       />
 
-      {/* 2. PENDÊNCIAS E ALERTAS (CARROSSEL DINÂMICO) */}
-      <PendingAlertsCards onNavigateTab={onNavigateTab} />
+      {/* RENDERIZAÇÃO DINÂMICA DOS CARDS NO MOBILE BASEADA NA ORDEM E PREFERÊNCIAS */}
+      {mobileLayout.order.map(cardId => {
+        if (!mobileLayout.enabled[cardId]) return null;
 
-      {/* 3. CARD: BALANÇO MENSAL */}
-      <div className="space-y-2">
-        <h4 className="text-sm font-bold text-slate-300 px-1">Balanço mensal</h4>
-        <div
-          onClick={() => onNavigateTab('monthly-balance')}
-          className="bg-[#1c202a] hover:bg-[#222734] border border-slate-800/90 rounded-3xl p-5 shadow-xl flex items-center justify-between gap-4 cursor-pointer active:scale-[0.99] transition-all"
-        >
-          {/* Gráfico de Barras Verticais (Verde e Vermelho) */}
-          <div className="flex items-end gap-2 h-24 w-16 px-2 pb-1 bg-slate-950/40 rounded-2xl border border-slate-800/50 shrink-0 justify-center">
-            {/* Barra Receita */}
-            <div className="w-3.5 bg-emerald-500 rounded-full transition-all duration-500 shadow-sm shadow-emerald-500/30"
-              style={{ height: `${incomeHeightPct}%` }}
-              title="Receitas"
-            />
-            {/* Barra Despesa */}
-            <div className="w-3.5 bg-rose-500 rounded-full transition-all duration-500 shadow-sm shadow-rose-500/30"
-              style={{ height: `${expenseHeightPct}%` }}
-              title="Despesas"
-            />
-          </div>
+        switch (cardId) {
+          case 'pendingAlerts':
+            return <PendingAlertsCards key="pendingAlerts" onNavigateTab={onNavigateTab} />;
 
-          {/* Discriminação de Valores */}
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400 font-medium">Receitas</span>
-              <span className="text-emerald-400 font-bold">{displayVal(summary.monthlyIncome)}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400 font-medium">Despesas</span>
-              <span className="text-rose-400 font-bold">{displayVal(summary.monthlyExpense)}</span>
-            </div>
-
-            <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
-              <span className="text-slate-300 font-bold">Balanço</span>
-              <span className={`font-bold ${summary.monthlySavings >= 0 ? 'text-slate-200' : 'text-rose-400'}`}>
-                {displayVal(summary.monthlySavings)}
-              </span>
-            </div>
-
-            <div className="pt-1 text-right">
-              <span className="text-[11px] font-black text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-wider">
-                DETALHES
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. CARD: DESPESAS POR CATEGORIA */}
-      <div className="space-y-2">
-        <h4 className="text-sm font-bold text-slate-300 px-1">Despesas por categoria</h4>
-        <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-5 shadow-xl flex items-center gap-4">
-          {/* Donut Chart SVG */}
-          <div className="relative w-24 h-24 shrink-0 flex items-center justify-center">
-            <svg viewBox="0 0 36 36" className="w-24 h-24 transform -rotate-90">
-              {categoryExpenses.length === 0 ? (
-                <circle cx="18" cy="18" r="14" fill="none" stroke="#334155" strokeWidth="4" />
-              ) : (
-                (() => {
-                  let accumulatedPercent = 0;
-                  return categoryExpenses.slice(0, 5).map((cat) => {
-                    const percent = (cat.total / totalExpenseCategorySum) * 100;
-                    const strokeDasharray = `${percent} ${100 - percent}`;
-                    const strokeDashoffset = -accumulatedPercent;
-                    accumulatedPercent += percent;
-                    return (
-                      <circle
-                        key={cat.id}
-                        cx="18"
-                        cy="18"
-                        r="14"
-                        fill="none"
-                        stroke={cat.color || '#F59E0B'}
-                        strokeWidth="4.5"
-                        strokeDasharray={strokeDasharray}
-                        strokeDashoffset={strokeDashoffset}
-                      />
-                    );
-                  });
-                })()
-              )}
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-12 h-12 rounded-full bg-[#1c202a]" />
-            </div>
-          </div>
-
-          {/* Lista das Principais Categorias */}
-          <div className="flex-1 space-y-1.5 min-w-0">
-            {categoryExpenses.length === 0 ? (
-              <span className="text-xs text-slate-500">Nenhum gasto registrado neste mês.</span>
-            ) : (
-              categoryExpenses.slice(0, 4).map(cat => (
-                <div key={cat.id} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: cat.color || '#F59E0B' }}
+          case 'monthlyBalance':
+            return (
+              <div key="monthlyBalance" className="space-y-2">
+                <h4 className="text-sm font-bold text-slate-300 px-1">Balanço mensal</h4>
+                <div
+                  onClick={() => onNavigateTab('monthly-balance')}
+                  className="bg-[#1c202a] hover:bg-[#222734] border border-slate-800/90 rounded-3xl p-5 shadow-xl flex items-center justify-between gap-4 cursor-pointer active:scale-[0.99] transition-all"
+                >
+                  {/* Gráfico de Barras Verticais (Verde e Vermelho) */}
+                  <div className="flex items-end gap-2 h-24 w-16 px-2 pb-1 bg-slate-950/40 rounded-2xl border border-slate-800/50 shrink-0 justify-center">
+                    {/* Barra Receita */}
+                    <div
+                      className="w-3.5 bg-emerald-500 rounded-full transition-all duration-500 shadow-sm shadow-emerald-500/30"
+                      style={{ height: `${incomeHeightPct}%` }}
+                      title="Receitas"
                     />
-                    <span className="text-slate-300 truncate max-w-[100px]">{cat.name}</span>
+                    {/* Barra Despesa */}
+                    <div
+                      className="w-3.5 bg-rose-500 rounded-full transition-all duration-500 shadow-sm shadow-rose-500/30"
+                      style={{ height: `${expenseHeightPct}%` }}
+                      title="Despesas"
+                    />
                   </div>
-                  <span className="text-slate-200 font-semibold shrink-0">
-                    {displayVal(cat.total)}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
 
-      {/* 4. CARD: CARTÕES DE CRÉDITO */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <h4 className="text-sm font-bold text-slate-300">Cartões de crédito</h4>
-          <button
-            type="button"
-            onClick={() => onNavigateTab('cards')}
-            className="text-xs text-slate-500 hover:text-slate-300"
-          >
-            Ver todos
-          </button>
-        </div>
-
-        <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-5 shadow-xl space-y-4">
-          {/* Tabs Mês Anterior / Mês Atual / Próximo Mês */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setCardInvoiceTab('previous_month')}
-              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
-                cardInvoiceTab === 'previous_month'
-                  ? 'bg-teal-500 text-slate-950 font-bold shadow-sm shadow-teal-500/20'
-                  : 'bg-slate-800/60 text-slate-400 hover:text-white'
-              }`}
-            >
-              Mês Anterior
-            </button>
-            <button
-              type="button"
-              onClick={() => setCardInvoiceTab('current_month')}
-              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
-                cardInvoiceTab === 'current_month'
-                  ? 'bg-teal-500 text-slate-950 font-bold shadow-sm shadow-teal-500/20'
-                  : 'bg-slate-800/60 text-slate-400 hover:text-white'
-              }`}
-            >
-              Mês Atual
-            </button>
-            <button
-              type="button"
-              onClick={() => setCardInvoiceTab('next_month')}
-              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
-                cardInvoiceTab === 'next_month'
-                  ? 'bg-teal-500 text-slate-950 font-bold shadow-sm shadow-teal-500/20'
-                  : 'bg-slate-800/60 text-slate-400 hover:text-white'
-              }`}
-            >
-              Próximo Mês
-            </button>
-          </div>
-
-          {/* Lista de Cartões */}
-          <div className="space-y-3">
-            {creditCards.length === 0 ? (
-              <p className="text-xs text-slate-500">Nenhum cartão cadastrado.</p>
-            ) : (
-              creditCards.map(card => {
-                const cardTotal = cardExpensesMap[card.id] || 0;
-
-                // Cálculo de Status do Cartão / Fatura
-                const isPaid = isInvoicePeriodPaid(card, transactions, targetCardYear, targetCardMonth);
-                const periodKey = `${targetCardYear}-${String(targetCardMonth + 1).padStart(2, '0')}`;
-                const manualStatus = card.manualInvoiceStatus?.[periodKey];
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const dueDate = new Date(targetCardYear, targetCardMonth, card.dueDay);
-                dueDate.setHours(0, 0, 0, 0);
-                const closingDate = new Date(targetCardYear, targetCardMonth, card.closingDay);
-                closingDate.setHours(0, 0, 0, 0);
-
-                let invoiceStatus: 'open' | 'closed' | 'overdue' | 'paid' = 'open';
-                if (isPaid || manualStatus === 'paid') {
-                  invoiceStatus = 'paid';
-                } else if (manualStatus === 'open') {
-                  invoiceStatus = 'open';
-                } else if (today > dueDate) {
-                  invoiceStatus = 'overdue';
-                } else if (today > closingDate || manualStatus === 'closed') {
-                  invoiceStatus = 'closed';
-                }
-
-                // Textos contextuais de Fechamento e Vencimento (sem a palavra "em" e formato DD/MM)
-                const dueDayStr = String(card.dueDay).padStart(2, '0');
-                const dueMonthStr = String(dueDate.getMonth() + 1).padStart(2, '0');
-                const dueDateFormatted = `${dueDayStr}/${dueMonthStr}`;
-
-                const closingDayStr = String(card.closingDay).padStart(2, '0');
-                const closingMonthStr = String(closingDate.getMonth() + 1).padStart(2, '0');
-                const closingDateFormatted = `${closingDayStr}/${closingMonthStr}`;
-
-                const isClosedOrOverdue = invoiceStatus === 'closed' || invoiceStatus === 'overdue' || invoiceStatus === 'paid';
-                const hasClosed = today > closingDate || isClosedOrOverdue;
-                const closingLabel = hasClosed ? `fechou ${closingDateFormatted}` : `fecha ${closingDateFormatted}`;
-
-                const isOverdue = invoiceStatus === 'overdue';
-                const dueLabel = isOverdue
-                  ? `Venceu ${dueDateFormatted}`
-                  : `Vence ${dueDateFormatted}`;
-
-                return (
-                  <div
-                    key={card.id}
-                    onClick={() => {
-                      setSelectedMonth(targetCardMonth);
-                      setSelectedYear(targetCardYear);
-                      onNavigateTab('cards', undefined, card.id);
-                    }}
-                    className="flex items-center justify-between gap-3 p-2.5 -mx-2 rounded-2xl hover:bg-slate-800/40 active:bg-slate-800/60 transition-colors cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      {renderCardBrand(card.brand)}
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-semibold text-white block truncate group-hover:text-teal-300 transition-colors">
-                            {card.name}
-                          </span>
-                          <span
-                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0 ${
-                              invoiceStatus === 'open'
-                                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                                : invoiceStatus === 'paid'
-                                ? 'bg-teal-500/15 text-teal-300 border border-teal-500/30'
-                                : invoiceStatus === 'overdue'
-                                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 font-bold'
-                                : 'bg-slate-500/20 text-slate-300 border border-slate-500/30'
-                            }`}
-                          >
-                            {invoiceStatus === 'open'
-                              ? 'Aberta'
-                              : invoiceStatus === 'paid'
-                              ? 'Paga'
-                              : invoiceStatus === 'overdue'
-                              ? 'Vencida'
-                              : 'Fechada'}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-normal whitespace-nowrap">
-                            • {closingLabel}
-                          </span>
-                        </div>
-                        <span className="text-xs font-bold text-rose-400 block mt-0.5">
-                          {displayVal(cardTotal)}
-                        </span>
-                        <span className={`text-[10px] block ${isOverdue ? 'text-rose-400 font-medium' : 'text-slate-400'}`}>
-                          • {dueLabel}
-                        </span>
-                      </div>
+                  {/* Discriminação de Valores */}
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400 font-medium">Receitas</span>
+                      <span className="text-emerald-400 font-bold">{displayVal(summary.monthlyIncome)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400 font-medium">Despesas</span>
+                      <span className="text-rose-400 font-bold">{displayVal(summary.monthlyExpense)}</span>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={e => {
-                        e.stopPropagation();
-                        onOpenNewTransaction('creditCard');
-                      }}
-                      className="w-7 h-7 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 hover:bg-emerald-500/30 transition-colors cursor-pointer shrink-0"
-                      title="Nova despesa no cartão"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
+                      <span className="text-slate-300 font-bold">Balanço</span>
+                      <span className={`font-bold ${summary.monthlySavings >= 0 ? 'text-slate-200' : 'text-rose-400'}`}>
+                        {displayVal(summary.monthlySavings)}
+                      </span>
+                    </div>
+
+                    <div className="pt-1 text-right">
+                      <span className="text-[11px] font-black text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-wider">
+                        DETALHES
+                      </span>
+                    </div>
                   </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Rodapé Total de Faturas */}
-          <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs font-bold">
-            <span className="text-slate-400">Total</span>
-            <span className="text-white">{displayVal(totalCardInvoices)}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 5. CARD: CONTAS */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <h4 className="text-sm font-bold text-slate-300">Contas</h4>
-          <button
-            type="button"
-            onClick={() => onNavigateTab('accounts')}
-            className="text-xs text-slate-500 hover:text-slate-300"
-          >
-            Ver todas
-          </button>
-        </div>
-
-        <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-5 shadow-xl space-y-3">
-          {accounts.map(acc => (
-            <div key={acc.id} className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                {renderBankBadge(acc.name, acc.color)}
-                <div className="min-w-0">
-                  <span className="text-xs font-semibold text-white block truncate">
-                    {acc.name}
-                  </span>
-                  <span
-                    className={`text-xs font-bold block ${
-                      acc.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                    }`}
-                  >
-                    {displayVal(acc.balance)}
-                  </span>
                 </div>
               </div>
+            );
 
-              <button
-                type="button"
-                onClick={() => onOpenNewTransaction('expense')}
-                className="w-7 h-7 rounded-full bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 hover:bg-purple-500/30 transition-colors cursor-pointer shrink-0"
-                title="Novo lançamento nesta conta"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
+          case 'categoryExpenses':
+            return (
+              <div key="categoryExpenses" className="space-y-2">
+                <h4 className="text-sm font-bold text-slate-300 px-1">Despesas por categoria</h4>
+                <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-5 shadow-xl flex items-center gap-4">
+                  {/* Donut Chart SVG */}
+                  <div className="relative w-24 h-24 shrink-0 flex items-center justify-center">
+                    <svg viewBox="0 0 36 36" className="w-24 h-24 transform -rotate-90">
+                      {categoryExpenses.length === 0 ? (
+                        <circle cx="18" cy="18" r="14" fill="none" stroke="#334155" strokeWidth="4" />
+                      ) : (
+                        (() => {
+                          let accumulatedPercent = 0;
+                          return categoryExpenses.slice(0, 5).map((cat) => {
+                            const percent = (cat.total / totalExpenseCategorySum) * 100;
+                            const strokeDasharray = `${percent} ${100 - percent}`;
+                            const strokeDashoffset = -accumulatedPercent;
+                            accumulatedPercent += percent;
+                            return (
+                              <circle
+                                key={cat.id}
+                                cx="18"
+                                cy="18"
+                                r="14"
+                                fill="none"
+                                stroke={cat.color || '#F59E0B'}
+                                strokeWidth="4.5"
+                                strokeDasharray={strokeDasharray}
+                                strokeDashoffset={strokeDashoffset}
+                              />
+                            );
+                          });
+                        })()
+                      )}
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-full bg-[#1c202a]" />
+                    </div>
+                  </div>
 
-          {/* Rodapé Total de Contas */}
-          <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs font-bold">
-            <span className="text-slate-400">Total</span>
-            <span className="text-white">{displayVal(summary.totalBalance)}</span>
-          </div>
-        </div>
-      </div>
+                  {/* Lista das Principais Categorias */}
+                  <div className="flex-1 space-y-1.5 min-w-0">
+                    {categoryExpenses.length === 0 ? (
+                      <span className="text-xs text-slate-500">Nenhum gasto registrado neste mês.</span>
+                    ) : (
+                      categoryExpenses.slice(0, 4).map(cat => (
+                        <div key={cat.id} className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: cat.color || '#F59E0B' }}
+                            />
+                            <span className="text-slate-300 truncate max-w-[100px]">{cat.name}</span>
+                          </div>
+                          <span className="text-slate-200 font-semibold shrink-0">
+                            {displayVal(cat.total)}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
 
-      {/* CARD: ÚLTIMAS TRANSAÇÕES DO MÊS */}
-      {(!dashboardLayout || dashboardLayout.enabled?.recentTransactions !== false) && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <h4 className="text-sm font-bold text-slate-300">Últimas Transações do Mês</h4>
-            <button
-              type="button"
-              onClick={() => onNavigateTab('transactions', 'all')}
-              className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors cursor-pointer"
-            >
-              Ver todas
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          case 'creditCards':
+            return (
+              <div key="creditCards" className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <h4 className="text-sm font-bold text-slate-300">Cartões de crédito</h4>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab('cards')}
+                    className="text-xs text-slate-500 hover:text-slate-300"
+                  >
+                    Ver todos
+                  </button>
+                </div>
 
-          <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-4 shadow-xl">
-            <TransactionList limit={5} />
-          </div>
-        </div>
-      )}
+                <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-5 shadow-xl space-y-4">
+                  {/* Tabs Mês Anterior / Mês Atual / Próximo Mês */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCardInvoiceTab('previous_month')}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
+                        cardInvoiceTab === 'previous_month'
+                          ? 'bg-teal-500 text-slate-950 font-bold shadow-sm shadow-teal-500/20'
+                          : 'bg-slate-800/60 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Mês Anterior
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCardInvoiceTab('current_month')}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
+                        cardInvoiceTab === 'current_month'
+                          ? 'bg-teal-500 text-slate-950 font-bold shadow-sm shadow-teal-500/20'
+                          : 'bg-slate-800/60 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Mês Atual
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCardInvoiceTab('next_month')}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
+                        cardInvoiceTab === 'next_month'
+                          ? 'bg-teal-500 text-slate-950 font-bold shadow-sm shadow-teal-500/20'
+                          : 'bg-slate-800/60 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Próximo Mês
+                    </button>
+                  </div>
 
-      {/* CARD: MAPA DE CALOR DO MÊS */}
-      <div className="space-y-2">
-        <ExpenseHeatmapCalendar
-          transactions={transactions}
-          year={selectedYear}
-          month={selectedMonth}
-          onSelectDate={(dateStr) => {
-            onNavigateTab('transactions', 'expense');
-          }}
-        />
-      </div>
+                  {/* Lista de Cartões */}
+                  <div className="space-y-3">
+                    {creditCards.length === 0 ? (
+                      <p className="text-xs text-slate-500">Nenhum cartão cadastrado.</p>
+                    ) : (
+                      creditCards.map(card => {
+                        const cardTotal = cardExpensesMap[card.id] || 0;
 
-      {/* 6. CARD: PLANEJAMENTO MENSAL */}
-      <div className="space-y-2">
-        <h4 className="text-sm font-bold text-slate-300 px-1">Planejamento mensal</h4>
-        <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-6 shadow-xl text-center space-y-3">
-          <div className="w-10 h-10 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 mx-auto">
-            <FileText className="w-5 h-5" />
-          </div>
+                        // Cálculo de Status do Cartão / Fatura
+                        const isPaid = isInvoicePeriodPaid(card, transactions, targetCardYear, targetCardMonth);
+                        const periodKey = `${targetCardYear}-${String(targetCardMonth + 1).padStart(2, '0')}`;
+                        const manualStatus = card.manualInvoiceStatus?.[periodKey];
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const dueDate = new Date(targetCardYear, targetCardMonth, card.dueDay);
+                        dueDate.setHours(0, 0, 0, 0);
+                        const closingDate = new Date(targetCardYear, targetCardMonth, card.closingDay);
+                        closingDate.setHours(0, 0, 0, 0);
 
-          <p className="text-xs font-semibold text-slate-200 leading-relaxed">
-            Ops! Você ainda não tem um planejamento definido para esse mês.
-          </p>
-        </div>
-      </div>
+                        let invoiceStatus: 'open' | 'closed' | 'overdue' | 'paid' = 'open';
+                        if (isPaid || manualStatus === 'paid') {
+                          invoiceStatus = 'paid';
+                        } else if (manualStatus === 'open') {
+                          invoiceStatus = 'open';
+                        } else if (today > dueDate) {
+                          invoiceStatus = 'overdue';
+                        } else if (today > closingDate || manualStatus === 'closed') {
+                          invoiceStatus = 'closed';
+                        }
+
+                        // Textos contextuais de Fechamento e Vencimento (sem a palavra "em" e formato DD/MM)
+                        const dueDayStr = String(card.dueDay).padStart(2, '0');
+                        const dueMonthStr = String(dueDate.getMonth() + 1).padStart(2, '0');
+                        const dueDateFormatted = `${dueDayStr}/${dueMonthStr}`;
+
+                        const closingDayStr = String(card.closingDay).padStart(2, '0');
+                        const closingMonthStr = String(closingDate.getMonth() + 1).padStart(2, '0');
+                        const closingDateFormatted = `${closingDayStr}/${closingMonthStr}`;
+
+                        const isClosedOrOverdue = invoiceStatus === 'closed' || invoiceStatus === 'overdue' || invoiceStatus === 'paid';
+                        const hasClosed = today > closingDate || isClosedOrOverdue;
+                        const closingLabel = hasClosed ? `fechou ${closingDateFormatted}` : `fecha ${closingDateFormatted}`;
+
+                        const isOverdue = invoiceStatus === 'overdue';
+                        const dueLabel = isOverdue
+                          ? `Venceu ${dueDateFormatted}`
+                          : `Vence ${dueDateFormatted}`;
+
+                        return (
+                          <div
+                            key={card.id}
+                            onClick={() => {
+                              setSelectedMonth(targetCardMonth);
+                              setSelectedYear(targetCardYear);
+                              onNavigateTab('cards', undefined, card.id);
+                            }}
+                            className="flex items-center justify-between gap-3 p-2.5 -mx-2 rounded-2xl hover:bg-slate-800/40 active:bg-slate-800/60 transition-colors cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              {renderCardBrand(card.brand)}
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-semibold text-white block truncate group-hover:text-teal-300 transition-colors">
+                                    {card.name}
+                                  </span>
+                                  <span
+                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0 ${
+                                      invoiceStatus === 'open'
+                                        ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                        : invoiceStatus === 'paid'
+                                        ? 'bg-teal-500/15 text-teal-300 border border-teal-500/30'
+                                        : invoiceStatus === 'overdue'
+                                        ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 font-bold'
+                                        : 'bg-slate-500/20 text-slate-300 border border-slate-500/30'
+                                    }`}
+                                  >
+                                    {invoiceStatus === 'open'
+                                      ? 'Aberta'
+                                      : invoiceStatus === 'paid'
+                                      ? 'Paga'
+                                      : invoiceStatus === 'overdue'
+                                      ? 'Vencida'
+                                      : 'Fechada'}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 font-normal whitespace-nowrap">
+                                    • {closingLabel}
+                                  </span>
+                                </div>
+                                <span className="text-xs font-bold text-rose-400 block mt-0.5">
+                                  {displayVal(cardTotal)}
+                                </span>
+                                <span className={`text-[10px] block ${isOverdue ? 'text-rose-400 font-medium' : 'text-slate-400'}`}>
+                                  • {dueLabel}
+                                </span>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                onOpenNewTransaction('creditCard');
+                              }}
+                              className="w-7 h-7 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 hover:bg-emerald-500/30 transition-colors cursor-pointer shrink-0"
+                              title="Nova despesa no cartão"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Rodapé Total de Faturas */}
+                  <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs font-bold">
+                    <span className="text-slate-400">Total</span>
+                    <span className="text-white">{displayVal(totalCardInvoices)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+
+          case 'accounts':
+            return (
+              <div key="accounts" className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <h4 className="text-sm font-bold text-slate-300">Contas</h4>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab('accounts')}
+                    className="text-xs text-slate-500 hover:text-slate-300"
+                  >
+                    Ver todas
+                  </button>
+                </div>
+
+                <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-5 shadow-xl space-y-3">
+                  {accounts.map(acc => (
+                    <div key={acc.id} className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {renderBankBadge(acc.name, acc.color)}
+                        <div className="min-w-0">
+                          <span className="text-xs font-semibold text-white block truncate">
+                            {acc.name}
+                          </span>
+                          <span
+                            className={`text-xs font-bold block ${
+                              acc.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                            }`}
+                          >
+                            {displayVal(acc.balance)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => onOpenNewTransaction('expense')}
+                        className="w-7 h-7 rounded-full bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 hover:bg-purple-500/30 transition-colors cursor-pointer shrink-0"
+                        title="Novo lançamento nesta conta"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Rodapé Total de Contas */}
+                  <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs font-bold">
+                    <span className="text-slate-400">Total</span>
+                    <span className="text-white">{displayVal(summary.totalBalance)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+
+          case 'recentTransactions':
+            return (
+              <div key="recentTransactions" className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <h4 className="text-sm font-bold text-slate-300">Últimas Transações do Mês</h4>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab('transactions', 'all')}
+                    className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors cursor-pointer"
+                  >
+                    Ver todas
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-4 shadow-xl">
+                  <TransactionList limit={5} />
+                </div>
+              </div>
+            );
+
+          case 'expenseHeatmap':
+            return (
+              <div key="expenseHeatmap" className="space-y-2">
+                <ExpenseHeatmapCalendar
+                  transactions={transactions}
+                  year={selectedYear}
+                  month={selectedMonth}
+                  onSelectDate={() => {
+                    onNavigateTab('transactions', 'expense');
+                  }}
+                />
+              </div>
+            );
+
+          case 'monthlyPlanning':
+            return (
+              <div key="monthlyPlanning" className="space-y-2">
+                <h4 className="text-sm font-bold text-slate-300 px-1">Planejamento mensal</h4>
+                <div className="bg-[#1c202a] border border-slate-800/90 rounded-3xl p-6 shadow-xl text-center space-y-3">
+                  <div className="w-10 h-10 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 mx-auto">
+                    <FileText className="w-5 h-5" />
+                  </div>
+
+                  <p className="text-xs font-semibold text-slate-200 leading-relaxed">
+                    Ops! Você ainda não tem um planejamento definido para esse mês.
+                  </p>
+                </div>
+              </div>
+            );
+
+          default:
+            return null;
+        }
+      })}
 
       {/* 7. GERENCIAR TELA INICIAL */}
       <div className="pt-4 pb-6 flex flex-col items-center justify-center">
         <button
           type="button"
-          onClick={() => onNavigateTab('settings')}
+          onClick={() => setIsCardsDrawerOpen(true)}
           className="flex flex-col items-center gap-2 group cursor-pointer text-slate-400 hover:text-white transition-colors"
         >
           <div className="w-12 h-12 rounded-2xl border-2 border-slate-600 group-hover:border-purple-400 flex items-center justify-center transition-colors">
@@ -745,6 +790,13 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           </span>
         </button>
       </div>
+
+      {/* Modal / Drawer Mobile de Reordenação e Visibilidade dos Cards */}
+      <MobileDashboardCardsDrawer
+        isOpen={isCardsDrawerOpen}
+        onClose={() => setIsCardsDrawerOpen(false)}
+        onSave={(newLayout) => setMobileLayout(newLayout)}
+      />
     </div>
   );
 };

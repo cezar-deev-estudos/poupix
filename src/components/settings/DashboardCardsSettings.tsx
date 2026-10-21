@@ -7,6 +7,11 @@ import {
   DEFAULT_DASHBOARD_LAYOUT,
   ALL_DASHBOARD_CARDS,
   mergeDashboardLayout,
+  MobileDashboardCardId,
+  MobileDashboardLayoutPreferences,
+  DEFAULT_MOBILE_DASHBOARD_LAYOUT,
+  ALL_MOBILE_DASHBOARD_CARDS,
+  mergeMobileDashboardLayout,
 } from '@/types/settings';
 import { Check, ChevronUp, ChevronDown, ArrowLeftRight, GripVertical } from 'lucide-react';
 
@@ -208,8 +213,65 @@ export const DashboardCardsSettings: React.FC<DashboardCardsSettingsProps> = ({ 
     );
   };
 
+  // Suporte a Layout Mobile
+  const [mobileLayout, setMobileLayout] = useState<MobileDashboardLayoutPreferences>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('mobills_mobile_dashboard_layout');
+        if (saved) return mergeMobileDashboardLayout(saved);
+      } catch {
+        // fallback
+      }
+    }
+    return DEFAULT_MOBILE_DASHBOARD_LAYOUT;
+  });
+  const [savedMobileSuccess, setSavedMobileSuccess] = useState(false);
+
+  const toggleMobileCard = (id: MobileDashboardCardId) => {
+    setMobileLayout(prev => ({
+      ...prev,
+      enabled: {
+        ...prev.enabled,
+        [id]: !prev.enabled[id],
+      },
+    }));
+    setSavedMobileSuccess(false);
+  };
+
+  const moveMobileUp = (index: number) => {
+    if (index === 0) return;
+    setMobileLayout(prev => {
+      const list = [...prev.order];
+      const temp = list[index - 1];
+      list[index - 1] = list[index];
+      list[index] = temp;
+      return { ...prev, order: list };
+    });
+    setSavedMobileSuccess(false);
+  };
+
+  const moveMobileDown = (index: number) => {
+    if (index >= mobileLayout.order.length - 1) return;
+    setMobileLayout(prev => {
+      const list = [...prev.order];
+      const temp = list[index + 1];
+      list[index + 1] = list[index];
+      list[index] = temp;
+      return { ...prev, order: list };
+    });
+    setSavedMobileSuccess(false);
+  };
+
+  const handleSaveMobile = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('mobills_mobile_dashboard_layout', JSON.stringify(mobileLayout));
+    }
+    setSavedMobileSuccess(true);
+    setTimeout(() => setSavedMobileSuccess(false), 3000);
+  };
+
   return (
-    <div className="bg-[#1f2128] border border-slate-800/80 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+    <div className="bg-[#1f2128] border border-slate-800/80 rounded-3xl p-4 sm:p-8 shadow-2xl space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
           Quais cards você deseja que apareça no dashboard?
@@ -219,7 +281,89 @@ export const DashboardCardsSettings: React.FC<DashboardCardsSettingsProps> = ({ 
         </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      {/* --- VISÃO MOBILE: Lista única de cards reordenável --- */}
+      <div className="block md:hidden space-y-3">
+        <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl text-[11px] text-purple-300 font-medium">
+          Ordem de exibição dos cards no celular: use as setas para subir ou descer e marque os que deseja exibir.
+        </div>
+
+        <div className="space-y-2">
+          {mobileLayout.order.map((id, index) => {
+            const cardDef = ALL_MOBILE_DASHBOARD_CARDS[id];
+            if (!cardDef) return null;
+            const isChecked = Boolean(mobileLayout.enabled[id]);
+            const isFirst = index === 0;
+            const isLast = index === mobileLayout.order.length - 1;
+
+            return (
+              <div
+                key={id}
+                className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-[#2a2d36] border border-slate-700/40 select-none"
+              >
+                <div
+                  onClick={() => toggleMobileCard(id)}
+                  className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+                >
+                  <GripVertical className="w-4 h-4 text-slate-500 shrink-0" />
+                  <div
+                    className={`w-5 h-5 rounded-md flex items-center justify-center border shrink-0 transition-all ${
+                      isChecked
+                        ? 'bg-purple-600 border-purple-500 text-white'
+                        : 'border-slate-500 bg-transparent'
+                    }`}
+                  >
+                    {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                  </div>
+                  <span className="text-xs font-semibold text-slate-200 truncate">
+                    {cardDef.label}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    title="Mover para cima"
+                    disabled={isFirst}
+                    onClick={() => moveMobileUp(index)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-white disabled:opacity-20 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    title="Mover para baixo"
+                    disabled={isLast}
+                    onClick={() => moveMobileDown(index)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-white disabled:opacity-20 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="pt-3 flex items-center justify-between border-t border-slate-800/60">
+          <div>
+            {savedMobileSuccess && (
+              <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5">
+                <Check className="w-4 h-4" /> Salvo com sucesso!
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleSaveMobile}
+            className="px-6 py-2 rounded-2xl bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
+          >
+            SALVAR
+          </button>
+        </div>
+      </div>
+
+      {/* --- VISÃO DESKTOP (INALTERADA): Duas colunas com Drag & Drop --- */}
+      <div className="hidden md:grid md:grid-cols-2 gap-8">
         {/* Coluna Esquerda */}
         <div
           onDragOver={handleDragOver}
@@ -257,7 +401,7 @@ export const DashboardCardsSettings: React.FC<DashboardCardsSettingsProps> = ({ 
         </div>
       </div>
 
-      <div className="pt-4 flex items-center justify-between border-t border-slate-800/60">
+      <div className="hidden md:flex pt-4 items-center justify-between border-t border-slate-800/60">
         <div>
           {savedSuccess && (
             <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5 animate-fadeIn">
