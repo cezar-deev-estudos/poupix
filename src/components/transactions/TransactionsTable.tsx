@@ -46,7 +46,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   } | null>(null);
 
   const getTxDate = (tx: Transaction) => {
-    const card = creditCards.find((c) => c.id === tx.creditCardId);
+    const card = creditCards.find((c) => isSameId(c.id, tx.creditCardId));
     return getEffectiveTransactionDate(tx, card);
   };
 

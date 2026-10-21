@@ -219,15 +219,35 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
   // Cálculos de Despesas (pendentes, pagas e total)
   const pendingExpense = useMemo(() => {
     return baseTransactions
-      .filter((t) => t.type === 'expense' && !t.paid)
+      .filter((t) => {
+        if (t.type !== 'expense') return false;
+        const card = t.creditCardId ? creditCards.find((c) => isSameId(c.id, t.creditCardId)) : undefined;
+        const invoicePeriod = card ? getTransactionInvoicePeriod(t, card) : null;
+        const isEffectivelyPaid =
+          t.paid ||
+          (card && invoicePeriod
+            ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
+            : false);
+        return !isEffectivelyPaid;
+      })
       .reduce((acc, t) => acc + t.amount, 0);
-  }, [baseTransactions]);
+  }, [baseTransactions, creditCards]);
 
   const paidExpense = useMemo(() => {
     return baseTransactions
-      .filter((t) => t.type === 'expense' && t.paid)
+      .filter((t) => {
+        if (t.type !== 'expense') return false;
+        const card = t.creditCardId ? creditCards.find((c) => isSameId(c.id, t.creditCardId)) : undefined;
+        const invoicePeriod = card ? getTransactionInvoicePeriod(t, card) : null;
+        const isEffectivelyPaid =
+          t.paid ||
+          (card && invoicePeriod
+            ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
+            : false);
+        return isEffectivelyPaid;
+      })
       .reduce((acc, t) => acc + t.amount, 0);
-  }, [baseTransactions]);
+  }, [baseTransactions, creditCards]);
 
   const totalExpense = pendingExpense + paidExpense;
 

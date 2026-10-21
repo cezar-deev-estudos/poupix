@@ -827,6 +827,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         const cat = categories.find((c) => c.id === tx.categoryId);
                         const card = tx.creditCardId ? creditCards.find((c) => isSameId(c.id, tx.creditCardId)) : null;
                         const acc = tx.accountId ? accounts.find((a) => a.id === tx.accountId) : null;
+                        const invoicePeriod = card ? getTransactionInvoicePeriod(tx, card) : null;
+                        const isEffectivelyPaid =
+                          tx.paid ||
+                          (card && invoicePeriod
+                            ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
+                            : false);
 
                         return (
                           <div
@@ -858,7 +864,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                                 - {formatCurrency(tx.amount)}
                               </span>
                               <span className="text-[10px] text-slate-500 flex items-center justify-end gap-0.5">
-                                {tx.paid ? (
+                                {isEffectivelyPaid ? (
                                   <span className="text-emerald-400 flex items-center gap-0.5">
                                     <CheckCircle2 className="w-2.5 h-2.5" /> Pago
                                   </span>

@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency } from '@/lib/utils';
-import { isTransactionInInvoicePeriod, isInvoicePeriodPaid } from '@/lib/invoiceHelpers';
+import { isTransactionInInvoicePeriod, isInvoicePeriodPaid, isSameId, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
 import { ArrowDown, ArrowUp, FileText, Building2 } from 'lucide-react';
 import { ActiveTab } from '../layout/Sidebar';
 
@@ -32,12 +32,22 @@ export const PendingAlertsCards: React.FC<PendingAlertsCardsProps> = ({ onNaviga
     return formatCurrency(val);
   };
 
-  // 1. Despesas Pendentes no mês selecionado
+  // 1. Despesas Pendentes no mês selecionado (respeitando status efetivo de cartão)
   const pendingExpensesData = useMemo(() => {
-    const list = filteredTransactions.filter(t => t.type === 'expense' && !t.paid);
+    const list = filteredTransactions.filter(t => {
+      if (t.type !== 'expense') return false;
+      const card = t.creditCardId ? creditCards.find(c => isSameId(c.id, t.creditCardId)) : undefined;
+      const invoicePeriod = card ? getTransactionInvoicePeriod(t, card) : null;
+      const isEffectivelyPaid =
+        t.paid ||
+        (card && invoicePeriod
+          ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
+          : false);
+      return !isEffectivelyPaid;
+    });
     const total = list.reduce((sum, t) => sum + t.amount, 0);
     return { count: list.length, total };
-  }, [filteredTransactions]);
+  }, [filteredTransactions, creditCards]);
 
   // 2. Receitas Pendentes no mês selecionado
   const pendingIncomesData = useMemo(() => {
