@@ -202,35 +202,8 @@ export const CreditCardCard: React.FC<CreditCardCardProps> = ({
         </div>
       </div>
 
-      {/* Seção Central: Status da Fatura + Valor Total / Parcial + Data de Fechamento / Vencimento */}
+      {/* Seção Central: Valor Total / Parcial + Data de Fechamento / Vencimento */}
       <div className="space-y-2 py-1">
-        {/* Status da Fatura (Fatura vencida / Fatura fechada / Fatura aberta / Fatura paga) */}
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1.5">
-            <span
-              className={`inline-flex items-center gap-1 font-bold text-xs ${
-                invoiceStatus === 'open'
-                  ? 'text-amber-400'
-                  : invoiceStatus === 'paid'
-                  ? 'text-teal-300'
-                  : invoiceStatus === 'overdue'
-                  ? 'text-rose-500 font-bold'
-                  : 'text-slate-300'
-              }`}
-            >
-              {invoiceStatus === 'open' ? (
-                'Fatura aberta'
-              ) : invoiceStatus === 'paid' ? (
-                'Fatura paga'
-              ) : invoiceStatus === 'overdue' ? (
-                'Fatura vencida'
-              ) : (
-                'Fatura fechada'
-              )}
-            </span>
-          </div>
-        </div>
-
         {/* Linha de Valor Total / Valor Parcial */}
         <div className="flex items-center justify-between text-xs">
           <span className="text-slate-400 font-medium">
@@ -279,21 +252,21 @@ export const CreditCardCard: React.FC<CreditCardCardProps> = ({
         onClick={e => e.stopPropagation()}
       >
         {invoiceStatus === 'paid' ? (
-          <div className="flex items-center gap-1.5 text-xs text-teal-300 font-bold py-1">
+          <div className="inline-flex items-center gap-1.5 text-xs text-teal-300 font-bold px-3 py-1.5 rounded-full border border-teal-500/30 bg-teal-500/10 shadow-xs">
             <CheckCircle2 className="w-4 h-4 text-teal-400" />
             <span>FATURA PAGA</span>
           </div>
         ) : isClosedOrOverdue ? (
           <button
             onClick={() => onPayInvoice(card)}
-            className="text-xs font-bold text-white hover:text-slate-200 transition-colors uppercase tracking-wider py-1 cursor-pointer flex items-center gap-1.5"
+            className="text-xs font-bold text-white hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1.5 shadow-xs"
           >
             PAGAR FATURA
           </button>
         ) : (
           <button
             onClick={() => onAddExpense(card)}
-            className="text-xs font-bold text-teal-400 hover:text-teal-300 transition-colors uppercase tracking-wider py-1 cursor-pointer flex items-center gap-1"
+            className="text-xs font-bold text-teal-400 hover:text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1 shadow-xs"
           >
             ADICIONAR DESPESA
           </button>

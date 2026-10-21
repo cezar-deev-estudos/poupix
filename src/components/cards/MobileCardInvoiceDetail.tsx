@@ -23,8 +23,8 @@ import {
   Check,
 } from 'lucide-react';
 import { CardActionDrawer } from './CardActionDrawer';
+import { isInvoicePeriodPaid, getTransactionInvoicePeriod, isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
 import { AdvancePaymentModal } from './AdvancePaymentModal';
-import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
 
 interface MobileCardInvoiceDetailProps {
   card: CreditCard;
@@ -72,6 +72,7 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
     setSelectedMonth,
     setSelectedYear,
     updateCreditCard,
+    updateTransaction,
   } = useFinance();
 
   const [filterType, setFilterType] = useState<'all' | 'fixed'>(initialFilterType);
@@ -126,9 +127,9 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
   const isOverdue = today > dueDate;
 
   // Status calculado da fatura
-  // Regra: se o usuário reabriu manualmente, tem prioridade enquanto estiver na tela.
+  // Regra: se está paga (via helper ou flag manual 'paid'), tem prioridade absoluta.
   const invoiceStatus = useMemo((): 'open' | 'closed' | 'overdue' | 'paid' => {
-    if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey] === 'paid') {
+    if (isInvoicePeriodPaid(card, transactions, selectedYear, selectedMonth)) {
       return 'paid';
     }
     if (card.manualInvoiceStatus && card.manualInvoiceStatus[periodKey] === 'open') {
@@ -140,7 +141,7 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
       return 'closed';
     }
     return 'open';
-  }, [card.manualInvoiceStatus, periodKey, isOverdue, isClosed]);
+  }, [card, transactions, selectedYear, selectedMonth, periodKey, isOverdue, isClosed]);
 
   const isClosedOrOverdue = invoiceStatus === 'closed' || invoiceStatus === 'overdue' || invoiceStatus === 'paid';
 
@@ -152,6 +153,15 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
     };
     updateCreditCard(card.id, {
       manualInvoiceStatus: updatedManual,
+    });
+
+    transactions.forEach(tx => {
+      if (tx.creditCardId === card.id) {
+        const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(tx, card);
+        if (txPeriodKey === periodKey && !tx.paid) {
+          updateTransaction(tx.id, { paid: true });
+        }
+      }
     });
   };
 

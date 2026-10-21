@@ -12,7 +12,7 @@ import { CardActionDrawer } from './CardActionDrawer';
 import { AdvancePaymentModal } from './AdvancePaymentModal';
 import { MobileCardInvoiceDetail } from './MobileCardInvoiceDetail';
 import { NewTransactionModal } from '../transactions/NewTransactionModal';
-import { isTransactionInInvoicePeriod } from '@/lib/invoiceHelpers';
+import { isTransactionInInvoicePeriod, isInvoicePeriodPaid, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
 import {
   ArrowLeft,
   Archive,
@@ -25,6 +25,7 @@ import {
   HelpCircle,
   Lock,
   Unlock,
+  CheckCircle2,
   CreditCard as CardIcon,
 } from 'lucide-react';
 
@@ -52,10 +53,11 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
     addCreditCard,
     updateCreditCard,
     deleteCreditCard,
+    updateTransaction,
   } = useFinance();
 
-  // Aba Superior: Fatura Mês Atual vs Fatura Próximo Mês
-  const [invoiceTab, setInvoiceTab] = useState<'current_month' | 'next_month'>('current_month');
+  // Aba Superior: Mês Anterior | Mês Atual | Próximo Mês
+  const [invoiceTab, setInvoiceTab] = useState<'previous_month' | 'current_month' | 'next_month'>('current_month');
 
   // Seleção para Detalhe da Fatura
   const [selectedCardForDetail, setSelectedCardForDetail] = useState<CreditCard | null>(() => {
@@ -107,6 +109,9 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
 
   // Determinar o mês alvo para os cálculos baseado na aba ativa
   const targetMonth = useMemo(() => {
+    if (invoiceTab === 'previous_month') {
+      return (selectedMonth + 11) % 12;
+    }
     if (invoiceTab === 'next_month') {
       return (selectedMonth + 1) % 12;
     }
@@ -114,6 +119,9 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
   }, [invoiceTab, selectedMonth]);
 
   const targetYear = useMemo(() => {
+    if (invoiceTab === 'previous_month' && selectedMonth === 0) {
+      return selectedYear - 1;
+    }
     if (invoiceTab === 'next_month' && selectedMonth === 11) {
       return selectedYear + 1;
     }
@@ -176,9 +184,9 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
     return `${card.closingDay} de ${MONTH_NAMES[targetMonth]} de ${targetYear}`;
   };
 
-  // Status de Fatura de cada Cartão
+  // Status de Fatura de cada Cartão (Aberta, Fechada, Vencida, Paga)
   const getCardInvoiceStatus = (card: CreditCard): 'open' | 'closed' | 'overdue' | 'paid' => {
-    if (card.manualInvoiceStatus && card.manualInvoiceStatus[targetPeriodKey] === 'paid') {
+    if (isInvoicePeriodPaid(card, transactions, targetYear, targetMonth)) {
       return 'paid';
     }
     const today = new Date();
@@ -199,17 +207,48 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
   };
 
   // Alternar Status da Fatura (Reabrir / Fechar)
-  const handleToggleInvoiceStatus = (card: CreditCard) => {
+  const handleToggleInvoiceStatus = (card: CreditCard, period: string = targetPeriodKey) => {
     const currentStatus = getCardInvoiceStatus(card);
-    const newStatus: 'open' | 'closed' = (currentStatus === 'closed' || currentStatus === 'paid') ? 'open' : 'closed';
+    const newStatus: 'open' | 'closed' = (currentStatus === 'closed' || currentStatus === 'overdue' || currentStatus === 'paid') ? 'open' : 'closed';
 
     const updatedManual = {
       ...(card.manualInvoiceStatus || {}),
-      [targetPeriodKey]: newStatus,
+      [period]: newStatus,
     };
 
     updateCreditCard(card.id, {
       manualInvoiceStatus: updatedManual,
+    });
+
+    if (newStatus === 'open') {
+      transactions.forEach(tx => {
+        if (tx.creditCardId === card.id) {
+          const { periodKey } = getTransactionInvoicePeriod(tx, card);
+          if (periodKey === period && tx.paid) {
+            updateTransaction(tx.id, { paid: false });
+          }
+        }
+      });
+    }
+  };
+
+  // Pagar Fatura
+  const handlePayInvoice = (card: CreditCard, period: string = targetPeriodKey) => {
+    const updatedManual = {
+      ...(card.manualInvoiceStatus || {}),
+      [period]: 'paid' as const,
+    };
+    updateCreditCard(card.id, {
+      manualInvoiceStatus: updatedManual,
+    });
+
+    transactions.forEach(tx => {
+      if (tx.creditCardId === card.id) {
+        const { periodKey } = getTransactionInvoicePeriod(tx, card);
+        if (periodKey === period && !tx.paid) {
+          updateTransaction(tx.id, { paid: true });
+        }
+      }
     });
   };
 
@@ -386,9 +425,19 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
         </div>
       </div>
 
-      {/* Abas Pílula: Fatura Mês Atual | Fatura Próximo Mês */}
+      {/* Abas Pílula: Mês Anterior | Mês Atual | Próximo Mês */}
       <div className="px-4 py-2 flex justify-center">
         <div className="flex bg-[#25252c] p-1 rounded-2xl border border-slate-800 w-full max-w-sm">
+          <button
+            onClick={() => setInvoiceTab('previous_month')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              invoiceTab === 'previous_month'
+                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Mês Anterior
+          </button>
           <button
             onClick={() => setInvoiceTab('current_month')}
             className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
@@ -397,7 +446,7 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            Fatura Mês Atual
+            Mês Atual
           </button>
           <button
             onClick={() => setInvoiceTab('next_month')}
@@ -407,47 +456,8 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            Fatura Próximo Mês
+            Próximo Mês
           </button>
-        </div>
-      </div>
-
-      {/* Destaque "O melhor cartão para comprar hoje é" + Limite / Valor Total */}
-      <div className="px-4 py-3 space-y-3">
-        <div className="text-center space-y-1">
-          <span className="text-[11px] text-slate-400 flex items-center justify-center gap-1">
-            <span>ⓘ</span> O melhor cartão para comprar hoje é
-          </span>
-          <h3 className="text-base font-bold text-white tracking-tight">
-            {bestCardToBuyToday ? bestCardToBuyToday.name : 'Nenhum cartão'}
-          </h3>
-        </div>
-
-        {/* 2 Cards Pequenos: Limite Disponível | Valor Total */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[#1c1c20] border border-slate-800/80 rounded-2xl p-3.5 flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-slate-800/80 text-slate-300">
-              <DollarSign className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-400 block">Limite disponível</span>
-              <span className="text-xs font-bold text-white tracking-tight">
-                {formatCurrency(totalLimitAvailable)}
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-[#1c1c20] border border-slate-800/80 rounded-2xl p-3.5 flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-slate-800/80 text-slate-300">
-              <CardIcon className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-400 block">Valor total</span>
-              <span className="text-xs font-bold text-white tracking-tight">
-                {formatCurrency(totalInvoicesAmount)}
-              </span>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -488,36 +498,8 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
                   </button>
                 </div>
 
-                {/* Linha 2: Status da Fatura + Valor Parcial + Data Fechamento/Vencimento */}
+                {/* Linha 2: Valor Total / Parcial + Data Fechamento/Vencimento */}
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span
-                      className={`inline-flex items-center gap-1 font-semibold text-[11px] ${
-                        invoiceStatus === 'open'
-                          ? 'text-amber-400'
-                          : invoiceStatus === 'paid'
-                          ? 'text-teal-300'
-                          : invoiceStatus === 'overdue'
-                          ? 'text-rose-400 font-bold'
-                          : 'text-slate-300'
-                      }`}
-                    >
-                      {invoiceStatus === 'open' ? (
-                        <>
-                          <Unlock className="w-3 h-3" /> Fatura aberta
-                        </>
-                      ) : invoiceStatus === 'paid' ? (
-                        'Fatura paga'
-                      ) : invoiceStatus === 'overdue' ? (
-                        'Fatura vencida'
-                      ) : (
-                        <>
-                          <Lock className="w-3 h-3" /> Fatura fechada
-                        </>
-                      )}
-                    </span>
-                  </div>
-
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-400">
                       {isClosedOrPaid ? 'Valor total' : 'Valor parcial'}
@@ -549,15 +531,23 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
                   </div>
                 </div>
 
-                {/* Linha 4: Botão ADICIONAR DESPESA */}
+                {/* Linha 4: Botão de Ação: FATURA PAGA / PAGAR FATURA / ADICIONAR DESPESA */}
                 <div
                   className="pt-2 border-t border-slate-800/70 flex justify-end"
                   onClick={e => e.stopPropagation()}
                 >
-                  {isClosedOrPaid ? (
-                    <span className="text-xs font-medium text-slate-500 flex items-center gap-1 py-1">
-                      <Lock className="w-3 h-3" /> Fatura fechada
-                    </span>
+                  {invoiceStatus === 'paid' ? (
+                    <div className="inline-flex items-center gap-1.5 text-xs text-teal-300 font-bold px-3 py-1.5 rounded-full border border-teal-500/30 bg-teal-500/10 shadow-xs">
+                      <CheckCircle2 className="w-4 h-4 text-teal-400" />
+                      <span>FATURA PAGA</span>
+                    </div>
+                  ) : isClosedOrPaid ? (
+                    <button
+                      onClick={() => handlePayInvoice(card)}
+                      className="text-xs font-bold text-white hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1.5 shadow-xs"
+                    >
+                      PAGAR FATURA
+                    </button>
                   ) : (
                     <button
                       onClick={() => {
@@ -565,7 +555,7 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
                         setTransactionToEdit(null);
                         setIsTxModalOpen(true);
                       }}
-                      className="text-xs font-bold text-teal-400 hover:text-teal-300 transition-colors uppercase tracking-wider py-1 cursor-pointer"
+                      className="text-xs font-bold text-teal-400 hover:text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1 shadow-xs"
                     >
                       ADICIONAR DESPESA
                     </button>

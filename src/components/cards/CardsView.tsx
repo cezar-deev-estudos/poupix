@@ -35,8 +35,8 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
     updateTransaction,
   } = useFinance();
 
-  // Filtro de Aba Superior: Fatura Mês Atual vs Fatura Próximo Mês
-  const [invoiceTab, setInvoiceTab] = useState<'current_month' | 'next_month'>('current_month');
+  // Filtro de Aba Superior: Mês Anterior | Mês Atual | Próximo Mês
+  const [invoiceTab, setInvoiceTab] = useState<'previous_month' | 'current_month' | 'next_month'>('current_month');
 
   // Seleção de Cartão para Visualização Detalhada da Fatura
   const [selectedCardForDetail, setSelectedCardForDetail] = useState<CreditCard | null>(() => {
@@ -77,6 +77,9 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
 
   // Determinar o mês alvo para os cálculos baseado na aba ativa
   const targetMonth = useMemo(() => {
+    if (invoiceTab === 'previous_month') {
+      return (selectedMonth + 11) % 12;
+    }
     if (invoiceTab === 'next_month') {
       return (selectedMonth + 1) % 12;
     }
@@ -84,6 +87,9 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
   }, [invoiceTab, selectedMonth]);
 
   const targetYear = useMemo(() => {
+    if (invoiceTab === 'previous_month' && selectedMonth === 0) {
+      return selectedYear - 1;
+    }
     if (invoiceTab === 'next_month' && selectedMonth === 11) {
       return selectedYear + 1;
     }
@@ -312,27 +318,37 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Alternador Toggle: Fatura Mês Atual | Fatura Próximo Mês */}
+          {/* Alternador Toggle: Mês Anterior | Mês Atual | Próximo Mês */}
           <div className="flex items-center bg-slate-900 border border-slate-800 p-1 rounded-2xl text-xs">
             <button
+              onClick={() => setInvoiceTab('previous_month')}
+              className={`px-3.5 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
+                invoiceTab === 'previous_month'
+                  ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Mês Anterior
+            </button>
+            <button
               onClick={() => setInvoiceTab('current_month')}
-              className={`px-4 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
                 invoiceTab === 'current_month'
                   ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Fatura Mês Atual
+              Mês Atual
             </button>
             <button
               onClick={() => setInvoiceTab('next_month')}
-              className={`px-4 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
                 invoiceTab === 'next_month'
                   ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Fatura Próximo Mês
+              Próximo Mês
             </button>
           </div>
 
