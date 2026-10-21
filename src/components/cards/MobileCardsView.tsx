@@ -12,6 +12,7 @@ import { CardActionDrawer } from './CardActionDrawer';
 import { AdvancePaymentModal } from './AdvancePaymentModal';
 import { MobileCardInvoiceDetail } from './MobileCardInvoiceDetail';
 import { NewTransactionModal } from '../transactions/NewTransactionModal';
+import { ConfirmPaymentModal } from '../transactions/ConfirmPaymentModal';
 import { isTransactionInInvoicePeriod, isInvoicePeriodPaid, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
 import {
   ArrowLeft,
@@ -99,6 +100,9 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
   const [txModalCreditCardId, setTxModalCreditCardId] = useState<string | null>(null);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
+
+  // Modal de Confirmação de Pagamento de Fatura
+  const [payingInvoiceCard, setPayingInvoiceCard] = useState<CreditCard | null>(null);
 
   // Cartões Ativos vs Arquivados
   const activeCards = useMemo(() => {
@@ -278,8 +282,17 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
     }
   };
 
-  // Pagar Fatura
-  const handlePayInvoice = (card: CreditCard, period: string = targetPeriodKey) => {
+  // Solicitar Confirmação de Pagamento de Fatura
+  const handleOpenPayInvoice = (card: CreditCard) => {
+    setPayingInvoiceCard(card);
+  };
+
+  // Confirmar Execução do Pagamento da Fatura
+  const handleConfirmPayInvoice = (paymentDate?: string) => {
+    if (!payingInvoiceCard) return;
+    const card = payingInvoiceCard;
+    const period = targetPeriodKey;
+
     const updatedManual = {
       ...(card.manualInvoiceStatus || {}),
       [period]: 'paid' as const,
@@ -292,10 +305,15 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
       if (tx.creditCardId === card.id) {
         const { periodKey } = getTransactionInvoicePeriod(tx, card);
         if (periodKey === period && !tx.paid) {
-          updateTransaction(tx.id, { paid: true });
+          updateTransaction(tx.id, {
+            paid: true,
+            ...(paymentDate ? { date: paymentDate } : {}),
+          });
         }
       }
     });
+
+    setPayingInvoiceCard(null);
   };
 
   // Handlers
@@ -551,7 +569,7 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
           activeCards.map(card => {
             const invoiceAmount = cardExpensesMap[card.id] || 0;
             const invoiceStatus = getCardInvoiceStatus(card);
-            const isClosedOrPaid = invoiceStatus === 'closed' || invoiceStatus === 'paid';
+            const isClosedOrOverdue = invoiceStatus === 'closed' || invoiceStatus === 'overdue' || invoiceStatus === 'paid';
             const limitUsedPercent = Math.min(100, (invoiceAmount / (card.limit || 1)) * 100);
 
             return (
@@ -582,7 +600,7 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-400">
-                      {isClosedOrPaid ? 'Valor total' : 'Valor parcial'}
+                      {isClosedOrOverdue ? 'Valor total' : 'Valor parcial'}
                     </span>
                     <span className="font-bold text-rose-500">
                       {formatCurrency(invoiceAmount)}
@@ -591,7 +609,7 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
 
                   <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>
-                      {invoiceStatus === 'overdue' ? 'Venceu em' : isClosedOrPaid ? 'Vence em' : 'Fecha em'}
+                      {invoiceStatus === 'overdue' ? 'Venceu em' : isClosedOrOverdue ? 'Vence em' : 'Fecha em'}
                     </span>
                     <span className="text-slate-200 font-medium">{getClosingOrDueDateFormatted(card)}</span>
                   </div>
@@ -621,12 +639,12 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
                       <CheckCircle2 className="w-4 h-4 text-teal-400" />
                       <span>FATURA PAGA</span>
                     </div>
-                  ) : isClosedOrPaid ? (
+                  ) : isClosedOrOverdue ? (
                     <button
-                      onClick={() => handlePayInvoice(card)}
+                      onClick={() => handleOpenPayInvoice(card)}
                       className="text-xs font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1.5 shadow-xs"
                     >
-                      PAGAR FATURA
+                      {invoiceStatus === 'overdue' ? 'PAGAR FATURA - VENCIDA' : 'PAGAR FATURA'}
                     </button>
                   ) : (
                     <button
@@ -729,6 +747,23 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
           flowType="creditCard"
           transactionToEdit={transactionToEdit}
           defaultCreditCardId={txModalCreditCardId}
+        />
+      )}
+
+      {payingInvoiceCard && (
+        <ConfirmPaymentModal
+          isOpen={!!payingInvoiceCard}
+          transaction={null}
+          isGroupedCard={true}
+          invoiceInfo={{
+            cardName: `Fatura ${payingInvoiceCard.name}`,
+            amount: cardExpensesMap[payingInvoiceCard.id] || 0,
+            dueDate: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(payingInvoiceCard.dueDay).padStart(2, '0')}`,
+          }}
+          onConfirm={handleConfirmPayInvoice}
+          onCancel={() => setPayingInvoiceCard(null)}
+          onClose={() => setPayingInvoiceCard(null)}
+          currentPaid={false}
         />
       )}
     </div>

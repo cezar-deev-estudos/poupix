@@ -261,7 +261,7 @@ export const CreditCardCard: React.FC<CreditCardCardProps> = ({
             onClick={() => onPayInvoice(card)}
             className="text-xs font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1.5 shadow-xs"
           >
-            PAGAR FATURA
+            {invoiceStatus === 'overdue' ? 'PAGAR FATURA - VENCIDA' : 'PAGAR FATURA'}
           </button>
         ) : (
           <button

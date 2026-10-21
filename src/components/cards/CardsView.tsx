@@ -10,6 +10,7 @@ import { CreditCardModal } from './CreditCardModal';
 import { ArchivedCardsModal } from './ArchivedCardsModal';
 import { AdvancePaymentModal } from './AdvancePaymentModal';
 import { NewTransactionModal } from '../transactions/NewTransactionModal';
+import { ConfirmPaymentModal } from '../transactions/ConfirmPaymentModal';
 import { isTransactionInInvoicePeriod, getTransactionInvoicePeriod, isInvoicePeriodPaid } from '@/lib/invoiceHelpers';
 import { Plus, MoreVertical, ThumbsUp, CreditCard as CardIcon, DollarSign } from 'lucide-react';
 
@@ -64,6 +65,9 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
   const [txModalCreditCardId, setTxModalCreditCardId] = useState<string | null>(null);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
+
+  // Modal de Confirmação de Pagamento de Fatura
+  const [payingInvoiceCard, setPayingInvoiceCard] = useState<CreditCard | null>(null);
 
   // Cartões Ativos vs Arquivados
   const activeCards = useMemo(() => {
@@ -225,8 +229,8 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
     }
   };
 
-  // Pagar Fatura
-  const handlePayInvoice = (card: CreditCard, period: string = targetPeriodKey) => {
+  // Execução do Pagamento da Fatura
+  const handlePayInvoice = (card: CreditCard, period: string = targetPeriodKey, paymentDate?: string) => {
     const updatedManual = {
       ...(card.manualInvoiceStatus || {}),
       [period]: 'paid' as const,
@@ -239,10 +243,25 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
       if (tx.creditCardId === card.id) {
         const { periodKey } = getTransactionInvoicePeriod(tx, card);
         if (periodKey === period && !tx.paid) {
-          updateTransaction(tx.id, { paid: true });
+          updateTransaction(tx.id, {
+            paid: true,
+            ...(paymentDate ? { date: paymentDate } : {}),
+          });
         }
       }
     });
+  };
+
+  // Solicitar Confirmação de Pagamento de Fatura
+  const handleOpenPayInvoice = (card: CreditCard) => {
+    setPayingInvoiceCard(card);
+  };
+
+  // Confirmar Execução do Pagamento da Fatura pelo Modal
+  const handleConfirmPayInvoice = (paymentDate?: string) => {
+    if (!payingInvoiceCard) return;
+    handlePayInvoice(payingInvoiceCard, targetPeriodKey, paymentDate);
+    setPayingInvoiceCard(null);
   };
 
   // Handlers
@@ -467,7 +486,7 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
                   }}
                   onArchive={handleArchiveCard}
                   onAddExpense={handleOpenAddExpense}
-                  onPayInvoice={c => handlePayInvoice(c)}
+                  onPayInvoice={c => handleOpenPayInvoice(c)}
                   onViewHistory={c => {
                     setDetailFilterType('all');
                     setSelectedCardForDetail(c);
@@ -575,6 +594,23 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
           flowType="creditCard"
           transactionToEdit={transactionToEdit}
           defaultCreditCardId={txModalCreditCardId}
+        />
+      )}
+
+      {payingInvoiceCard && (
+        <ConfirmPaymentModal
+          isOpen={!!payingInvoiceCard}
+          transaction={null}
+          isGroupedCard={true}
+          invoiceInfo={{
+            cardName: `Fatura ${payingInvoiceCard.name}`,
+            amount: cardExpensesMap[payingInvoiceCard.id] || 0,
+            dueDate: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(payingInvoiceCard.dueDay).padStart(2, '0')}`,
+          }}
+          onConfirm={handleConfirmPayInvoice}
+          onCancel={() => setPayingInvoiceCard(null)}
+          onClose={() => setPayingInvoiceCard(null)}
+          currentPaid={false}
         />
       )}
     </div>
