@@ -14,6 +14,7 @@ import {
   Lock,
   Unlock,
   Archive,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface CardActionDrawerProps {
@@ -21,7 +22,9 @@ interface CardActionDrawerProps {
   onClose: () => void;
   card: CreditCard | null;
   invoiceStatus: 'open' | 'closed' | 'overdue' | 'paid';
+  isOverdue?: boolean;
   onToggleInvoiceStatus: (card: CreditCard) => void;
+  onPayInvoice?: (card: CreditCard) => void;
   onEdit: (card: CreditCard) => void;
   onViewInvoiceDetails: (card: CreditCard, filterType?: 'all' | 'fixed') => void;
   onArchive: (card: CreditCard) => void;
@@ -33,7 +36,9 @@ export const CardActionDrawer: React.FC<CardActionDrawerProps> = ({
   onClose,
   card,
   invoiceStatus,
+  isOverdue = false,
   onToggleInvoiceStatus,
+  onPayInvoice,
   onEdit,
   onViewInvoiceDetails,
   onArchive,
@@ -42,6 +47,7 @@ export const CardActionDrawer: React.FC<CardActionDrawerProps> = ({
   if (!isOpen || !card) return null;
 
   const isClosedOrPaid = invoiceStatus === 'closed' || invoiceStatus === 'paid';
+  const shouldShowPayInvoice = invoiceStatus === 'overdue' || isOverdue || (!isClosedOrPaid && isOverdue);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/70 backdrop-blur-xs animate-in fade-in duration-150">
@@ -62,32 +68,54 @@ export const CardActionDrawer: React.FC<CardActionDrawerProps> = ({
 
         {/* Lista de Opções Conforme o Print */}
         <div className="p-2 overflow-y-auto divide-y divide-slate-700/40 text-sm">
-          {/* Opção Reabrir / Fechar */}
-          <button
-            onClick={() => {
-              onToggleInvoiceStatus(card);
-              onClose();
-            }}
-            className="w-full px-4 py-3 flex items-center gap-3.5 text-left text-teal-300 font-semibold hover:bg-slate-800/80 rounded-xl transition-colors cursor-pointer"
-          >
-            {isClosedOrPaid ? <Unlock className="w-4 h-4 text-teal-400" /> : <Lock className="w-4 h-4 text-amber-400" />}
-            <span>{isClosedOrPaid ? 'Reabrir fatura' : 'Fechar fatura'}</span>
-          </button>
+          {/* Se a fatura estiver vencida (ou aberta no passado), exibir apenas Pagar fatura */}
+          {shouldShowPayInvoice ? (
+            <button
+              onClick={() => {
+                onClose();
+                if (onPayInvoice) {
+                  onPayInvoice(card);
+                } else {
+                  onToggleInvoiceStatus(card);
+                }
+              }}
+              className="w-full px-4 py-3 flex items-center gap-3.5 text-left text-teal-300 font-semibold hover:bg-slate-800/80 rounded-xl transition-colors cursor-pointer"
+            >
+              <CheckCircle2 className="w-4 h-4 text-teal-400" />
+              <span>Pagar fatura</span>
+            </button>
+          ) : (
+            <>
+              {/* Opção Reabrir / Fechar */}
+              <button
+                onClick={() => {
+                  onToggleInvoiceStatus(card);
+                  onClose();
+                }}
+                className="w-full px-4 py-3 flex items-center gap-3.5 text-left text-teal-300 font-semibold hover:bg-slate-800/80 rounded-xl transition-colors cursor-pointer"
+              >
+                {isClosedOrPaid ? <Unlock className="w-4 h-4 text-teal-400" /> : <Lock className="w-4 h-4 text-amber-400" />}
+                <span>{isClosedOrPaid ? 'Reabrir fatura' : 'Fechar fatura'}</span>
+              </button>
 
-          <button
-            onClick={() => {
-              onClose();
-              if (onAdvancePayment) {
-                onAdvancePayment(card);
-              } else {
-                onViewInvoiceDetails(card);
-              }
-            }}
-            className="w-full px-4 py-3 flex items-center gap-3.5 text-left text-slate-200 hover:bg-slate-800/80 rounded-xl transition-colors cursor-pointer"
-          >
-            <CardIcon className="w-4 h-4 text-slate-400" />
-            <span>Pagar adiantado</span>
-          </button>
+              {invoiceStatus !== 'paid' && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    if (onAdvancePayment) {
+                      onAdvancePayment(card);
+                    } else {
+                      onViewInvoiceDetails(card);
+                    }
+                  }}
+                  className="w-full px-4 py-3 flex items-center gap-3.5 text-left text-slate-200 hover:bg-slate-800/80 rounded-xl transition-colors cursor-pointer"
+                >
+                  <CardIcon className="w-4 h-4 text-slate-400" />
+                  <span>Pagar adiantado</span>
+                </button>
+              )}
+            </>
+          )}
 
           <button
             onClick={() => {

@@ -699,7 +699,19 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
         onClose={() => setActionDrawerCard(null)}
         card={actionDrawerCard}
         invoiceStatus={actionDrawerCard ? getCardInvoiceStatus(actionDrawerCard) : 'open'}
+        isOverdue={
+          actionDrawerCard
+            ? (() => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const dueDate = new Date(targetYear, targetMonth, actionDrawerCard.dueDay);
+                dueDate.setHours(0, 0, 0, 0);
+                return today > dueDate;
+              })()
+            : false
+        }
         onToggleInvoiceStatus={c => handleToggleInvoiceStatus(c)}
+        onPayInvoice={c => handleOpenPayInvoice(c)}
         onEdit={c => {
           setCardToEdit(c);
           setIsCardModalOpen(true);

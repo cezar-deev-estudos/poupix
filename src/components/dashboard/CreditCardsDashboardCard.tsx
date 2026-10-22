@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency } from '@/lib/utils';
 import { CreditCard } from '@/types/finance';
@@ -33,11 +33,35 @@ export const CreditCardsDashboardCard: React.FC<CreditCardsDashboardCardProps> =
     setSelectedYear,
     isPrivacyMode,
   } = useFinance();
-  const [invoiceTab, setInvoiceTab] = useState<'previous_month' | 'current_month' | 'next_month'>('current_month');
 
   const activeCards = useMemo(() => {
     return creditCards.filter(c => !c.isArchived);
   }, [creditCards]);
+
+  // Verifica se todos os cartões ativos já estão com a fatura do mês atual paga
+  const areAllCurrentMonthInvoicesPaid = useMemo(() => {
+    if (activeCards.length === 0) return false;
+
+    return activeCards.every(card => {
+      const isPaid = isInvoicePeriodPaid(card, transactions, selectedYear, selectedMonth);
+      const periodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+      const manualStatus = card.manualInvoiceStatus?.[periodKey];
+      return isPaid || manualStatus === 'paid';
+    });
+  }, [activeCards, transactions, selectedYear, selectedMonth]);
+
+  const [invoiceTab, setInvoiceTab] = useState<'previous_month' | 'current_month' | 'next_month'>(() => {
+    return areAllCurrentMonthInvoicesPaid ? 'next_month' : 'current_month';
+  });
+
+  // Atualiza automaticamente para Próximo Mês caso todas as faturas do mês atual fiquem pagas
+  useEffect(() => {
+    if (areAllCurrentMonthInvoicesPaid) {
+      setInvoiceTab('next_month');
+    } else {
+      setInvoiceTab('current_month');
+    }
+  }, [areAllCurrentMonthInvoicesPaid, selectedMonth, selectedYear]);
 
   // Determinar o mês/ano alvo para os cálculos baseado na aba ativa
   const targetMonth = useMemo(() => {

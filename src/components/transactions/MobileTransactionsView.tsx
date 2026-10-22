@@ -29,6 +29,8 @@ import {
   Flame,
   Bookmark,
   Calendar,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { ExpenseHeatmapCalendar } from '../dashboard/ExpenseHeatmapCalendar';
 import { TransactionsFilterModal, AdvancedFilterState } from './TransactionsFilterModal';
@@ -62,6 +64,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     setSelectedYear,
     summary,
     isPrivacyMode,
+    togglePrivacyMode,
     updateTransaction,
     deleteTransaction,
     updateCreditCard,
@@ -678,8 +681,17 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
             )}
           </div>
 
-          {/* Ícones de Busca, Filtro e Mais Opções */}
-          <div className="flex items-center gap-2">
+          {/* Ícones de Privacidade, Busca, Filtro e Mais Opções */}
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={togglePrivacyMode}
+              className="p-2 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              title="Alternar privacidade"
+            >
+              {isPrivacyMode ? <EyeOff className="w-4 h-4 text-emerald-400" /> : <Eye className="w-4 h-4" />}
+            </button>
+
             {isSearchOpen ? (
               <div className="relative">
                 <input

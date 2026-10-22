@@ -59,7 +59,7 @@ export const CreditCardSelectorDropdown: React.FC<CreditCardSelectorDropdownProp
             </div>
 
             <span className="text-xs font-semibold text-white truncate max-w-[240px]">
-              {selectedCard?.name || 'Selecione um cartão'} ({selectedCard?.brand?.toUpperCase()})
+              {selectedCard?.name || 'Selecione um cartão'}
             </span>
           </div>
 
@@ -96,9 +96,6 @@ export const CreditCardSelectorDropdown: React.FC<CreditCardSelectorDropdownProp
                     💳
                   </div>
                   <span className="truncate">{card.name}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-950 text-slate-400 border border-slate-800">
-                    {card.brand.toUpperCase()}
-                  </span>
                 </div>
 
                 <span className="text-[11px] text-slate-400 font-medium ml-2 shrink-0">

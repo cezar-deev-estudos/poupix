@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency } from '@/lib/utils';
 import {
@@ -49,7 +49,7 @@ interface MobillsMobileHomeProps {
     cardId?: string,
     statusFilter?: 'all' | 'pending' | 'paid'
   ) => void;
-  onOpenNewTransaction: (flowType?: TransactionFlowType) => void;
+  onOpenNewTransaction: (flowType?: TransactionFlowType, defaultCreditCardId?: string) => void;
   onOpenAlerts?: () => void;
   dashboardLayout?: DashboardLayoutPreferences;
 }
@@ -78,7 +78,32 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
   } = useFinance();
   const { user, isDemoMode } = useAuth();
 
-  const [cardInvoiceTab, setCardInvoiceTab] = useState<'previous_month' | 'current_month' | 'next_month'>('current_month');
+  // Verifica se todos os cartões ativos já estão com a fatura do mês atual paga
+  const areAllCurrentMonthInvoicesPaid = useMemo(() => {
+    const activeCards = creditCards.filter(c => !c.isArchived);
+    if (activeCards.length === 0) return false;
+
+    return activeCards.every(card => {
+      const isPaid = isInvoicePeriodPaid(card, transactions, selectedYear, selectedMonth);
+      const periodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+      const manualStatus = card.manualInvoiceStatus?.[periodKey];
+      return isPaid || manualStatus === 'paid';
+    });
+  }, [creditCards, transactions, selectedYear, selectedMonth]);
+
+  const [cardInvoiceTab, setCardInvoiceTab] = useState<'previous_month' | 'current_month' | 'next_month'>(() => {
+    return areAllCurrentMonthInvoicesPaid ? 'next_month' : 'current_month';
+  });
+
+  // Atualiza automaticamente para Próximo Mês caso todas as faturas do mês atual fiquem pagas
+  useEffect(() => {
+    if (areAllCurrentMonthInvoicesPaid) {
+      setCardInvoiceTab('next_month');
+    } else {
+      setCardInvoiceTab('current_month');
+    }
+  }, [areAllCurrentMonthInvoicesPaid, selectedMonth, selectedYear]);
+
   const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
   const [isCardsDrawerOpen, setIsCardsDrawerOpen] = useState(false);
 
@@ -600,29 +625,31 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
                             <div className="flex items-center gap-3 min-w-0">
                               {renderCardBrand(card.brand)}
                               <div className="min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-xs font-semibold text-white block truncate group-hover:text-teal-300 transition-colors">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-semibold text-white block truncate w-[110px] shrink-0 group-hover:text-teal-300 transition-colors">
                                     {card.name}
                                   </span>
-                                  <span
-                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0 ${
-                                      invoiceStatus === 'open'
-                                        ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                  <div className="w-[54px] shrink-0 flex items-center justify-start">
+                                    <span
+                                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap text-center ${
+                                        invoiceStatus === 'open'
+                                          ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                          : invoiceStatus === 'paid'
+                                          ? 'bg-teal-500/15 text-teal-300 border border-teal-500/30'
+                                          : invoiceStatus === 'overdue'
+                                          ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 font-bold'
+                                          : 'bg-slate-500/20 text-slate-300 border border-slate-500/30'
+                                      }`}
+                                    >
+                                      {invoiceStatus === 'open'
+                                        ? 'Aberta'
                                         : invoiceStatus === 'paid'
-                                        ? 'bg-teal-500/15 text-teal-300 border border-teal-500/30'
+                                        ? 'Paga'
                                         : invoiceStatus === 'overdue'
-                                        ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 font-bold'
-                                        : 'bg-slate-500/20 text-slate-300 border border-slate-500/30'
-                                    }`}
-                                  >
-                                    {invoiceStatus === 'open'
-                                      ? 'Aberta'
-                                      : invoiceStatus === 'paid'
-                                      ? 'Paga'
-                                      : invoiceStatus === 'overdue'
-                                      ? 'Vencida'
-                                      : 'Fechada'}
-                                  </span>
+                                        ? 'Vencida'
+                                        : 'Fechada'}
+                                    </span>
+                                  </div>
                                   <span className="text-[10px] text-slate-500 font-normal whitespace-nowrap">
                                     • {closingLabel}
                                   </span>
@@ -640,7 +667,7 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
                               type="button"
                               onClick={e => {
                                 e.stopPropagation();
-                                onOpenNewTransaction('creditCard');
+                                onOpenNewTransaction('creditCard', card.id);
                               }}
                               className="w-7 h-7 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 hover:bg-emerald-500/30 transition-colors cursor-pointer shrink-0"
                               title="Nova despesa no cartão"

@@ -400,24 +400,36 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
           </div>
         </div>
 
-        {/* Botão CONFIRMAR PAGAMENTO (quando fechada ou vencida) */}
+        {/* Botão ADICIONAR DESPESA (quando fatura aberta) */}
+        {!isClosedOrOverdue && (
+          <div className="pt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => onOpenNewExpense(card.id)}
+              className="text-xs font-bold text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1 shadow-xs"
+            >
+              ADICIONAR DESPESA
+            </button>
+          </div>
+        )}
+
+        {/* Botão PAGAR FATURA / PAGAR FATURA - VENCIDA (quando fechada ou vencida) */}
         {isClosedOrOverdue && invoiceStatus !== 'paid' && (
-          <div className="pt-2">
+          <div className="pt-2 flex justify-end">
             <button
               type="button"
               onClick={handleConfirmPayment}
-              className="w-full py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-2xl shadow-lg shadow-teal-600/30 transition-all cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider"
+              className="text-xs font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-full px-3.5 py-1.5 transition-all uppercase tracking-wider cursor-pointer flex items-center gap-1.5 shadow-xs"
             >
-              <Check className="w-4 h-4 stroke-[3]" />
-              <span>CONFIRMAR PAGAMENTO</span>
+              {invoiceStatus === 'overdue' ? 'PAGAR FATURA - VENCIDA' : 'PAGAR FATURA'}
             </button>
           </div>
         )}
 
         {/* Badge se Fatura já está Paga */}
         {invoiceStatus === 'paid' && (
-          <div className="pt-2">
-            <div className="w-full py-2.5 bg-teal-500/15 border border-teal-500/30 rounded-2xl flex items-center justify-center gap-2 text-teal-300 text-xs font-bold uppercase tracking-wider">
+          <div className="pt-2 flex justify-end">
+            <div className="inline-flex items-center gap-1.5 text-xs text-teal-300 font-bold px-3 py-1.5 rounded-full border border-teal-500/30 bg-teal-500/10 shadow-xs">
               <CheckCircle2 className="w-4 h-4 text-teal-400" />
               <span>FATURA PAGA</span>
             </div>
@@ -469,9 +481,8 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
                             {categoryDisplayName}
                           </span>
                           {tx.notes && (
-                            <div className="flex items-center gap-1 text-[11px] text-slate-400 pt-0.5">
-                              <span>✏️</span>
-                              <span className="truncate">{tx.notes}</span>
+                            <div className="text-[11px] text-slate-400 pt-0.5 truncate">
+                              {tx.notes}
                             </div>
                           )}
                         </div>
@@ -524,7 +535,9 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
         onClose={() => setIsActionDrawerOpen(false)}
         card={card}
         invoiceStatus={invoiceStatus}
+        isOverdue={isOverdue}
         onToggleInvoiceStatus={c => onToggleInvoiceStatus(c)}
+        onPayInvoice={() => handleConfirmPayment()}
         onEdit={() => {}}
         onViewInvoiceDetails={() => {}}
         onArchive={() => {}}
