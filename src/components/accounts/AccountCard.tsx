@@ -45,7 +45,10 @@ export const AccountCard: React.FC<AccountCardProps> = ({
   const currentBalance = account.balance || 0;
 
   return (
-    <div className="bg-[#18181b]/90 border border-slate-800/90 hover:border-slate-700/90 rounded-3xl p-5 shadow-xl flex flex-col justify-between transition-all relative">
+    <div 
+      onClick={() => onViewTransactions(account)}
+      className="bg-[#18181b]/90 border border-slate-800/90 hover:border-slate-700/90 rounded-3xl p-5 shadow-xl flex flex-col justify-between transition-all relative cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+    >
       {/* Top Header do Card: Badge + Nome + Menu ⋮ */}
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3 min-w-0">
@@ -56,7 +59,7 @@ export const AccountCard: React.FC<AccountCardProps> = ({
         </div>
 
         {/* Dropdown Menu ⋮ */}
-        <div className="relative shrink-0" ref={menuRef}>
+        <div className="relative shrink-0" ref={menuRef} onClick={e => e.stopPropagation()}>
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
@@ -151,7 +154,10 @@ export const AccountCard: React.FC<AccountCardProps> = ({
       {/* Botão Inferior de Ação: ADICIONAR DESPESA */}
       <div className="mt-4 pt-3 border-t border-slate-800/70 flex justify-center">
         <button
-          onClick={() => onAddExpense(account)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddExpense(account);
+          }}
           className="text-xs font-bold text-violet-400 hover:text-violet-300 transition-colors uppercase tracking-wider py-1 cursor-pointer flex items-center gap-1"
         >
           ADICIONAR DESPESA

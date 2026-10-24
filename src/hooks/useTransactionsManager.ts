@@ -2,7 +2,7 @@
 
 import { Transaction, Account } from '@/types/finance';
 import { deleteTransactionFromSupabase } from '@/lib/supabase/syncService';
-import { getNextInvoiceDate } from '@/lib/invoiceHelpers';
+import { getNextInvoiceDate, isSameId } from '@/lib/invoiceHelpers';
 
 // Helper para cálculo robusto de datas mês a mês (respeitando o último dia do mês)
 export const getNextMonthDate = (baseDateStr: string, monthOffset: number): string => {
@@ -13,6 +13,18 @@ export const getNextMonthDate = (baseDateStr: string, monthOffset: number): stri
   const maxDays = new Date(targetYear, targetMonth, 0).getDate();
   const day = Math.min(baseDay, maxDays);
   return `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+// Helper interno para calcular o impacto de uma transação no saldo de uma conta
+const getAccountDelta = (tx: Partial<Transaction>, targetAccId: string): number => {
+  if (!tx.paid || tx.creditCardId) return 0;
+  if (tx.type === 'income' && isSameId(tx.accountId, targetAccId)) return tx.amount || 0;
+  if (tx.type === 'expense' && isSameId(tx.accountId, targetAccId)) return -(tx.amount || 0);
+  if (tx.type === 'transfer') {
+    if (isSameId(tx.accountId, targetAccId)) return -(tx.amount || 0);
+    if (isSameId(tx.destinationAccountId, targetAccId)) return tx.amount || 0;
+  }
+  return 0;
 };
 
 export interface TransactionManagerActions {
@@ -31,7 +43,8 @@ export interface TransactionManagerActions {
     updated: Partial<Transaction>,
     mode: 'single' | 'following' | 'all',
     transactions: Transaction[],
-    setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>
+    setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>,
+    setAccounts?: React.Dispatch<React.SetStateAction<Account[]>>
   ) => void;
   deleteTransaction: (
     id: string,
@@ -39,7 +52,8 @@ export interface TransactionManagerActions {
     transactions: Transaction[],
     setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>,
     onTransactionDeleted?: (deletedIds: string[]) => void,
-    userId?: string
+    userId?: string,
+    setAccounts?: React.Dispatch<React.SetStateAction<Account[]>>
   ) => void;
 }
 
@@ -74,13 +88,13 @@ export const transactionManager: TransactionManagerActions = {
 
       if (tx.accountId && !tx.creditCardId && tx.paid) {
         setAccounts(prev => prev.map(a => {
-          if (a.id === tx.accountId) {
+          if (isSameId(a.id, tx.accountId)) {
             return {
               ...a,
               balance: tx.type === 'income' ? a.balance + tx.amount : a.balance - tx.amount,
             };
           }
-          if (tx.type === 'transfer' && a.id === tx.destinationAccountId) {
+          if (tx.type === 'transfer' && isSameId(a.id, tx.destinationAccountId)) {
             return { ...a, balance: a.balance + tx.amount };
           }
           return a;
@@ -117,13 +131,13 @@ export const transactionManager: TransactionManagerActions = {
 
       if (tx.accountId && !tx.creditCardId && tx.paid) {
         setAccounts(prev => prev.map(a => {
-          if (a.id === tx.accountId) {
+          if (isSameId(a.id, tx.accountId)) {
             return {
               ...a,
               balance: tx.type === 'income' ? a.balance + tx.amount : a.balance - tx.amount,
             };
           }
-          if (tx.type === 'transfer' && a.id === tx.destinationAccountId) {
+          if (tx.type === 'transfer' && isSameId(a.id, tx.destinationAccountId)) {
             return { ...a, balance: a.balance + tx.amount };
           }
           return a;
@@ -143,11 +157,11 @@ export const transactionManager: TransactionManagerActions = {
 
     if (tx.paid && tx.accountId && !tx.creditCardId) {
       setAccounts(prev => prev.map(a => {
-        if (a.id === tx.accountId) {
+        if (isSameId(a.id, tx.accountId)) {
           if (tx.type === 'income') return { ...a, balance: a.balance + tx.amount };
           if (tx.type === 'expense') return { ...a, balance: a.balance - tx.amount };
         }
-        if (tx.type === 'transfer' && a.id === tx.destinationAccountId) {
+        if (tx.type === 'transfer' && isSameId(a.id, tx.destinationAccountId)) {
           return { ...a, balance: a.balance + tx.amount };
         }
         return a;
@@ -182,7 +196,27 @@ export const transactionManager: TransactionManagerActions = {
     }
   },
 
-  updateTransaction: (id, updated, mode, _transactions, setTransactions) => {
+  updateTransaction: (id, updated, mode, transactions, setTransactions, setAccounts) => {
+    // 1. Calcular delta de saldo nas contas caso setAccounts tenha sido fornecido
+    if (setAccounts) {
+      const prevTarget = transactions.find(t => t.id === id);
+      if (prevTarget) {
+        const nextTarget: Transaction = { ...prevTarget, ...updated };
+        // Impacto prévio vs novo
+        setAccounts(prevAccounts => {
+          return prevAccounts.map(acc => {
+            const oldDelta = getAccountDelta(prevTarget, acc.id);
+            const newDelta = getAccountDelta(nextTarget, acc.id);
+            const netDiff = newDelta - oldDelta;
+            if (netDiff !== 0) {
+              return { ...acc, balance: acc.balance + netDiff };
+            }
+            return acc;
+          });
+        });
+      }
+    }
+
     setTransactions(prev => {
       const target = prev.find(t => t.id === id);
       if (!target) {
@@ -307,7 +341,24 @@ export const transactionManager: TransactionManagerActions = {
     });
   },
 
-  deleteTransaction: (id, mode, transactions, setTransactions, onTransactionDeleted, userId) => {
+  deleteTransaction: (id, mode, transactions, setTransactions, onTransactionDeleted, userId, setAccounts) => {
+    // 1. Estornar saldo se a transação excluída estava paga
+    if (setAccounts) {
+      const target = transactions.find(t => t.id === id);
+      if (target) {
+        setAccounts(prevAccounts => {
+          return prevAccounts.map(acc => {
+            const oldDelta = getAccountDelta(target, acc.id);
+            if (oldDelta !== 0) {
+              // Inverte o delta para estornar
+              return { ...acc, balance: acc.balance - oldDelta };
+            }
+            return acc;
+          });
+        });
+      }
+    }
+
     setTransactions(prev => {
       const target = prev.find(t => t.id === id) || transactions.find(t => t.id === id);
       const deletedIds: string[] = [id];

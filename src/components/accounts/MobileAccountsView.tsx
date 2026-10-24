@@ -3,11 +3,12 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency } from '@/lib/utils';
-import { Account } from '@/types/finance';
+import { Account, Transaction } from '@/types/finance';
 import { BankBadge } from './BankBadge';
 import { AccountModal } from './AccountModal';
 import { BalanceAdjustmentModal } from './BalanceAdjustmentModal';
 import { ArchivedAccountsDrawer } from './ArchivedAccountsDrawer';
+import { MobileAccountDetail } from './MobileAccountDetail';
 import { NewTransactionModal } from '../transactions/NewTransactionModal';
 import {
   ArrowLeft,
@@ -77,6 +78,13 @@ export const MobileAccountsView: React.FC<MobileAccountsViewProps> = ({
   // Modal de Nova Transferência / Nova Transação
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [includeInHomeChecked, setIncludeInHomeChecked] = useState(true);
+
+  // Seleção de Conta para Extrato Detalhado Mobile
+  const [selectedAccountForDetail, setSelectedAccountForDetail] = useState<Account | null>(null);
+  const [isTxModalOpen, setIsTxModalOpen] = useState(false);
+  const [quickTxAccountId, setQuickTxAccountId] = useState<string | null>(null);
+  const [quickTxType, setQuickTxType] = useState<'income' | 'expense'>('expense');
+  const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
 
   // Filtro de contas ativas vs arquivadas
   const activeAccounts = useMemo(() => {
@@ -186,6 +194,48 @@ export const MobileAccountsView: React.FC<MobileAccountsViewProps> = ({
   const handleUnarchiveAccount = (accountId: string) => {
     updateAccount(accountId, { isArchived: false });
   };
+
+  const handleOpenNewTransactionForDetail = (accountId: string, type: 'income' | 'expense') => {
+    setQuickTxAccountId(accountId);
+    setQuickTxType(type);
+    setTransactionToEdit(null);
+    setIsTxModalOpen(true);
+  };
+
+  const handleEditTransactionForDetail = (tx: Transaction) => {
+    setTransactionToEdit(tx);
+    setIsTxModalOpen(true);
+  };
+
+  if (selectedAccountForDetail) {
+    const currentSelected = activeAccounts.find(a => a.id === selectedAccountForDetail.id) || selectedAccountForDetail;
+    return (
+      <div className="min-h-screen bg-[#131316] text-slate-100 p-4 pb-24">
+        <MobileAccountDetail
+          account={currentSelected}
+          allAccounts={activeAccounts}
+          onBack={() => setSelectedAccountForDetail(null)}
+          onSelectAnotherAccount={acc => setSelectedAccountForDetail(acc)}
+          onOpenNewTransaction={handleOpenNewTransactionForDetail}
+          onEditTransaction={handleEditTransactionForDetail}
+        />
+
+        {isTxModalOpen && (
+          <NewTransactionModal
+            isOpen={isTxModalOpen}
+            onClose={() => {
+              setIsTxModalOpen(false);
+              setQuickTxAccountId(null);
+              setTransactionToEdit(null);
+            }}
+            defaultType={quickTxType}
+            defaultAccountId={quickTxAccountId || selectedAccountForDetail.id}
+            transactionToEdit={transactionToEdit}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#131316] text-slate-100 flex flex-col pb-24">
@@ -367,7 +417,11 @@ export const MobileAccountsView: React.FC<MobileAccountsViewProps> = ({
             const isMenuOpen = activeMenuAccountId === acc.id;
 
             return (
-              <div key={acc.id} className="p-4 space-y-2 relative">
+              <div 
+                key={acc.id} 
+                onClick={() => setSelectedAccountForDetail(acc)}
+                className="p-4 space-y-2 relative cursor-pointer active:bg-slate-800/40 transition-colors"
+              >
                 {/* Linha 1: Badge + Nome + Menu ⋮ */}
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
@@ -380,7 +434,7 @@ export const MobileAccountsView: React.FC<MobileAccountsViewProps> = ({
                     <h3 className="font-semibold text-white text-sm truncate">{acc.name}</h3>
                   </div>
 
-                  <div className="relative">
+                  <div className="relative" onClick={e => e.stopPropagation()}>
                     <button
                       onClick={() => setActiveMenuAccountId(isMenuOpen ? null : acc.id)}
                       className="p-1.5 text-slate-400 hover:text-white transition-colors"
@@ -413,12 +467,12 @@ export const MobileAccountsView: React.FC<MobileAccountsViewProps> = ({
                         <button
                           onClick={() => {
                             setActiveMenuAccountId(null);
-                            onNavigateToTransactions?.(acc.id);
+                            setSelectedAccountForDetail(acc);
                           }}
                           className="w-full flex items-center gap-2 px-3.5 py-2 text-slate-200 hover:bg-slate-800 text-left"
                         >
                           <ArrowRightLeft className="w-3.5 h-3.5 text-slate-400" />
-                          <span>Transações</span>
+                          <span>Extrato da Conta</span>
                         </button>
 
                         <button

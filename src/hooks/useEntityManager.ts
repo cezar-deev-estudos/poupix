@@ -2,6 +2,7 @@
 
 import { Account, CreditCard, Category, Tag, Goal, OpenFinanceConnection, Transaction } from '@/types/finance';
 import { deleteEntityFromSupabase } from '@/lib/supabase/syncService';
+import { isSameId } from '@/lib/invoiceHelpers';
 
 export interface EntityManagerActions {
   // Contas
@@ -47,11 +48,11 @@ export const entityManager: EntityManagerActions = {
     setAccounts(prev => [...prev, newAcc]);
   },
   updateAccount: (id, updated, setAccounts) => {
-    setAccounts(prev => prev.map(a => (a.id === id ? { ...a, ...updated } : a)));
+    setAccounts(prev => prev.map(a => (isSameId(a.id, id) ? { ...a, ...updated } : a)));
   },
   deleteAccount: (id, setAccounts) => {
     deleteEntityFromSupabase('accounts', id);
-    setAccounts(prev => prev.filter(a => a.id !== id));
+    setAccounts(prev => prev.filter(a => !isSameId(a.id, id)));
   },
 
   addCreditCard: (card, setCreditCards) => {

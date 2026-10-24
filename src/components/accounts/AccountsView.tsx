@@ -3,11 +3,12 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency } from '@/lib/utils';
-import { Account } from '@/types/finance';
+import { Account, Transaction } from '@/types/finance';
 import { AccountCard } from './AccountCard';
 import { AccountModal } from './AccountModal';
 import { BalanceAdjustmentModal } from './BalanceAdjustmentModal';
 import { ArchivedAccountsModal } from './ArchivedAccountsModal';
+import { AccountDetailView } from './AccountDetailView';
 import { NewTransactionModal } from '../transactions/NewTransactionModal';
 import { MonthSelector } from '../layout/MonthSelector';
 import {
@@ -25,9 +26,10 @@ const ITEMS_PER_PAGE = 5; // 1 card de "Nova Conta" + até 5 contas por página 
 
 interface AccountsViewProps {
   onNavigateToTransactions?: (accountId?: string) => void;
+  initialAccountId?: string | null;
 }
 
-export const AccountsView: React.FC<AccountsViewProps> = ({ onNavigateToTransactions }) => {
+export const AccountsView: React.FC<AccountsViewProps> = ({ onNavigateToTransactions, initialAccountId }) => {
   const {
     accounts,
     filteredTransactions,
@@ -36,6 +38,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onNavigateToTransact
     deleteAccount,
     addTransaction,
   } = useFinance();
+
+  // Seleção de Conta para Visualização Detalhada do Extrato
+  const [selectedAccountForDetail, setSelectedAccountForDetail] = useState<Account | null>(() => {
+    if (initialAccountId) {
+      return accounts.find(a => a.id === initialAccountId) || null;
+    }
+    return null;
+  });
 
   // Estados de Modais
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
@@ -47,9 +57,11 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onNavigateToTransact
   const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
 
-  // Modal de Transação Rápida
+  // Modal de Transação Rápida / Edição
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
   const [quickTxAccountId, setQuickTxAccountId] = useState<string | null>(null);
+  const [quickTxType, setQuickTxType] = useState<'income' | 'expense'>('expense');
+  const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
 
   // Paginação
   const [currentPage, setCurrentPage] = useState(1);
@@ -165,8 +177,52 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onNavigateToTransact
 
   const handleAddExpenseForAccount = (acc: Account) => {
     setQuickTxAccountId(acc.id);
+    setQuickTxType('expense');
+    setTransactionToEdit(null);
     setIsTxModalOpen(true);
   };
+
+  const handleOpenNewTransactionForDetail = (accountId: string, type: 'income' | 'expense') => {
+    setQuickTxAccountId(accountId);
+    setQuickTxType(type);
+    setTransactionToEdit(null);
+    setIsTxModalOpen(true);
+  };
+
+  const handleEditTransactionForDetail = (tx: Transaction) => {
+    setTransactionToEdit(tx);
+    setIsTxModalOpen(true);
+  };
+
+  if (selectedAccountForDetail) {
+    const currentSelected = activeAccounts.find(a => a.id === selectedAccountForDetail.id) || selectedAccountForDetail;
+    return (
+      <>
+        <AccountDetailView
+          account={currentSelected}
+          allAccounts={activeAccounts}
+          onBack={() => setSelectedAccountForDetail(null)}
+          onSelectAnotherAccount={acc => setSelectedAccountForDetail(acc)}
+          onOpenNewTransaction={handleOpenNewTransactionForDetail}
+          onEditTransaction={handleEditTransactionForDetail}
+        />
+
+        {isTxModalOpen && (
+          <NewTransactionModal
+            isOpen={isTxModalOpen}
+            onClose={() => {
+              setIsTxModalOpen(false);
+              setQuickTxAccountId(null);
+              setTransactionToEdit(null);
+            }}
+            defaultType={quickTxType}
+            defaultAccountId={quickTxAccountId || selectedAccountForDetail.id}
+            transactionToEdit={transactionToEdit}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -268,7 +324,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onNavigateToTransact
                 projectedBalance={projectedBalanceMap[acc.id] ?? acc.balance}
                 onEdit={handleOpenEdit}
                 onArchive={handleArchiveAccount}
-                onViewTransactions={acc => onNavigateToTransactions?.(acc.id)}
+                onViewTransactions={acc => setSelectedAccountForDetail(acc)}
                 onAdjustBalance={handleOpenAdjust}
                 onAddExpense={handleAddExpenseForAccount}
               />

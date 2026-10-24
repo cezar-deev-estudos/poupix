@@ -19,6 +19,7 @@ interface TransactionModalProps {
   flowType?: TransactionFlowType;
   transactionToEdit?: Transaction | null;
   defaultCreditCardId?: string | null;
+  defaultAccountId?: string | null;
 }
 
 export const TransactionModal: React.FC<TransactionModalProps> = ({
@@ -27,6 +28,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   flowType = 'expense',
   transactionToEdit = null,
   defaultCreditCardId = null,
+  defaultAccountId = null,
 }) => {
   const { addTransaction, updateTransaction, deleteTransaction } = useFinance();
 
@@ -265,6 +267,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           {activeFlow === 'expense' && (
             <ExpenseForm
               initialData={transactionToEdit}
+              defaultAccountId={defaultAccountId}
               onSave={handleSave}
               onCancel={onClose}
               onDelete={handleDeleteClick}
@@ -275,6 +278,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           {activeFlow === 'income' && (
             <IncomeForm
               initialData={transactionToEdit}
+              defaultAccountId={defaultAccountId}
               onSave={handleSave}
               onCancel={onClose}
               onDelete={handleDeleteClick}

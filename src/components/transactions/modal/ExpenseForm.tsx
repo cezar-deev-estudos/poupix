@@ -14,6 +14,7 @@ import { FileText, Heart, ChevronDown, Pin, RefreshCw, Check, Trash2 } from 'luc
 
 interface ExpenseFormProps {
   initialData?: Transaction | null;
+  defaultAccountId?: string | null;
   onSave: (data: Omit<Transaction, 'id' | 'createdAt'>, createAnother?: boolean) => void;
   onCancel: () => void;
   onDelete?: () => void;
@@ -22,6 +23,7 @@ interface ExpenseFormProps {
 
 export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   initialData,
+  defaultAccountId = null,
   onSave,
   onCancel,
   onDelete,
@@ -31,7 +33,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
 
   const expenseCategories = categories.filter(c => c.type === 'expense');
   const defaultCatId = expenseCategories[0]?.id || '';
-  const defaultAccId = accounts[0]?.id || '';
+  const initialAccId = defaultAccountId || accounts[0]?.id || '';
 
   const [amount, setAmount] = useState(initialData?.amount ? initialData.amount.toString() : '');
   const [date, setDate] = useState(initialData?.date || getLocalDateString());
@@ -39,7 +41,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   const [description, setDescription] = useState(initialData?.description || '');
   const [isFavorite, setIsFavorite] = useState(initialData?.isFavorite ?? false);
   const [categoryId, setCategoryId] = useState(initialData?.categoryId || defaultCatId);
-  const [accountId, setAccountId] = useState(initialData?.accountId || defaultAccId);
+  const [accountId, setAccountId] = useState(initialData?.accountId || initialAccId);
   const [ignoreInTotals, setIgnoreInTotals] = useState(initialData?.ignoreInTotals ?? false);
 
   // Coluna "Mais detalhes"
@@ -61,7 +63,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       setDescription(initialData.description || '');
       setIsFavorite(Boolean(initialData.isFavorite));
       setCategoryId(initialData.categoryId || defaultCatId);
-      setAccountId(initialData.accountId || defaultAccId);
+      setAccountId(initialData.accountId || initialAccId);
       setIgnoreInTotals(Boolean(initialData.ignoreInTotals));
       setTags(initialData.tags || []);
       setNotes(initialData.notes || '');
@@ -69,7 +71,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       setIsRepeat(Boolean(initialData.installmentTotal));
       setRepeatCount(initialData.installmentTotal || 2);
     }
-  }, [initialData, defaultCatId, defaultAccId]);
+  }, [initialData, defaultCatId, initialAccId]);
 
   const toggleDetails = () => {
     const nextState = !showMoreDetails;
