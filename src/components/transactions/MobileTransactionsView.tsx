@@ -67,6 +67,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     togglePrivacyMode,
     updateTransaction,
     deleteTransaction,
+    addTransaction,
     updateCreditCard,
     transactions: allTransactions,
     categories,
@@ -547,9 +548,9 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     });
   };
 
-  const handleConfirmExecutePayment = (paymentDate?: string) => {
+  const handleConfirmExecutePayment = (paymentDate?: string, accountId?: string) => {
     if (!confirmingPayment) return;
-    const { tx, isGroupedCard, cardId, periodKey, currentPaid } = confirmingPayment;
+    const { tx, isGroupedCard, cardId, periodKey, currentPaid, invoiceInfo } = confirmingPayment;
 
     if (isGroupedCard && cardId && periodKey) {
       const card = creditCards.find(c => c.id === cardId);
@@ -573,6 +574,23 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
             }
           }
         });
+
+        // Se estiver marcando como pago e houver conta bancária selecionada e valor
+        if (nextPaidStatus && accountId && invoiceInfo?.amount && invoiceInfo.amount > 0) {
+          const defaultExpenseCategory = categories.find(c => c.type === 'expense');
+          const dateToUse = paymentDate || new Date().toISOString().split('T')[0];
+
+          addTransaction({
+            description: `Pagamento de Fatura - ${card.name}`,
+            amount: invoiceInfo.amount,
+            date: dateToUse,
+            type: 'expense',
+            accountId,
+            categoryId: defaultExpenseCategory?.id || '',
+            paid: true,
+            ignoreInTotals: true, // Não duplica no balanço geral, debita na conta
+          });
+        }
       }
       setConfirmingPayment(null);
       return;

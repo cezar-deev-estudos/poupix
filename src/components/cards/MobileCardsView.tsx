@@ -60,6 +60,8 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
     updateCreditCard,
     deleteCreditCard,
     updateTransaction,
+    addTransaction,
+    categories,
   } = useFinance();
 
   // Seleção para Detalhe da Fatura
@@ -288,7 +290,7 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
   };
 
   // Confirmar Execução do Pagamento da Fatura
-  const handleConfirmPayInvoice = (paymentDate?: string) => {
+  const handleConfirmPayInvoice = (paymentDate?: string, accountId?: string) => {
     if (!payingInvoiceCard) return;
     const card = payingInvoiceCard;
     const period = targetPeriodKey;
@@ -312,6 +314,24 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
         }
       }
     });
+
+    // Se uma conta de débito foi selecionada e a fatura tem valor, registrar o débito na conta
+    const invoiceTotal = cardExpensesMap[card.id] || 0;
+    if (accountId && invoiceTotal > 0) {
+      const defaultExpenseCategory = categories.find(c => c.type === 'expense');
+      const dateToUse = paymentDate || new Date().toISOString().split('T')[0];
+
+      addTransaction({
+        description: `Pagamento de Fatura - ${card.name}`,
+        amount: invoiceTotal,
+        date: dateToUse,
+        type: 'expense',
+        accountId,
+        categoryId: defaultExpenseCategory?.id || '',
+        paid: true,
+        ignoreInTotals: true, // Não duplica no balanço geral, mas debita da conta bancária
+      });
+    }
 
     setPayingInvoiceCard(null);
   };

@@ -9,7 +9,7 @@ interface BalanceAdjustmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   account: Account | null;
-  onAdjustBalance: (accountId: string, newBalance: number, reason: string) => void;
+  onAdjustBalance: (accountId: string, newBalance: number, reason: string, createTransaction?: boolean) => void;
 }
 
 export const BalanceAdjustmentModal: React.FC<BalanceAdjustmentModalProps> = ({
@@ -20,11 +20,13 @@ export const BalanceAdjustmentModal: React.FC<BalanceAdjustmentModalProps> = ({
 }) => {
   const [newBalance, setNewBalance] = useState('');
   const [reason, setReason] = useState('Ajuste de saldo');
+  const [createTransaction, setCreateTransaction] = useState(true);
 
   useEffect(() => {
     if (account) {
       setNewBalance(account.balance.toString());
       setReason('Ajuste de saldo');
+      setCreateTransaction(true);
     }
   }, [account, isOpen]);
 
@@ -38,7 +40,7 @@ export const BalanceAdjustmentModal: React.FC<BalanceAdjustmentModalProps> = ({
     e.preventDefault();
     if (isNaN(parsedNewVal)) return;
 
-    onAdjustBalance(account.id, parsedNewVal, reason);
+    onAdjustBalance(account.id, parsedNewVal, reason, createTransaction);
     onClose();
   };
 
@@ -90,11 +92,33 @@ export const BalanceAdjustmentModal: React.FC<BalanceAdjustmentModalProps> = ({
               placeholder="Ex: Correção de saldo bancário"
               value={reason}
               onChange={e => setReason(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-600 focus:outline-none focus:border-violet-500"
+              disabled={!createTransaction}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-600 focus:outline-none focus:border-violet-500 disabled:opacity-50"
             />
           </div>
 
-          {difference !== 0 && (
+          {/* Seletor Toggle: Gerar ou não o lançamento de ajuste no extrato */}
+          <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-2xl flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-xs font-medium text-white block">Criar lançamento no extrato</span>
+              <span className="text-[11px] text-slate-400 block">
+                {createTransaction
+                  ? 'Gera uma transação com a diferença no extrato'
+                  : 'Apenas altera o saldo cadastral sem criar transação'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCreateTransaction(prev => !prev)}
+              className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
+                createTransaction ? 'bg-violet-600 justify-end' : 'bg-slate-700 justify-start'
+              }`}
+            >
+              <div className="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform" />
+            </button>
+          </div>
+
+          {difference !== 0 && createTransaction && (
             <div className={`p-3 rounded-xl text-xs flex items-center justify-between ${
               difference > 0 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
             }`}>

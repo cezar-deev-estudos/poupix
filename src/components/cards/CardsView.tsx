@@ -36,6 +36,8 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
     updateCreditCard,
     deleteCreditCard,
     updateTransaction,
+    addTransaction,
+    categories,
   } = useFinance();
 
   // Seleção de Cartão para Visualização Detalhada da Fatura
@@ -230,7 +232,12 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
   };
 
   // Execução do Pagamento da Fatura
-  const handlePayInvoice = (card: CreditCard, period: string = targetPeriodKey, paymentDate?: string) => {
+  const handlePayInvoice = (
+    card: CreditCard,
+    period: string = targetPeriodKey,
+    paymentDate?: string,
+    accountId?: string
+  ) => {
     const updatedManual = {
       ...(card.manualInvoiceStatus || {}),
       [period]: 'paid' as const,
@@ -250,6 +257,24 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
         }
       }
     });
+
+    // Se uma conta de débito foi selecionada e a fatura tem valor, registrar o débito na conta
+    const invoiceTotal = cardExpensesMap[card.id] || 0;
+    if (accountId && invoiceTotal > 0) {
+      const defaultExpenseCategory = categories.find(c => c.type === 'expense');
+      const dateToUse = paymentDate || new Date().toISOString().split('T')[0];
+      
+      addTransaction({
+        description: `Pagamento de Fatura - ${card.name}`,
+        amount: invoiceTotal,
+        date: dateToUse,
+        type: 'expense',
+        accountId,
+        categoryId: defaultExpenseCategory?.id || '',
+        paid: true,
+        ignoreInTotals: true, // Não duplica no balanço geral por categorias, mas debita do saldo da conta
+      });
+    }
   };
 
   // Solicitar Confirmação de Pagamento de Fatura
@@ -258,9 +283,9 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
   };
 
   // Confirmar Execução do Pagamento da Fatura pelo Modal
-  const handleConfirmPayInvoice = (paymentDate?: string) => {
+  const handleConfirmPayInvoice = (paymentDate?: string, accountId?: string) => {
     if (!payingInvoiceCard) return;
-    handlePayInvoice(payingInvoiceCard, targetPeriodKey, paymentDate);
+    handlePayInvoice(payingInvoiceCard, targetPeriodKey, paymentDate, accountId);
     setPayingInvoiceCard(null);
   };
 

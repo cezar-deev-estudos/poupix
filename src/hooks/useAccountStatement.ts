@@ -28,6 +28,7 @@ export function useAccountStatement(
     // 1. Filtrar todas as transações efetivadas que afetam esta conta
     const accountTxs = transactions.filter(t => {
       if (t.creditCardId) return false; // Cartão de crédito não afeta conta diretamente até o pagamento da fatura
+      if (!t.paid) return false; // Extrato da conta lista estritamente lançamentos efetivados
       return isSameId(t.accountId, account.id) || isSameId(t.destinationAccountId, account.id);
     });
 

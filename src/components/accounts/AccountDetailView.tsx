@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Account, Transaction } from '@/types/finance';
+import { Account, Transaction, CreditCard } from '@/types/finance';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency, formatDateBR } from '@/lib/utils';
 import { BankBadge } from './BankBadge';
 import { useAccountStatement } from '@/hooks/useAccountStatement';
+import { isTransactionInInvoicePeriod, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -20,6 +21,8 @@ import {
   TrendingUp,
   TrendingDown,
   Wallet,
+  CreditCard as CreditCardIcon,
+  CheckCheck,
 } from 'lucide-react';
 
 interface AccountDetailViewProps {
@@ -51,11 +54,89 @@ export const AccountDetailView: React.FC<AccountDetailViewProps> = ({
     setSelectedMonth,
     setSelectedYear,
     categories,
+    creditCards,
     updateTransaction,
+    addTransaction,
+    updateCreditCard,
   } = useFinance();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
+  const [isPayingInvoices, setIsPayingInvoices] = useState(false);
+
+  // Período chave
+  const currentPeriodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+
+  // Identificar cartões que possuem despesas no mês selecionado e se já foram pagos nesta conta
+  const unpaidCardInvoices = useMemo(() => {
+    return creditCards
+      .filter(c => !c.isArchived)
+      .map(card => {
+        const cardExpenses = transactions
+          .filter(t => isTransactionInInvoicePeriod(t, card, selectedYear, selectedMonth))
+          .reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0);
+
+        // Verificar se já existe um lançamento de pagamento desta fatura nesta conta
+        const invoicePaidDesc = `Pagamento de Fatura - ${card.name}`;
+        const hasPaymentRecord = transactions.some(
+          t => t.accountId === account.id && t.description.toLowerCase() === invoicePaidDesc.toLowerCase() && t.date.startsWith(currentPeriodKey)
+        );
+
+        return {
+          card,
+          amount: Math.max(0, cardExpenses),
+          isPaidInAccount: hasPaymentRecord,
+        };
+      })
+      .filter(item => item.amount > 0 && !item.isPaidInAccount);
+  }, [creditCards, transactions, selectedYear, selectedMonth, account.id, currentPeriodKey]);
+
+  // Handler para quitar todas as faturas pendentes debitando nesta conta
+  const handlePayAllInvoicesFromAccount = () => {
+    if (unpaidCardInvoices.length === 0) return;
+    setIsPayingInvoices(true);
+
+    const defaultExpenseCategory = categories.find(c => c.type === 'expense');
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    unpaidCardInvoices.forEach(({ card, amount }) => {
+      // 1. Atualizar status manual do cartão para pago
+      const updatedManual = {
+        ...(card.manualInvoiceStatus || {}),
+        [currentPeriodKey]: 'paid' as const,
+      };
+      updateCreditCard(card.id, {
+        manualInvoiceStatus: updatedManual,
+      });
+
+      // 2. Marcar transações individuais do cartão como pagas
+      transactions.forEach(t => {
+        if (t.creditCardId === card.id) {
+          const { periodKey } = getTransactionInvoicePeriod(t, card);
+          if (periodKey === currentPeriodKey && !t.paid) {
+            updateTransaction(t.id, { paid: true });
+          }
+        }
+      });
+
+      // 3. Registrar o lançamento único consolidado da fatura debitando na conta
+      const dueDateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(card.dueDay).padStart(2, '0')}`;
+      const paymentDate = dueDateStr <= todayStr ? dueDateStr : todayStr;
+
+      addTransaction({
+        description: `Pagamento de Fatura - ${card.name}`,
+        amount,
+        date: paymentDate,
+        type: 'expense',
+        accountId: account.id,
+        categoryId: defaultExpenseCategory?.id || '',
+        paid: true,
+        ignoreInTotals: true, // Não duplica despesas por categoria no balanço geral, mas entra no extrato da conta
+      });
+    });
+
+    setIsPayingInvoices(false);
+  };
 
   const {
     statementTxs,
@@ -183,6 +264,18 @@ export const AccountDetailView: React.FC<AccountDetailViewProps> = ({
             <Plus className="w-3.5 h-3.5" />
             <span>Despesa</span>
           </button>
+
+          {unpaidCardInvoices.length > 0 && (
+            <button
+              onClick={handlePayAllInvoicesFromAccount}
+              disabled={isPayingInvoices}
+              className="flex items-center gap-1.5 px-3 py-2 bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 rounded-2xl text-xs font-bold transition-all cursor-pointer shadow-sm disabled:opacity-50"
+              title={`Lançar quitação consolidada das faturas de cartão (${unpaidCardInvoices.length}) debitando nesta conta`}
+            >
+              <CreditCardIcon className="w-3.5 h-3.5" />
+              <span>Quitar Faturas do Mês ({unpaidCardInvoices.length})</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Account, Transaction } from '@/types/finance';
+import { Account, Transaction, CreditCard } from '@/types/finance';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency, formatDateBR } from '@/lib/utils';
 import { BankBadge } from './BankBadge';
 import { useAccountStatement } from '@/hooks/useAccountStatement';
+import { isTransactionInInvoicePeriod, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -16,6 +17,7 @@ import {
   CheckCircle2,
   Clock,
   Search,
+  CreditCard as CreditCardIcon,
 } from 'lucide-react';
 
 interface MobileAccountDetailProps {
@@ -47,11 +49,85 @@ export const MobileAccountDetail: React.FC<MobileAccountDetailProps> = ({
     setSelectedMonth,
     setSelectedYear,
     categories,
+    creditCards,
     updateTransaction,
+    addTransaction,
+    updateCreditCard,
   } = useFinance();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
+  const [isPayingInvoices, setIsPayingInvoices] = useState(false);
+
+  // Período chave
+  const currentPeriodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+
+  // Identificar faturas pendentes que podem ser quitadas por esta conta
+  const unpaidCardInvoices = useMemo(() => {
+    return creditCards
+      .filter(c => !c.isArchived)
+      .map(card => {
+        const cardExpenses = transactions
+          .filter(t => isTransactionInInvoicePeriod(t, card, selectedYear, selectedMonth))
+          .reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0);
+
+        const invoicePaidDesc = `Pagamento de Fatura - ${card.name}`;
+        const hasPaymentRecord = transactions.some(
+          t => t.accountId === account.id && t.description.toLowerCase() === invoicePaidDesc.toLowerCase() && t.date.startsWith(currentPeriodKey)
+        );
+
+        return {
+          card,
+          amount: Math.max(0, cardExpenses),
+          isPaidInAccount: hasPaymentRecord,
+        };
+      })
+      .filter(item => item.amount > 0 && !item.isPaidInAccount);
+  }, [creditCards, transactions, selectedYear, selectedMonth, account.id, currentPeriodKey]);
+
+  // Handler para pagamento de faturas nesta conta
+  const handlePayAllInvoicesFromAccount = () => {
+    if (unpaidCardInvoices.length === 0) return;
+    setIsPayingInvoices(true);
+
+    const defaultExpenseCategory = categories.find(c => c.type === 'expense');
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    unpaidCardInvoices.forEach(({ card, amount }) => {
+      const updatedManual = {
+        ...(card.manualInvoiceStatus || {}),
+        [currentPeriodKey]: 'paid' as const,
+      };
+      updateCreditCard(card.id, {
+        manualInvoiceStatus: updatedManual,
+      });
+
+      transactions.forEach(t => {
+        if (t.creditCardId === card.id) {
+          const { periodKey } = getTransactionInvoicePeriod(t, card);
+          if (periodKey === currentPeriodKey && !t.paid) {
+            updateTransaction(t.id, { paid: true });
+          }
+        }
+      });
+
+      const dueDateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(card.dueDay).padStart(2, '0')}`;
+      const paymentDate = dueDateStr <= todayStr ? dueDateStr : todayStr;
+
+      addTransaction({
+        description: `Pagamento de Fatura - ${card.name}`,
+        amount,
+        date: paymentDate,
+        type: 'expense',
+        accountId: account.id,
+        categoryId: defaultExpenseCategory?.id || '',
+        paid: true,
+        ignoreInTotals: true,
+      });
+    });
+
+    setIsPayingInvoices(false);
+  };
 
   const {
     statementTxs,
@@ -137,11 +213,23 @@ export const MobileAccountDetail: React.FC<MobileAccountDetailProps> = ({
           )}
         </div>
 
-        {/* Botão Nova Transação */}
-        <div className="flex items-center gap-1">
+        {/* Botões de Ação */}
+        <div className="flex items-center gap-1.5">
+          {unpaidCardInvoices.length > 0 && (
+            <button
+              onClick={handlePayAllInvoicesFromAccount}
+              disabled={isPayingInvoices}
+              className="px-2.5 py-1.5 bg-teal-500/15 text-teal-300 rounded-xl border border-teal-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+              title="Quitar Faturas de Cartão"
+            >
+              <CreditCardIcon className="w-3.5 h-3.5" />
+              <span>Faturas ({unpaidCardInvoices.length})</span>
+            </button>
+          )}
+
           <button
             onClick={() => onOpenNewTransaction(account.id, 'expense')}
-            className="p-2 bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/30"
+            className="p-2 bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/30 cursor-pointer"
             title="Nova Despesa"
           >
             <Plus className="w-4 h-4" />

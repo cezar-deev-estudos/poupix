@@ -135,26 +135,33 @@ export const AccountsView: React.FC<AccountsViewProps> = ({ onNavigateToTransact
     }
   };
 
-  const handleAdjustBalance = (accountId: string, newBalance: number, reason: string) => {
+  const handleAdjustBalance = (
+    accountId: string,
+    newBalance: number,
+    reason: string,
+    createTransaction: boolean = true
+  ) => {
     const acc = accounts.find(a => a.id === accountId);
     if (!acc) return;
     const diff = newBalance - acc.balance;
     if (diff === 0) return;
 
-    // Atualiza saldo da conta
+    // Atualiza saldo cadastral da conta
     updateAccount(accountId, { balance: newBalance });
 
-    // Lança transação de ajuste
-    addTransaction({
-      description: reason || 'Reajuste de saldo',
-      amount: Math.abs(diff),
-      date: new Date().toISOString().split('T')[0],
-      type: diff > 0 ? 'income' : 'expense',
-      categoryId: diff > 0 ? 'cat-other-inc' : 'cat-other-exp',
-      accountId: accountId,
-      paid: true,
-      notes: `Ajuste manual de saldo (${diff > 0 ? '+' : ''}${formatCurrency(diff)})`,
-    });
+    // Lança transação de ajuste apenas se o usuário optou por criar o lançamento no extrato
+    if (createTransaction) {
+      addTransaction({
+        description: reason || 'Reajuste de saldo',
+        amount: Math.abs(diff),
+        date: new Date().toISOString().split('T')[0],
+        type: diff > 0 ? 'income' : 'expense',
+        categoryId: diff > 0 ? 'cat-other-inc' : 'cat-other-exp',
+        accountId: accountId,
+        paid: true,
+        notes: `Ajuste manual de saldo (${diff > 0 ? '+' : ''}${formatCurrency(diff)})`,
+      });
+    }
   };
 
   const handleArchiveAccount = (acc: Account) => {

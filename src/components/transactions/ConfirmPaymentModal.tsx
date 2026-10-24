@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Transaction } from '@/types/finance';
+import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency, formatDateBR, getLocalDateString } from '@/lib/utils';
 import { CheckCircle2, AlertCircle, Calendar, Wallet, CreditCard, X } from 'lucide-react';
 
@@ -14,7 +15,7 @@ interface ConfirmPaymentModalProps {
     amount: number;
     dueDate: string;
   } | null;
-  onConfirm: (paymentDate?: string) => void;
+  onConfirm: (paymentDate?: string, accountId?: string) => void;
   onCancel?: () => void;
   onClose?: () => void;
   currentPaid?: boolean;
@@ -30,17 +31,24 @@ export const ConfirmPaymentModal: React.FC<ConfirmPaymentModalProps> = ({
   onClose,
   currentPaid,
 }) => {
+  const { accounts } = useFinance();
+  const activeAccounts = accounts.filter(a => !a.isArchived);
+
   const handleClose = () => {
     if (onClose) onClose();
     else if (onCancel) onCancel();
   };
-  const [paymentDate, setPaymentDate] = React.useState<string>(() => getLocalDateString(new Date()));
+  const [paymentDate, setPaymentDate] = useState<string>(() => getLocalDateString(new Date()));
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(() => activeAccounts[0]?.id || '');
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       setPaymentDate(getLocalDateString(new Date()));
+      if (activeAccounts.length > 0 && !selectedAccountId) {
+        setSelectedAccountId(activeAccounts[0].id);
+      }
     }
-  }, [isOpen, transaction]);
+  }, [isOpen, transaction, activeAccounts, selectedAccountId]);
 
   if (!isOpen || (!transaction && !invoiceInfo)) return null;
 
@@ -136,6 +144,26 @@ export const ConfirmPaymentModal: React.FC<ConfirmPaymentModalProps> = ({
               />
             </div>
           )}
+
+          {isInvoice && !isUnpaying && (
+            <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
+              <span className="text-xs text-slate-400 flex items-center gap-1.5 shrink-0">
+                <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+                Pagar com a conta
+              </span>
+              <select
+                value={selectedAccountId}
+                onChange={(e) => setSelectedAccountId(e.target.value)}
+                className="bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-white focus:outline-none focus:border-emerald-500 cursor-pointer max-w-[170px] truncate"
+              >
+                {activeAccounts.map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.name} ({formatCurrency(acc.balance || 0)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Ações */}
@@ -149,7 +177,7 @@ export const ConfirmPaymentModal: React.FC<ConfirmPaymentModalProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => onConfirm(paymentDate)}
+            onClick={() => onConfirm(paymentDate, isInvoice ? selectedAccountId : undefined)}
             className={`flex-1 py-2.5 font-bold rounded-xl text-xs transition-all cursor-pointer shadow-lg ${
               isUnpaying
                 ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/30'
