@@ -810,7 +810,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3 max-h-[290px] overflow-y-auto pr-1">
+                <div className="space-y-3 flex-1 overflow-y-auto pr-1">
                   {/* Bloco de Receitas (se houver) */}
                   {selectedDateIncomes.length > 0 && (
                     <div className="space-y-2">
