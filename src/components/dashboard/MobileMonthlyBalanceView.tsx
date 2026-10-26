@@ -73,7 +73,7 @@ export const MobileMonthlyBalanceView: React.FC<MobileMonthlyBalanceViewProps> =
     let expenseSum = 0;
 
     filteredTransactions.forEach(tx => {
-      if (tx.type === 'transfer') return;
+      if (tx.type === 'transfer' || tx.ignoreInTotals) return;
 
       const directCat = categories.find(c => c.id === tx.categoryId);
       // Busca categoria raiz (pai), se a categoria atual tiver parentId
@@ -83,11 +83,12 @@ export const MobileMonthlyBalanceView: React.FC<MobileMonthlyBalanceViewProps> =
         if (foundParent) parentCat = foundParent;
       }
 
+      const isUncategorized = !tx.categoryId || (!parentCat && !directCat);
       const cat: Category = parentCat || directCat || {
-        id: tx.categoryId,
-        name: tx.type === 'income' ? 'Outras Receitas' : 'Outras Despesas',
-        color: tx.type === 'income' ? '#10b981' : '#f43f5e',
-        icon: 'Tag',
+        id: isUncategorized ? 'uncategorized' : tx.categoryId,
+        name: isUncategorized ? 'Sem categoria' : (tx.type === 'income' ? 'Outras Receitas' : 'Outras Despesas'),
+        color: isUncategorized ? '#64748b' : (tx.type === 'income' ? '#10b981' : '#f43f5e'),
+        icon: isUncategorized ? 'Tag' : 'Tag',
         type: tx.type,
       };
 
@@ -124,6 +125,11 @@ export const MobileMonthlyBalanceView: React.FC<MobileMonthlyBalanceViewProps> =
 
   const selectedCategoryTransactions = useMemo(() => {
     if (!selectedCategory) return [];
+    if (selectedCategory.id === 'uncategorized') {
+      return filteredTransactions.filter(
+        t => !t.ignoreInTotals && (!t.categoryId || !categories.some(c => c.id === t.categoryId)) && t.type === selectedCategory.type
+      );
+    }
     // Retorna todas as transações que pertencem diretamente à categoria pai OU a qualquer subcategoria dela
     const childCategoryIds = new Set(
       categories.filter(c => c.parentId === selectedCategory.id).map(c => c.id)
@@ -131,7 +137,7 @@ export const MobileMonthlyBalanceView: React.FC<MobileMonthlyBalanceViewProps> =
     childCategoryIds.add(selectedCategory.id);
 
     return filteredTransactions.filter(
-      t => childCategoryIds.has(t.categoryId) && t.type === selectedCategory.type
+      t => !t.ignoreInTotals && childCategoryIds.has(t.categoryId) && t.type === selectedCategory.type
     );
   }, [filteredTransactions, categories, selectedCategory]);
 

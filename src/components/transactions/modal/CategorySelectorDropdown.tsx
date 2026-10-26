@@ -22,9 +22,9 @@ export const CategorySelectorDropdown: React.FC<CategorySelectorDropdownProps> =
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const selectedCategory = categories.find(c => c.id === selectedCategoryId) || categories[0];
+  const selectedCategory = categories.find(c => c.id === selectedCategoryId);
   const parentCategory = selectedCategory?.parentId ? categories.find(c => c.id === selectedCategory.parentId) : null;
-  const isSubcategory = !!selectedCategory?.parentId;
+  const isUncategorized = !selectedCategoryId || !selectedCategory;
 
   // Fechar ao clicar fora
   useEffect(() => {
@@ -40,6 +40,7 @@ export const CategorySelectorDropdown: React.FC<CategorySelectorDropdownProps> =
   const parentCategories = categories.filter(c => !c.parentId);
 
   const getBorderColor = () => {
+    if (isUncategorized) return '#64748B'; // slate-500
     if (selectedCategory?.color) return selectedCategory.color;
     switch (variant) {
       case 'emerald':
@@ -77,13 +78,17 @@ export const CategorySelectorDropdown: React.FC<CategorySelectorDropdownProps> =
           >
             <div
               className="w-5 h-5 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm"
-              style={{ backgroundColor: selectedCategory?.color || themeColor }}
+              style={{ backgroundColor: isUncategorized ? '#64748B' : (selectedCategory?.color || themeColor) }}
             >
-              <CategoryIcon name={selectedCategory?.icon || 'Tag'} size={11} />
+              <CategoryIcon name={isUncategorized ? 'Tag' : (selectedCategory?.icon || 'Tag')} size={11} />
             </div>
 
             <span className="text-xs font-semibold text-white truncate max-w-[240px]">
-              {parentCategory ? `${parentCategory.name} / ${selectedCategory?.name}` : selectedCategory?.name || 'Selecione uma categoria'}
+              {isUncategorized
+                ? 'Sem categoria'
+                : parentCategory
+                ? `${parentCategory.name} / ${selectedCategory?.name}`
+                : selectedCategory?.name || 'Sem categoria'}
             </span>
           </div>
 
@@ -96,6 +101,25 @@ export const CategorySelectorDropdown: React.FC<CategorySelectorDropdownProps> =
       {/* Menu Dropdown Suspenso com Hierarquia */}
       {isOpen && (
         <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 max-h-64 overflow-y-auto animate-fadeIn space-y-1">
+          {/* Opção Sem Categoria */}
+          <button
+            type="button"
+            onClick={() => {
+              onSelectCategory('');
+              setIsOpen(false);
+            }}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
+              isUncategorized
+                ? 'bg-slate-800 text-white border border-slate-700'
+                : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+            }`}
+          >
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm bg-slate-600">
+              <CategoryIcon name="Tag" size={12} />
+            </div>
+            <span className="truncate">Sem categoria</span>
+          </button>
+
           {parentCategories.map(parent => {
             const subcategories = categories.filter(c => c.parentId === parent.id);
             const isParentSelected = selectedCategoryId === parent.id;

@@ -76,7 +76,7 @@ export const DesktopMonthlyBalanceView: React.FC<DesktopMonthlyBalanceViewProps>
     let expenseSum = 0;
 
     filteredTransactions.forEach(tx => {
-      if (tx.type === 'transfer') return;
+      if (tx.type === 'transfer' || tx.ignoreInTotals) return;
 
       const directCat = categories.find(c => c.id === tx.categoryId);
       let parentCat = directCat;
@@ -85,11 +85,12 @@ export const DesktopMonthlyBalanceView: React.FC<DesktopMonthlyBalanceViewProps>
         if (foundParent) parentCat = foundParent;
       }
 
+      const isUncategorized = !tx.categoryId || (!parentCat && !directCat);
       const cat: Category = parentCat || directCat || {
-        id: tx.categoryId,
-        name: tx.type === 'income' ? 'Outras Receitas' : 'Outras Despesas',
-        color: tx.type === 'income' ? '#10b981' : '#f43f5e',
-        icon: 'Tag',
+        id: isUncategorized ? 'uncategorized' : tx.categoryId,
+        name: isUncategorized ? 'Sem categoria' : (tx.type === 'income' ? 'Outras Receitas' : 'Outras Despesas'),
+        color: isUncategorized ? '#64748b' : (tx.type === 'income' ? '#10b981' : '#f43f5e'),
+        icon: isUncategorized ? 'Tag' : 'Tag',
         type: tx.type,
       };
 
@@ -125,13 +126,18 @@ export const DesktopMonthlyBalanceView: React.FC<DesktopMonthlyBalanceViewProps>
 
   const selectedCategoryTransactions = useMemo(() => {
     if (!selectedCategory) return [];
+    if (selectedCategory.id === 'uncategorized') {
+      return filteredTransactions.filter(
+        t => !t.ignoreInTotals && (!t.categoryId || !categories.some(c => c.id === t.categoryId)) && t.type === selectedCategory.type
+      );
+    }
     const childCategoryIds = new Set(
       categories.filter(c => c.parentId === selectedCategory.id).map(c => c.id)
     );
     childCategoryIds.add(selectedCategory.id);
 
     return filteredTransactions.filter(
-      t => childCategoryIds.has(t.categoryId) && t.type === selectedCategory.type
+      t => !t.ignoreInTotals && childCategoryIds.has(t.categoryId) && t.type === selectedCategory.type
     );
   }, [filteredTransactions, categories, selectedCategory]);
 

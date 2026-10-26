@@ -129,7 +129,7 @@ export const AccountDetailView: React.FC<AccountDetailViewProps> = ({
         date: paymentDate,
         type: 'expense',
         accountId: account.id,
-        categoryId: defaultExpenseCategory?.id || '',
+        categoryId: '',
         paid: true,
         ignoreInTotals: true, // Não duplica despesas por categoria no balanço geral, mas entra no extrato da conta
       });

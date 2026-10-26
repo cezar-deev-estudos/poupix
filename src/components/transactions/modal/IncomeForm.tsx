@@ -40,7 +40,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
   const [paid, setPaid] = useState(initialData?.paid ?? true);
   const [description, setDescription] = useState(initialData?.description || '');
   const [isFavorite, setIsFavorite] = useState(initialData?.isFavorite ?? false);
-  const [categoryId, setCategoryId] = useState(initialData?.categoryId || defaultCatId);
+  const [categoryId, setCategoryId] = useState(initialData !== undefined && initialData !== null ? (initialData.categoryId ?? '') : defaultCatId);
   const [accountId, setAccountId] = useState(initialData?.accountId || initialAccId);
   const [ignoreInTotals, setIgnoreInTotals] = useState(initialData?.ignoreInTotals ?? false);
 
@@ -62,7 +62,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
       setPaid(initialData.paid ?? true);
       setDescription(initialData.description || '');
       setIsFavorite(Boolean(initialData.isFavorite));
-      setCategoryId(initialData.categoryId || defaultCatId);
+      setCategoryId(initialData.categoryId ?? '');
       setAccountId(initialData.accountId || initialAccId);
       setIgnoreInTotals(Boolean(initialData.ignoreInTotals));
       setTags(initialData.tags || []);

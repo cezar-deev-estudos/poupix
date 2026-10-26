@@ -577,7 +577,6 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
         // Se estiver marcando como pago e houver conta bancária selecionada e valor
         if (nextPaidStatus && accountId && invoiceInfo?.amount && invoiceInfo.amount > 0) {
-          const defaultExpenseCategory = categories.find(c => c.type === 'expense');
           const dateToUse = paymentDate || new Date().toISOString().split('T')[0];
 
           addTransaction({
@@ -586,7 +585,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
             date: dateToUse,
             type: 'expense',
             accountId,
-            categoryId: defaultExpenseCategory?.id || '',
+            categoryId: '',
             paid: true,
             ignoreInTotals: true, // Não duplica no balanço geral, debita na conta
           });

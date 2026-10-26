@@ -40,7 +40,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
   const [date, setDate] = useState(initialData?.date || getLocalDateString());
   const [description, setDescription] = useState(initialData?.description || '');
   const [isFavorite, setIsFavorite] = useState(initialData?.isFavorite ?? false);
-  const [categoryId, setCategoryId] = useState(initialData?.categoryId || defaultCatId);
+  const [categoryId, setCategoryId] = useState(initialData !== undefined && initialData !== null ? (initialData.categoryId ?? '') : defaultCatId);
   const [creditCardId, setCreditCardId] = useState(initialSelectedCardId);
   const [ignoreInTotals, setIgnoreInTotals] = useState(initialData?.ignoreInTotals ?? false);
 
@@ -60,7 +60,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
       setDate(initialData.date || getLocalDateString());
       setDescription(initialData.description || '');
       setIsFavorite(Boolean(initialData.isFavorite));
-      setCategoryId(initialData.categoryId || defaultCatId);
+      setCategoryId(initialData.categoryId ?? '');
       setCreditCardId(initialData.creditCardId || initialSelectedCardId);
       setIgnoreInTotals(Boolean(initialData.ignoreInTotals));
       setTags(initialData.tags || []);

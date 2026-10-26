@@ -318,7 +318,6 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
     // Se uma conta de débito foi selecionada e a fatura tem valor, registrar o débito na conta
     const invoiceTotal = cardExpensesMap[card.id] || 0;
     if (accountId && invoiceTotal > 0) {
-      const defaultExpenseCategory = categories.find(c => c.type === 'expense');
       const dateToUse = paymentDate || new Date().toISOString().split('T')[0];
 
       addTransaction({
@@ -327,7 +326,7 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
         date: dateToUse,
         type: 'expense',
         accountId,
-        categoryId: defaultExpenseCategory?.id || '',
+        categoryId: '',
         paid: true,
         ignoreInTotals: true, // Não duplica no balanço geral, mas debita da conta bancária
       });

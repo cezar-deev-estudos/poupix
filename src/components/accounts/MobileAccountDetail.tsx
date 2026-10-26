@@ -120,7 +120,7 @@ export const MobileAccountDetail: React.FC<MobileAccountDetailProps> = ({
         date: paymentDate,
         type: 'expense',
         accountId: account.id,
-        categoryId: defaultExpenseCategory?.id || '',
+        categoryId: '',
         paid: true,
         ignoreInTotals: true,
       });
