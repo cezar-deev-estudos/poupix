@@ -531,7 +531,7 @@ export const BudgetsView: React.FC = () => {
     const allIds = [cat.id, ...subIds];
 
     return filteredTransactions
-      .filter(t => allIds.includes(t.categoryId) && t.type === cat.type)
+      .filter(t => !t.ignoreInTotals && allIds.includes(t.categoryId) && t.type === cat.type)
       .reduce((sum, t) => sum + t.amount, 0);
   };
 
@@ -1025,7 +1025,7 @@ export const BudgetsView: React.FC = () => {
                       <div className="space-y-2 pl-1 sm:pl-2 border-l-2 border-slate-800">
                           {subs.map(sub => {
                             const subSpent = filteredTransactions
-                              .filter(t => t.categoryId === sub.id && t.type === 'expense')
+                              .filter(t => !t.ignoreInTotals && t.categoryId === sub.id && t.type === 'expense')
                               .reduce((sum, t) => sum + t.amount, 0);
                             const subBudgetInfo = getCategoryBudgetForPeriod(sub, selectedYear, selectedMonth);
                             const subBudget = subBudgetInfo.amount;
@@ -1036,7 +1036,7 @@ export const BudgetsView: React.FC = () => {
 
                             const isSubExpanded = Boolean(expandedSubs[sub.id]);
                             const subTransactions = filteredTransactions
-                              .filter(t => t.categoryId === sub.id && t.type === 'expense')
+                              .filter(t => !t.ignoreInTotals && t.categoryId === sub.id && t.type === 'expense')
                               .sort((a, b) => {
                                 const dateComparison = (b.date || '').localeCompare(a.date || '');
                                 if (dateComparison !== 0) return dateComparison;
@@ -1775,7 +1775,7 @@ export const BudgetsView: React.FC = () => {
             onClose={() => setSelectedCategoryForDetails(null)}
             category={selectedCategoryForDetails}
             transactions={filteredTransactions.filter(
-              t => t.categoryId === selectedCategoryForDetails.id && t.type === 'expense'
+              t => !t.ignoreInTotals && t.categoryId === selectedCategoryForDetails.id && t.type === 'expense'
             )}
             onEditTransaction={setEditingTransaction}
           />
@@ -1790,7 +1790,7 @@ export const BudgetsView: React.FC = () => {
             onClose={() => setSelectedCategoryForDetails(null)}
             category={selectedCategoryForDetails}
             transactions={filteredTransactions.filter(
-              t => t.categoryId === selectedCategoryForDetails.id && t.type === 'expense'
+              t => !t.ignoreInTotals && t.categoryId === selectedCategoryForDetails.id && t.type === 'expense'
             )}
             onEditTransaction={setEditingTransaction}
           />

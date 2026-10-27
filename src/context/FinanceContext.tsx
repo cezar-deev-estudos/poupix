@@ -381,7 +381,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     transactions?: Transaction[];
     goals?: Goal[];
     openFinanceConnections?: OpenFinanceConnection[];
-  }) => {
+  }, isForce?: boolean) => {
     let currentCards = creditCardsRef.current;
     if (cloudData.accounts !== undefined) setAccounts(cloudData.accounts);
     if (cloudData.creditCards !== undefined) {
@@ -477,9 +477,19 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
     if (cloudData.tags !== undefined) setTags(cloudData.tags);
     if (cloudData.transactions !== undefined) {
-      // Filtra transações que foram excluídas recentemente pelo usuário
+      if (isForce) {
+        // Na sincronização forçada pelo usuário, limpa tombstones para baixar 100% dos dados da nuvem
+        deletedTransactionIdsRef.current.clear();
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('mobills_deleted_tx_ids');
+        }
+      }
+
+      // Filtra transações que foram excluídas recentemente pelo usuário (se não for force)
       const tombstones = deletedTransactionIdsRef.current;
-      const validCloudTxs = cloudData.transactions.filter(t => !tombstones.has(t.id) && !tombstones.has(ensureValidUUID(t.id)));
+      const validCloudTxs = isForce 
+        ? cloudData.transactions 
+        : cloudData.transactions.filter(t => !tombstones.has(t.id) && !tombstones.has(ensureValidUUID(t.id)));
       const normalizedCloudTxs = normalizeTransactionsInvoiceDates(validCloudTxs, currentCards);
 
       // O Supabase é a Fonte Única da Verdade para todos os dispositivos e telas conectadas.
@@ -490,7 +500,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (cloudData.openFinanceConnections !== undefined && cloudData.openFinanceConnections.length > 0) {
       setOpenFinanceConnections(cloudData.openFinanceConnections);
     }
-  }, []);
+  }, [user?.user_metadata, userStoragePrefix]);
 
   // 4. Hook de Sincronização em Nuvem (Debounced & Auto-Fetch)
   const { refreshFromCloud } = useFinanceCloudSync({

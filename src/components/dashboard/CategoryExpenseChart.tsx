@@ -14,20 +14,29 @@ export const CategoryExpenseChart: React.FC = () => {
     const categoryTotals: Record<string, number> = {};
 
     filteredTransactions
-      .filter(t => t.type === 'expense')
+      .filter(t => t.type === 'expense' && !t.ignoreInTotals)
       .forEach(t => {
         const cat = categories.find(c => c.id === t.categoryId);
         // Se for subcategoria, consolidar no parentId; senão na própria categoria
-        const effectiveCatId = cat?.parentId || t.categoryId;
+        const effectiveCatId = cat?.parentId || (cat ? cat.id : 'uncategorized');
         categoryTotals[effectiveCatId] = (categoryTotals[effectiveCatId] || 0) + t.amount;
       });
 
     return Object.entries(categoryTotals)
       .map(([catId, amount]) => {
+        if (catId === 'uncategorized') {
+          return {
+            id: 'uncategorized',
+            name: 'Sem categoria',
+            value: amount,
+            color: '#64748B',
+            icon: 'Tag',
+          };
+        }
         const cat = categories.find(c => c.id === catId);
         return {
           id: catId,
-          name: cat?.name || 'Outros',
+          name: cat?.name || 'Sem categoria',
           value: amount,
           color: cat?.color || '#6B7280',
           icon: cat?.icon || 'Tag',

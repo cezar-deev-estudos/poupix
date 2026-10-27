@@ -25,7 +25,7 @@ interface UseFinanceCloudSyncProps {
     transactions?: Transaction[];
     goals?: Goal[];
     openFinanceConnections?: OpenFinanceConnection[];
-  }) => void;
+  }, isForce?: boolean) => void;
 }
 
 export function useFinanceCloudSync({
@@ -76,15 +76,25 @@ export function useFinanceCloudSync({
     if (!user) return;
     if (!canFetchFromCloud(force)) return;
 
+    if (force) {
+      // Cancela qualquer envio pendente para não sobrescrever a nuvem com dados antigos locais
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = null;
+      }
+      hasPendingLocalChangesRef.current = false;
+      blockRemoteFetchUntilRef.current = 0;
+    }
+
     try {
       const cloudData = await fetchAllFromSupabase(user.id);
       if (!cloudData) return;
 
-      // Verifica novamente após o await (pode ter iniciado uma edição local durante o fetch)
+      // Verifica novamente após o await
       if (!canFetchFromCloud(force)) return;
 
       isApplyingRemoteData.current = true;
-      onCloudDataLoadedRef.current(cloudData);
+      onCloudDataLoadedRef.current(cloudData, force);
       isFirstSyncDone.current = true;
       lastSyncTimestampRef.current = Date.now();
 

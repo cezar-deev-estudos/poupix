@@ -170,7 +170,7 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
       const subIds = categories.filter(c => c.parentId === cat.id).map(c => c.id);
       const allIds = [cat.id, ...subIds];
       const total = filteredTransactions
-        .filter(t => t.type === 'expense' && allIds.includes(t.categoryId))
+        .filter(t => t.type === 'expense' && !t.ignoreInTotals && allIds.includes(t.categoryId))
         .reduce((sum, t) => sum + t.amount, 0);
       return { ...cat, total };
     })
