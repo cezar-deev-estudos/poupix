@@ -84,19 +84,79 @@ export function getTransactionInvoicePeriod(
 }
 
 /**
- * Normaliza e preenche o campo invoiceDate de transações que ainda não o possuem.
+ * Normaliza e preenche o campo invoiceDate de transações que ainda não o possuem
+ * e garante que todas as parcelas de um cartão de crédito compartilhem a mesma data de compra (a data da parcela 1).
  */
 export function normalizeTransactionsInvoiceDates(
   transactions: Transaction[],
   creditCards: CreditCard[]
 ): Transaction[] {
+  // 1. Mapeia a data da compra original (parcela 1 ou menor parcela encontrada) de cada grupo de parcelamento de cartão
+  const groupPurchaseDateMap = new Map<string, string>();
+  const descGroupPurchaseDateMap = new Map<string, string>();
+
+  // Passada inicial: agrupa parcelas por installmentGroupId ou por padrão de descrição "Nome (X/Y)"
+  transactions.forEach(tx => {
+    if (!tx.creditCardId) return;
+
+    if (tx.installmentGroupId) {
+      const isFirst = tx.installmentCurrent === 1;
+      const existing = groupPurchaseDateMap.get(tx.installmentGroupId);
+      if (isFirst || !existing) {
+        groupPurchaseDateMap.set(tx.installmentGroupId, tx.date);
+      }
+    }
+
+    // Suporte a compras parceladas que tenham descrição no padrão "Produto (X/Y)"
+    const match = (tx.description || '').match(/^(.*?)\s*\((\d+)\/(\d+)\)\s*$/);
+    if (match) {
+      const baseDesc = match[1].trim().toLowerCase();
+      const currentInst = parseInt(match[2], 10);
+      const totalInst = parseInt(match[3], 10);
+      const key = `${tx.creditCardId}_${baseDesc}_${totalInst}`;
+      const isFirst = currentInst === 1;
+      const existing = descGroupPurchaseDateMap.get(key);
+      if (isFirst || !existing) {
+        descGroupPurchaseDateMap.set(key, tx.date);
+      }
+    }
+  });
+
   return transactions.map(tx => {
     if (!tx.creditCardId) return tx;
-    if (tx.invoiceDate) return tx; // Respeita o invoiceDate já salvo
+
+    // Se a transação pertence a um parcelamento de cartão, sincroniza sua data de compra com a data da 1ª parcela
+    let purchaseDate = tx.date;
+    if (tx.installmentGroupId && groupPurchaseDateMap.has(tx.installmentGroupId)) {
+      purchaseDate = groupPurchaseDateMap.get(tx.installmentGroupId)!;
+    } else {
+      const match = (tx.description || '').match(/^(.*?)\s*\((\d+)\/(\d+)\)\s*$/);
+      if (match) {
+        const baseDesc = match[1].trim().toLowerCase();
+        const totalInst = parseInt(match[3], 10);
+        const key = `${tx.creditCardId}_${baseDesc}_${totalInst}`;
+        if (descGroupPurchaseDateMap.has(key)) {
+          purchaseDate = descGroupPurchaseDateMap.get(key)!;
+        }
+      }
+    }
+
+    // Se já possui invoiceDate explícito, preserva-o; caso contrário calcula o vencimento
+    if (tx.invoiceDate) {
+      if (purchaseDate !== tx.date) {
+        return {
+          ...tx,
+          date: purchaseDate,
+        };
+      }
+      return tx;
+    }
+
     const card = creditCards.find(c => isSameId(c.id, tx.creditCardId));
     const { invoiceDueDateStr } = getTransactionInvoicePeriod(tx, card);
     return {
       ...tx,
+      date: purchaseDate,
       invoiceDate: invoiceDueDateStr,
     };
   });

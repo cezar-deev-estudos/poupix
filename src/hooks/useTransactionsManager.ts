@@ -65,7 +65,9 @@ export const transactionManager: TransactionManagerActions = {
       const parcelTransactions: Transaction[] = [];
 
       for (let i = 1; i <= tx.installmentTotal; i++) {
-        const parcelDate = getNextMonthDate(tx.date, i - 1);
+        // Para despesas de cartão de crédito, a data da transação (date) é SEMPRE a data da compra original.
+        // O posicionamento no mês em que o cartão será pago é controlado exclusivamente pelo invoiceDate.
+        const parcelDate = tx.creditCardId ? tx.date : getNextMonthDate(tx.date, i - 1);
         const parcelInvoiceDate = tx.creditCardId && tx.invoiceDate
           ? getNextInvoiceDate(tx.invoiceDate, i - 1)
           : tx.invoiceDate;
@@ -279,9 +281,11 @@ export const transactionManager: TransactionManagerActions = {
           });
         }
         if (target.installmentGroupId) {
+          const isCardInstallment = Boolean(target.creditCardId);
           return prev.map(t => {
             if (t.installmentGroupId === target.installmentGroupId && (t.installmentCurrent || 0) >= (target.installmentCurrent || 0)) {
-              const newDate = computeAdjustedDate(t.date, updated.date);
+              // Se for cartão, a data da compra (date) é a mesma em todas as parcelas; se for fora de cartão, ajusta apenas o dia
+              const newDate = isCardInstallment && updated.date ? updated.date : computeAdjustedDate(t.date, updated.date);
               const newInvoiceDate = computeAdjustedInvoiceDate(t.invoiceDate, updated.invoiceDate);
               return {
                 ...t,
@@ -317,9 +321,11 @@ export const transactionManager: TransactionManagerActions = {
           });
         }
         if (target.installmentGroupId) {
+          const isCardInstallment = Boolean(target.creditCardId);
           return prev.map(t => {
             if (t.installmentGroupId === target.installmentGroupId) {
-              const newDate = computeAdjustedDate(t.date, updated.date);
+              // Se for cartão, a data da compra (date) é a mesma em todas as parcelas; se for fora de cartão, ajusta apenas o dia
+              const newDate = isCardInstallment && updated.date ? updated.date : computeAdjustedDate(t.date, updated.date);
               const newInvoiceDate = computeAdjustedInvoiceDate(t.invoiceDate, updated.invoiceDate);
               return {
                 ...t,
