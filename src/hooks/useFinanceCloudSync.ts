@@ -185,7 +185,7 @@ export function useFinanceCloudSync({
 
     // Gera um resumo completo e leve (fingerprint) dos dados locais para saber se realmente mudou algo
     const categoriesBudgetSummary = categories
-      .map(c => `${c.id}:${c.budgetLimit || 0}:${JSON.stringify(c.monthlyBudgets || {})}`)
+      .map(c => `${c.id}:${c.budgetLimit || 0}:${JSON.stringify(c.monthlyBudgets || {})}:${JSON.stringify(c.nanoCategories || [])}`)
       .join(';');
     const totalTransactionsAmount = transactions.reduce((acc, t) => acc + (t.amount || 0), 0);
     const transactionsChecksum = transactions.map(t => `${t.id}:${t.amount}:${t.paid}:${t.date}`).join(';');

@@ -11,7 +11,6 @@ import { TagsChipSelector } from './TagsChipSelector';
 import { DescriptionInputAutocomplete, SuggestionItem } from './DescriptionInputAutocomplete';
 import { CategorySelectorDropdown } from './CategorySelectorDropdown';
 import { CreditCardSelectorDropdown } from './CreditCardSelectorDropdown';
-import { NanoCategoryPills } from './NanoCategoryPills';
 import { FileText, Heart, Receipt, ChevronDown, Pin, RefreshCw, Trash2 } from 'lucide-react';
 
 interface CreditCardExpenseFormProps {
@@ -207,14 +206,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
             isFavorite={isFavorite}
             onToggleFavorite={() => setIsFavorite(!isFavorite)}
             variant="cyan"
-          />
-
-          {/* Pílulas de Seleção Rápida de Nano-Categorias */}
-          <NanoCategoryPills
-            nanoCategories={currentNanoCategories}
-            currentDescription={description}
-            onSelectNano={name => setDescription(name)}
-            variant="cyan"
+            nanoCategories={currentNanoCategories.length > 0 ? currentNanoCategories : undefined}
           />
 
           {/* Categoria com Dropdown Customizado */}

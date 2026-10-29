@@ -10,7 +10,6 @@ import { TagsChipSelector } from './TagsChipSelector';
 import { DescriptionInputAutocomplete, SuggestionItem } from './DescriptionInputAutocomplete';
 import { CategorySelectorDropdown } from './CategorySelectorDropdown';
 import { AccountSelectorDropdown } from './AccountSelectorDropdown';
-import { NanoCategoryPills } from './NanoCategoryPills';
 import { FileText, Heart, ChevronDown, Pin, RefreshCw, Check, Trash2 } from 'lucide-react';
 
 interface ExpenseFormProps {
@@ -178,14 +177,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
             isFavorite={isFavorite}
             onToggleFavorite={() => setIsFavorite(!isFavorite)}
             variant="rose"
-          />
-
-          {/* Pílulas de Seleção Rápida de Nano-Categorias */}
-          <NanoCategoryPills
-            nanoCategories={currentNanoCategories}
-            currentDescription={description}
-            onSelectNano={name => setDescription(name)}
-            variant="rose"
+            nanoCategories={currentNanoCategories.length > 0 ? currentNanoCategories : undefined}
           />
 
           {/* Categoria com Dropdown Customizado */}

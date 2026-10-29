@@ -700,7 +700,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         },
         updateCategory: (id, up) => {
           entityManager.updateCategory(id, up, setCategories);
-          if (up.monthlyBudgets !== undefined) {
+          if (up.monthlyBudgets !== undefined || up.nanoCategories !== undefined) {
             setCategories(prev => {
               persistMonthlyBudgetsToCloud(prev);
               return prev;
