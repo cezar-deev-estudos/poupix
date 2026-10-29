@@ -72,15 +72,20 @@ export const syncAllToSupabase = async (data: {
           budget_limit: cat.budgetLimit || null,
           is_default: cat.isDefault ?? false,
           is_archived: cat.isArchived ?? false,
+          nano_categories: cat.nanoCategories || [],
         }
       })
       const { error: catErr } = await supabase.from('categories').upsert(categoriesPayload as any)
       if (catErr) {
-        console.warn('[Supabase Sync] Erro em categorias com is_archived, tentando fallback sem coluna:', catErr.message)
-        // Fallback sem is_archived caso a tabela no Supabase ainda não tenha a coluna
-        const fallbackPayload = categoriesPayload.map(({ is_archived, ...rest }) => rest)
-        const { error: fbErr } = await supabase.from('categories').upsert(fallbackPayload as any)
-        if (fbErr) console.warn('[Supabase Sync] Erro no fallback de categorias:', fbErr.message)
+        // Fallback 1: tenta sem nano_categories caso a tabela ainda não tenha a coluna
+        const fallbackWithoutNano = categoriesPayload.map(({ nano_categories, ...rest }: any) => rest)
+        const { error: fbNanoErr } = await supabase.from('categories').upsert(fallbackWithoutNano as any)
+        if (fbNanoErr) {
+          // Fallback 2: tenta sem nano_categories e sem is_archived
+          const fallbackMinimal = fallbackWithoutNano.map(({ is_archived, ...rest }: any) => rest)
+          const { error: fbMinErr } = await supabase.from('categories').upsert(fallbackMinimal as any)
+          if (fbMinErr) console.warn('[Supabase Sync] Erro no fallback de categorias:', fbMinErr.message)
+        }
       }
     }
 
@@ -323,6 +328,7 @@ export const fetchAllFromSupabase = async (userId: string) => {
       budgetLimit: cat.budget_limit ? Number(cat.budget_limit) : undefined,
       isDefault: cat.is_default ?? false,
       isArchived: cat.is_archived ?? false,
+      nanoCategories: Array.isArray(cat.nano_categories) && cat.nano_categories.length > 0 ? cat.nano_categories : undefined,
     }))
 
     const tags: Tag[] = getResData(tagRes).map((t: any) => ({
@@ -378,8 +384,8 @@ export const fetchAllFromSupabase = async (userId: string) => {
       status: o.status,
       lastSyncAt: o.last_sync_at,
       consentExpiresAt: o.consent_expires_at,
-      syncedAccountsCount: o.synced_accounts_count || 1,
-      syncedCardsCount: o.synced_cards_count || 1,
+      syncedAccountsCount: o.syncedAccountsCount || 1,
+      syncedCardsCount: o.syncedCardsCount || 1,
       autoSync: o.auto_sync ?? true,
       createdAt: o.created_at,
     }))

@@ -20,9 +20,10 @@ trigger: always_on
 
 ## 💡 Mindset & Regras de Comportamento e Commit
 
-1. **Protocolo de Validação de Escopo & Autorização Prévia (REGRA DE OURO / MANDATÓRIO)**:
+1. **Protocolo de Validação de Plano & Execução 100% Autônoma (REGRA DE OURO / MANDATÓRIO)**:
    - **NUNCA FAZER ALÉM DO QUE FOI SOLICITADO**.
-   - O agente deve listar todos os arquivos que pretende modificar ANTES de iniciar e aguardar confirmação/autorização explícita do usuário.
+   - O agente deve listar o plano e todos os arquivos que pretende modificar ANTES de iniciar.
+   - **APÓS APROVAÇÃO DO PLANO PELO USUÁRIO, EXECUTAR DE PONTA A PONTA DE FORMA 100% AUTÔNOMA (MODO TURBO)**: Não parar para fazer perguntas intermediárias, nem pedir autorizações de leitura ou edição.
    - **PROIBIDO FAZER COMMITS, PUSHES OU MERGES AUTOMÁTICOS** nas branches `develop` ou `main`. O assistente deve apenas implementar localmente, rodar testes/build e apresentar o resultado final. Qualquer commit ou push/deploy requer solicitação/autorização expressa e individual do usuário.
    - **Verificação Prévia de Deploy (MANDATÓRIO)**: Sempre que o usuário relatar uma dúvida, erro ou comportamento no link em produção (Vercel), o assistente DEVE OBRIGATORIAMENTE checar primeiro se a correção já existe localmente e se o deploy ainda não foi enviado (`git status`), comunicando isso imediatamente.
 
@@ -43,7 +44,7 @@ trigger: always_on
    - Apenas títulos de destaque, badges e cabeçalhos de tabela devem ter ênfase visual.
 
 6. **Proibição de Scripts Locais para Supabase (MANDATÓRIO)**:
-   - É estritamente PROIBIDO usar ferramentas de terminal (`run_command`, PowerShell, `node -e`, etc.) para executar scripts locais que se conectam ao Supabase.
+   - É estritamente PROIBIDO usar ferramentas de terminal (`run_command`, PowerShell, `node -e`, rodar queries fora da app) para se conectar ao Supabase.
    - Interações com banco de dados devem ocorrer via cliente tipado do app ou MCP oficial.
 
 7. **Sincronização do Segundo Cérebro (Obsidian)**:
@@ -53,8 +54,3 @@ trigger: always_on
 8. **Idioma**:
    - Todo o processo de trabalho, respostas, planos e relatórios devem ser em **Português do Brasil (pt-BR)**.
    - Código, variáveis e comentários técnicos permanecem em Inglês.
-
-9. **Avaliação Prévia de Refatoração & Performance (Grandes Alterações)**:
-   - Em tarefas de grande porte ou impacto estrutural, o assistente deve avaliar previamente se arquivos relacionados estão excessivamente extensos (> 250 linhas) ou sobrecarregados de responsabilidades.
-   - Nesses casos, o assistente deve proativamente sugerir e planejar a modularização em Custom Hooks / subcomponentes antes ou junto à implementação para garantir alta performance e manutenibilidade futura.
-   - Em alterações rotineiras de baixo ou médio impacto, seguir diretamente o fluxo padrão enxuto.
