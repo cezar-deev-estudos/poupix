@@ -25,6 +25,9 @@ trigger: always_on
    - O agente deve listar o plano e todos os arquivos que pretende modificar ANTES de iniciar.
    - **APÓS APROVAÇÃO DO PLANO PELO USUÁRIO, EXECUTAR DE PONTA A PONTA DE FORMA 100% AUTÔNOMA (MODO TURBO)**: Não parar para fazer perguntas intermediárias, nem pedir autorizações de leitura ou edição.
    - **PROIBIDO FAZER COMMITS, PUSHES OU MERGES AUTOMÁTICOS** nas branches `develop` ou `main`. O assistente deve apenas implementar localmente, rodar testes/build e apresentar o resultado final. Qualquer commit ou push/deploy requer solicitação/autorização expressa e individual do usuário.
+   - **PERSISTÊNCIA OBRIGATÓRIA EM TABELAS/CAMPOS DO SUPABASE (REGRA DE OURO)**:
+     - **TUDO DEVE SER ARMAZENADO EM TABELAS OU COLUNAS REAIS NO SUPABASE**. É terminantemente proibido usar qualquer outra forma improvisada ou depender de `localStorage`.
+     - **Geração Obrigatória de SQL para o Usuário**: Quando o assistente não tiver credenciais para executar DDL (criar tabelas ou colunas no Supabase), **DEVE OBRIGATORIAMENTE FORNECER O SCRIPT SQL PRONTO E COMPLETO** (com tabelas, tipos, foreign keys, índices e políticas de RLS) para o usuário rodar no SQL Editor do painel do Supabase. O código do app deve interagir com essas tabelas/colunas.
    - **Verificação Prévia de Deploy (MANDATÓRIO)**: Sempre que o usuário relatar uma dúvida, erro ou comportamento no link em produção (Vercel), o assistente DEVE OBRIGATORIAMENTE checar primeiro se a correção já existe localmente e se o deploy ainda não foi enviado (`git status`), comunicando isso imediatamente.
 
 2. **No Native Dialogs (MANDATÓRIO)**:

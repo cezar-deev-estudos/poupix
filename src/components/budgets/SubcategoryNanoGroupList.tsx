@@ -25,20 +25,26 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
   onUpdateTransaction,
   onManageNanos,
 }) => {
+  // Nanos iniciam fechados por padrão; "Outros lançamentos" inicia sempre aberto
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    // Por padrão grupos iniciam recolhidos ou expandidos conforme preferência; expandidos se forem poucos
-    _all: true,
+    _others: true,
   });
 
   const toggleGroup = (key: string) => {
-    setExpandedGroups(prev => ({
-      ...prev,
-      [key]: prev[key] === undefined ? false : !prev[key],
-    }));
+    setExpandedGroups(prev => {
+      const current = key === '_others' ? prev[key] !== false : Boolean(prev[key]);
+      return {
+        ...prev,
+        [key]: !current,
+      };
+    });
   };
 
   const isGroupExpanded = (key: string) => {
-    return expandedGroups[key] !== false;
+    if (key === '_others') {
+      return expandedGroups[key] !== false;
+    }
+    return Boolean(expandedGroups[key]);
   };
 
   const renderTransactionRow = (tx: Transaction) => {
@@ -313,4 +319,3 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
     </div>
   );
 };
-

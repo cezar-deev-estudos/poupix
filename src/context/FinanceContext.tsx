@@ -618,7 +618,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [user, userStoragePrefix]);
 
-  // Função para persistir mapa de tetos mensais e nano-categorias no Supabase user_metadata
+  // Função para persistir mapa de tetos mensais e nano-categorias no Supabase user_metadata e na tabela categories
   const persistMonthlyBudgetsToCloud = useCallback(async (updatedCategories: Category[]) => {
     const monthlyMap: Record<string, Record<string, number>> = {};
     const nanoMap: Record<string, NanoCategory[]> = {};
@@ -638,12 +638,43 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (user) {
         const supabase = getSupabaseClient();
         if (supabase) {
+          // 1. Atualiza metadados do usuário no Supabase Auth
           await supabase.auth.updateUser({
             data: {
               category_monthly_budgets: monthlyMap,
               category_nano_categories: nanoMap,
             }
           });
+          if (user.user_metadata) {
+            user.user_metadata.category_monthly_budgets = monthlyMap;
+            user.user_metadata.category_nano_categories = nanoMap;
+          }
+
+          // 2. Persiste imediatamente na tabela de categorias do Supabase
+          const userId = ensureValidUUID(user.id);
+          const categoriesPayload = updatedCategories.map(cat => ({
+            id: ensureValidUUID(cat.id),
+            user_id: userId,
+            name: cat.name,
+            type: cat.type,
+            icon: cat.icon || 'Tag',
+            color: cat.color || '#64748B',
+            parent_id: cat.parentId ? ensureValidUUID(cat.parentId) : null,
+            budget_limit: cat.budgetLimit || null,
+            is_default: cat.isDefault ?? false,
+            is_archived: cat.isArchived ?? false,
+            nano_categories: cat.nanoCategories || [],
+          }));
+
+          const { error: catErr } = await supabase.from('categories').upsert(categoriesPayload as any);
+          if (catErr) {
+            const fallbackWithoutNano = categoriesPayload.map(({ nano_categories, ...rest }: any) => rest);
+            const { error: fbErr } = await supabase.from('categories').upsert(fallbackWithoutNano as any);
+            if (fbErr) {
+              const fallbackMin = fallbackWithoutNano.map(({ is_archived, ...rest }: any) => rest);
+              await supabase.from('categories').upsert(fallbackMin as any);
+            }
+          }
         }
       }
     } catch (err) {
