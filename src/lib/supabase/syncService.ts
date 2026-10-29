@@ -318,18 +318,29 @@ export const fetchAllFromSupabase = async (userId: string) => {
       createdAt: c.created_at,
     }))
 
-    const categories: Category[] = getResData(catRes).map((cat: any) => ({
-      id: cat.id,
-      name: cat.name,
-      type: cat.type,
-      icon: cat.icon,
-      color: cat.color,
-      parentId: cat.parent_id || undefined,
-      budgetLimit: cat.budget_limit ? Number(cat.budget_limit) : undefined,
-      isDefault: cat.is_default ?? false,
-      isArchived: cat.is_archived ?? false,
-      nanoCategories: Array.isArray(cat.nano_categories) && cat.nano_categories.length > 0 ? cat.nano_categories : undefined,
-    }))
+    const categories: Category[] = getResData(catRes).map((cat: any) => {
+      let parsedNanos = undefined
+      if (Array.isArray(cat.nano_categories) && cat.nano_categories.length > 0) {
+        parsedNanos = cat.nano_categories
+      } else if (typeof cat.nano_categories === 'string' && cat.nano_categories.trim()) {
+        try {
+          parsedNanos = JSON.parse(cat.nano_categories)
+        } catch {}
+      }
+
+      return {
+        id: cat.id,
+        name: cat.name,
+        type: cat.type,
+        icon: cat.icon,
+        color: cat.color,
+        parentId: cat.parent_id || undefined,
+        budgetLimit: cat.budget_limit ? Number(cat.budget_limit) : undefined,
+        isDefault: cat.is_default ?? false,
+        isArchived: cat.is_archived ?? false,
+        nanoCategories: parsedNanos,
+      }
+    })
 
     const tags: Tag[] = getResData(tagRes).map((t: any) => ({
       id: t.id,
