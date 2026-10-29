@@ -36,9 +36,6 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   const defaultCatId = expenseCategories[0]?.id || '';
   const initialAccId = defaultAccountId || accounts[0]?.id || '';
 
-  const selectedCategory = categories.find(c => c.id === categoryId);
-  const currentNanoCategories = selectedCategory?.nanoCategories || [];
-
   const [amount, setAmount] = useState(initialData?.amount ? initialData.amount.toString() : '');
   const [date, setDate] = useState(initialData?.date || getLocalDateString());
   const [paid, setPaid] = useState(initialData?.paid ?? true);
@@ -47,6 +44,9 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   const [categoryId, setCategoryId] = useState(initialData !== undefined && initialData !== null ? (initialData.categoryId ?? '') : defaultCatId);
   const [accountId, setAccountId] = useState(initialData?.accountId || initialAccId);
   const [ignoreInTotals, setIgnoreInTotals] = useState(initialData?.ignoreInTotals ?? false);
+
+  const selectedCategory = categories.find(c => c.id === categoryId);
+  const currentNanoCategories = selectedCategory?.nanoCategories || [];
 
   // Coluna "Mais detalhes"
   const [showMoreDetails, setShowMoreDetails] = useState(false);

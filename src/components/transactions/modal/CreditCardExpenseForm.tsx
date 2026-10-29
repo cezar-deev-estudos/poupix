@@ -37,9 +37,6 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
   const defaultCatId = expenseCategories[0]?.id || '';
   const initialSelectedCardId = initialData?.creditCardId || defaultCreditCardId || creditCards[0]?.id || '';
 
-  const selectedCategory = categories.find(c => c.id === categoryId);
-  const currentNanoCategories = selectedCategory?.nanoCategories || [];
-
   const [amount, setAmount] = useState(initialData?.amount ? initialData.amount.toString() : '');
   const [date, setDate] = useState(initialData?.date || getLocalDateString());
   const [description, setDescription] = useState(initialData?.description || '');
@@ -47,6 +44,9 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
   const [categoryId, setCategoryId] = useState(initialData !== undefined && initialData !== null ? (initialData.categoryId ?? '') : defaultCatId);
   const [creditCardId, setCreditCardId] = useState(initialSelectedCardId);
   const [ignoreInTotals, setIgnoreInTotals] = useState(initialData?.ignoreInTotals ?? false);
+
+  const selectedCategory = categories.find(c => c.id === categoryId);
+  const currentNanoCategories = selectedCategory?.nanoCategories || [];
 
   // Coluna "Mais detalhes"
   const [showMoreDetails, setShowMoreDetails] = useState(false);
