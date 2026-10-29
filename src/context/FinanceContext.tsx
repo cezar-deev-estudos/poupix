@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import {
   Account,
   Category,
+  NanoCategory,
   CreditCard,
   Transaction,
   FinancialSummary,
@@ -184,19 +185,22 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const rawCats: Category[] = savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES;
         const userMetadataOrder: string[] | null = user.user_metadata?.[deviceOrderKey] || initialDeviceOrderIds;
         const userMetadataMonthlyBudgets = (user.user_metadata?.category_monthly_budgets || {}) as Record<string, Record<string, number>>;
+        const userMetadataNanoCategories = (user.user_metadata?.category_nano_categories || {}) as Record<string, NanoCategory[]>;
 
         const categoriesWithMonthlyBudgets = rawCats.map(c => {
           const metaMonthly = userMetadataMonthlyBudgets[c.id] || userMetadataMonthlyBudgets[ensureValidUUID(c.id)];
+          const metaNanos = userMetadataNanoCategories[c.id] || userMetadataNanoCategories[ensureValidUUID(c.id)];
+          const updatedCat: Category = { ...c };
           if (metaMonthly && Object.keys(metaMonthly).length > 0) {
-            return {
-              ...c,
-              monthlyBudgets: {
-                ...metaMonthly,
-                ...(c.monthlyBudgets || {}),
-              },
+            updatedCat.monthlyBudgets = {
+              ...metaMonthly,
+              ...(c.monthlyBudgets || {}),
             };
           }
-          return c;
+          if (metaNanos && metaNanos.length > 0 && (!c.nanoCategories || c.nanoCategories.length === 0)) {
+            updatedCat.nanoCategories = metaNanos;
+          }
+          return updatedCat;
         });
 
         setUsers([authProfile]);
@@ -407,6 +411,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setCategories(prevLocalCats => {
         const localArchivedMap = new Map<string, boolean>();
         const localMonthlyBudgetsMap = new Map<string, Record<string, number>>();
+        const localNanoCategoriesMap = new Map<string, NanoCategory[]>();
 
         prevLocalCats.forEach(cat => {
           if (cat.isArchived !== undefined) {
@@ -417,10 +422,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             localMonthlyBudgetsMap.set(cat.id, cat.monthlyBudgets);
             localMonthlyBudgetsMap.set(ensureValidUUID(cat.id), cat.monthlyBudgets);
           }
+          if (cat.nanoCategories && cat.nanoCategories.length > 0) {
+            localNanoCategoriesMap.set(cat.id, cat.nanoCategories);
+            localNanoCategoriesMap.set(ensureValidUUID(cat.id), cat.nanoCategories);
+          }
         });
 
         // Tetos mensais persistidos na nuvem em user_metadata
         const cloudMonthlyBudgets = (user?.user_metadata?.category_monthly_budgets || {}) as Record<string, Record<string, number>>;
+        const cloudNanoCategories = (user?.user_metadata?.category_nano_categories || {}) as Record<string, NanoCategory[]>;
 
         const mergedCats = cloudData.categories!.map(cloudCat => {
           const catId = cloudCat.id;
@@ -439,10 +449,18 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             ...(cloudCat.monthlyBudgets || {}),
           };
 
+          // Mesclar nano-categorias: cloudCat + local + nuvem (user_metadata)
+          const localNanos = localNanoCategoriesMap.get(catId) || localNanoCategoriesMap.get(catUuid) || [];
+          const metaNanos = cloudNanoCategories[catId] || cloudNanoCategories[catUuid] || [];
+          const effectiveNanos = (cloudCat.nanoCategories && cloudCat.nanoCategories.length > 0)
+            ? cloudCat.nanoCategories
+            : (localNanos.length > 0 ? localNanos : metaNanos);
+
           return {
             ...cloudCat,
             isArchived: effectiveArchived,
             monthlyBudgets: Object.keys(effectiveMonthlyBudgets).length > 0 ? effectiveMonthlyBudgets : undefined,
+            nanoCategories: effectiveNanos.length > 0 ? effectiveNanos : undefined,
           };
         });
 
@@ -600,13 +618,19 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [user, userStoragePrefix]);
 
-  // Função para persistir mapa de tetos mensais no Supabase user_metadata
+  // Função para persistir mapa de tetos mensais e nano-categorias no Supabase user_metadata
   const persistMonthlyBudgetsToCloud = useCallback(async (updatedCategories: Category[]) => {
     const monthlyMap: Record<string, Record<string, number>> = {};
+    const nanoMap: Record<string, NanoCategory[]> = {};
+
     updatedCategories.forEach(cat => {
       if (cat.monthlyBudgets && Object.keys(cat.monthlyBudgets).length > 0) {
         monthlyMap[cat.id] = cat.monthlyBudgets;
         monthlyMap[ensureValidUUID(cat.id)] = cat.monthlyBudgets;
+      }
+      if (cat.nanoCategories && cat.nanoCategories.length > 0) {
+        nanoMap[cat.id] = cat.nanoCategories;
+        nanoMap[ensureValidUUID(cat.id)] = cat.nanoCategories;
       }
     });
 
@@ -615,12 +639,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const supabase = getSupabaseClient();
         if (supabase) {
           await supabase.auth.updateUser({
-            data: { category_monthly_budgets: monthlyMap }
+            data: {
+              category_monthly_budgets: monthlyMap,
+              category_nano_categories: nanoMap,
+            }
           });
         }
       }
     } catch (err) {
-      console.error('[FinanceContext] Erro ao sincronizar category_monthly_budgets com a nuvem:', err);
+      console.error('[FinanceContext] Erro ao sincronizar metadados de categorias com a nuvem:', err);
     }
   }, [user]);
 

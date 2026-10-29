@@ -11,6 +11,8 @@ import { MobileCategoryDetailDrawer } from '../dashboard/MobileCategoryDetailDra
 import { DesktopCategoryDetailModal } from '../dashboard/DesktopCategoryDetailModal';
 import { NewTransactionModal } from '../transactions/NewTransactionModal';
 import { ArchivedCategoriesModal } from './ArchivedCategoriesModal';
+import { NanoCategoriesModal } from './NanoCategoriesModal';
+import { SubcategoryNanoGroupList } from './SubcategoryNanoGroupList';
 import { MonthSelector } from '../layout/MonthSelector';
 import {
   Plus,
@@ -361,6 +363,9 @@ export const BudgetsView: React.FC = () => {
 
   // Estado para Modal de Categorias Arquivadas
   const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
+
+  // Estado para Modal de Gerenciamento de Nano-Categorias
+  const [managingNanoSubcategory, setManagingNanoSubcategory] = useState<Category | null>(null);
 
   // Estado para Visualização Detalhada dos Itens/Transações da Subcategoria (Mobile e Desktop)
   const [selectedCategoryForDetails, setSelectedCategoryForDetails] = useState<Category | null>(null);
@@ -1226,95 +1231,17 @@ export const BudgetsView: React.FC = () => {
                                   </div>
                                 </div>
 
-                                {/* Lançamentos da Subcategoria (Exibidos em Accordion Minimalista) */}
+                                {/* Lançamentos da Subcategoria (Agrupados por Nano-Categorias ou Lista Direta) */}
                                 {isSubExpanded && subTransactions.length > 0 && (
-                                  <div className="pt-2 border-t border-slate-800/80 pl-1.5 sm:pl-6 space-y-1.5">
-                                    {subTransactions.map(tx => {
-                                      const acc = accounts.find(a => a.id === tx.accountId);
-                                      const card = creditCards.find(c => c.id === tx.creditCardId);
-                                      const invoicePeriod = card ? getTransactionInvoicePeriod(tx, card) : null;
-                                      const isEffectivelyPaid =
-                                        tx.paid ||
-                                        (card && invoicePeriod
-                                          ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
-                                          : false);
-                                      const accountLabel = card ? card.name : (acc?.name || 'Conta');
-
-                                      return (
-                                        <div
-                                          key={tx.id}
-                                          onClick={() => setEditingTransaction(tx)}
-                                          className={`flex items-center justify-between p-2 rounded-lg border transition-colors cursor-pointer group/tx text-[11px] ${
-                                            isEffectivelyPaid
-                                              ? 'bg-emerald-950/20 hover:bg-emerald-950/30 border-emerald-900/40 hover:border-emerald-700/60'
-                                              : 'bg-slate-900/60 hover:bg-slate-800/80 border-slate-800/60 hover:border-slate-700'
-                                          }`}
-                                          title="Clique para editar lançamento"
-                                        >
-                                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                                            <span className={`font-medium truncate transition-colors ${
-                                              isEffectivelyPaid
-                                                ? 'text-emerald-400'
-                                                : 'text-slate-200 group-hover/tx:text-emerald-400'
-                                            }`}>
-                                              {tx.description}
-                                            </span>
-                                            <span className={`text-[10px] shrink-0 ${
-                                              isEffectivelyPaid ? 'text-emerald-500/80' : 'text-slate-500'
-                                            }`}>
-                                              {formatDateBR(tx.date)}
-                                            </span>
-                                            {card && (
-                                              <>
-                                                {/* Mobile: Apenas ícone de cartão azul sem nome */}
-                                                <span
-                                                  className="sm:hidden inline-flex items-center text-cyan-400 shrink-0"
-                                                  title={`Cartão: ${accountLabel}`}
-                                                >
-                                                  <CreditCard className="w-3 h-3" />
-                                                </span>
-
-                                                {/* Desktop: Ícone + Nome do cartão */}
-                                                <span className={`hidden sm:inline-flex items-center gap-1 text-[10px] shrink-0 ${
-                                                  isEffectivelyPaid ? 'text-emerald-400/90' : 'text-cyan-400/80'
-                                                }`}>
-                                                  <CreditCard className="w-3 h-3" />
-                                                  <span className="truncate max-w-[90px]">{accountLabel}</span>
-                                                </span>
-                                              </>
-                                            )}
-                                          </div>
-
-                                          <div className="flex items-center gap-2.5 shrink-0 ml-2">
-                                            <span className={`font-semibold text-xs ${
-                                              isEffectivelyPaid ? 'text-emerald-400' : 'text-rose-400'
-                                            }`}>
-                                              {formatCurrency(tx.amount)}
-                                            </span>
-                                            <button
-                                              type="button"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                updateTransaction(tx.id, { paid: !isEffectivelyPaid });
-                                              }}
-                                              className={`w-4 h-4 rounded flex items-center justify-center transition-all select-none shrink-0 cursor-pointer ${
-                                                isEffectivelyPaid
-                                                  ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
-                                                  : 'bg-rose-500 text-white hover:bg-rose-400'
-                                              }`}
-                                              title={isEffectivelyPaid ? 'Pago (Clique para marcar pendente)' : 'Pendente (Clique para pagar)'}
-                                            >
-                                              {isEffectivelyPaid ? (
-                                                <Check className="w-2.5 h-2.5 stroke-[3]" />
-                                              ) : (
-                                                <span className="text-[10px] font-black leading-none">!</span>
-                                              )}
-                                            </button>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
+                                  <SubcategoryNanoGroupList
+                                    sub={sub}
+                                    transactions={subTransactions}
+                                    accounts={accounts}
+                                    creditCards={creditCards}
+                                    onSelectTransaction={(tx) => setEditingTransaction(tx)}
+                                    onUpdateTransaction={(id, up) => updateTransaction(id, up)}
+                                    onManageNanos={() => setManagingNanoSubcategory(sub)}
+                                  />
                                 )}
                               </div>
                             );
@@ -1474,13 +1401,26 @@ export const BudgetsView: React.FC = () => {
                               )}
                             </div>
 
-                            <button
-                              onClick={() => handleOpenEdit(sub)}
-                              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                              title="Opções da Subcategoria"
-                            >
-                              <MoreVertical className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              {/* Botão de Nano-Categorias (Exatamente na área destacada no print) */}
+                              <button
+                                type="button"
+                                onClick={() => setManagingNanoSubcategory(sub)}
+                                className="flex items-center gap-1 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                                title="Gerenciar Nano-Categorias desta subcategoria"
+                              >
+                                <Plus className="w-3 h-3 text-emerald-400" />
+                                <span>Nano{sub.nanoCategories?.length ? ` (${sub.nanoCategories.length})` : ''}</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleOpenEdit(sub)}
+                                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                title="Opções da Subcategoria"
+                              >
+                                <MoreVertical className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1814,6 +1754,19 @@ export const BudgetsView: React.FC = () => {
         allCategories={categories}
         onUnarchive={handleUnarchiveCategory}
         onDelete={(cat) => setDeletingCategory(cat)}
+      />
+
+      {/* MODAL DE GERENCIAMENTO DE NANO-CATEGORIAS */}
+      <NanoCategoriesModal
+        isOpen={Boolean(managingNanoSubcategory)}
+        subcategory={managingNanoSubcategory}
+        onClose={() => setManagingNanoSubcategory(null)}
+        onUpdateSubcategory={(subId, updatedNanos) => {
+          updateCategory(subId, { nanoCategories: updatedNanos });
+          setManagingNanoSubcategory(prev => (prev && prev.id === subId ? { ...prev, nanoCategories: updatedNanos } : prev));
+          setFeedbackToast('Nano-categorias salvas com sucesso!');
+          setTimeout(() => setFeedbackToast(null), 3000);
+        }}
       />
 
 

@@ -142,4 +142,45 @@ describe('Category and Subcategory Aggregation Engine', () => {
     expect(sep2026.amount).toBe(1200);
     expect(sep2026.isCustomMonth).toBe(false);
   });
+
+  it('deve agrupar despesas frequentes por nano-categoria dentro de uma subcategoria', () => {
+    const subPadaria: Category = {
+      id: 'sub-padaria',
+      name: 'Padaria',
+      type: 'expense',
+      icon: 'Utensils',
+      color: '#F97316',
+      parentId: 'cat-alimentacao',
+      nanoCategories: [
+        { id: 'nano-pao', name: 'Pão', budgetLimit: 100 },
+        { id: 'nano-cafe', name: 'Café', budgetLimit: 50 },
+      ],
+    };
+
+    const padariaTransactions: Transaction[] = [
+      { id: 't1', description: 'Pão', amount: 15, date: '2026-10-01', type: 'expense', categoryId: 'sub-padaria', paid: true, createdAt: '' },
+      { id: 't2', description: 'Pão francês', amount: 12, date: '2026-10-03', type: 'expense', categoryId: 'sub-padaria', paid: true, createdAt: '' },
+      { id: 't3', description: 'Café', amount: 8, date: '2026-10-05', type: 'expense', categoryId: 'sub-padaria', paid: true, createdAt: '' },
+      { id: 't4', description: 'Bolo de cenoura', amount: 25, date: '2026-10-08', type: 'expense', categoryId: 'sub-padaria', paid: true, createdAt: '' },
+    ];
+
+    const matchesNano = (desc: string, nanoName: string) => {
+      const d = desc.trim().toLowerCase();
+      const n = nanoName.trim().toLowerCase();
+      return d === n || d.startsWith(n + ' ') || d.startsWith(n + '-') || d.startsWith(n + '/');
+    };
+
+    const paoTxs = padariaTransactions.filter(t => matchesNano(t.description, 'Pão'));
+    const cafeTxs = padariaTransactions.filter(t => matchesNano(t.description, 'Café'));
+    const outrosTxs = padariaTransactions.filter(t => !matchesNano(t.description, 'Pão') && !matchesNano(t.description, 'Café'));
+
+    expect(paoTxs).toHaveLength(2);
+    expect(paoTxs.reduce((s, t) => s + t.amount, 0)).toBe(27); // 15 + 12
+
+    expect(cafeTxs).toHaveLength(1);
+    expect(cafeTxs[0].amount).toBe(8);
+
+    expect(outrosTxs).toHaveLength(1);
+    expect(outrosTxs[0].description).toBe('Bolo de cenoura');
+  });
 });

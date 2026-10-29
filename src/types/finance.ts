@@ -29,6 +29,13 @@ export interface CreditCard {
   createdAt: string;
 }
 
+export interface NanoCategory {
+  id: string;
+  name: string;
+  budgetLimit?: number; // Teto de gastos opcional específico da nano-categoria
+  createdAt?: string;
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -38,6 +45,7 @@ export interface Category {
   budgetLimit?: number; // Teto de gastos mensal padrão recorrente
   monthlyBudgets?: Record<string, number>; // Tetos específicos por mês no formato "YYYY-MM": valor
   parentId?: string; // ID da categoria pai para subcategorias
+  nanoCategories?: NanoCategory[]; // Nano-categorias / despesas frequentes vinculadas
   isDefault?: boolean;
   isArchived?: boolean;
 }
