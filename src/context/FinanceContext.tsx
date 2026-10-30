@@ -37,7 +37,7 @@ import { transactionManager } from '@/hooks/useTransactionsManager';
 import { entityManager } from '@/hooks/useEntityManager';
 import { normalizeTransactionsInvoiceDates, getTransactionInvoicePeriod, isSameId } from '@/lib/invoiceHelpers';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { ensureValidUUID } from '@/lib/supabase/syncService';
+import { ensureValidUUID, upsertTransactionsDirectlyToSupabase } from '@/lib/supabase/syncService';
 
 interface FinanceContextType {
   users: UserProfile[];
@@ -521,7 +521,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [user?.user_metadata, userStoragePrefix]);
 
   // 4. Hook de Sincronização em Nuvem (Debounced & Auto-Fetch)
-  const { refreshFromCloud } = useFinanceCloudSync({
+  const { refreshFromCloud, notifyDirectMutation } = useFinanceCloudSync({
     user,
     currentUser,
     accounts,
@@ -710,9 +710,45 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         selectedYear,
         setSelectedMonth,
         setSelectedYear,
-        addTransaction: tx => transactionManager.addTransaction(tx, setTransactions, setAccounts),
-        importTransactions: txs => transactionManager.importTransactions(txs, setTransactions, setAccounts),
-        updateTransaction: (id, up, mode = 'single') => transactionManager.updateTransaction(id, up, mode, transactions, setTransactions, setAccounts),
+        addTransaction: tx => {
+          transactionManager.addTransaction(tx, setTransactions, setAccounts);
+          notifyDirectMutation();
+          if (user?.id) {
+            // Persiste imediatamente na nuvem com ID gerado
+            setTransactions(currentTxs => {
+              const latestTx = currentTxs[0];
+              if (latestTx && user?.id) {
+                upsertTransactionsDirectlyToSupabase([latestTx], user.id);
+              }
+              return currentTxs;
+            });
+          }
+        },
+        importTransactions: txs => {
+          transactionManager.importTransactions(txs, setTransactions, setAccounts);
+          notifyDirectMutation();
+        },
+        updateTransaction: (id, up, mode = 'single') => {
+          transactionManager.updateTransaction(id, up, mode, transactions, setTransactions, setAccounts);
+          notifyDirectMutation();
+          if (user?.id) {
+            // Persiste imediatamente a transação alterada diretamente no Supabase
+            setTransactions(currentTxs => {
+              const updatedItems = currentTxs.filter(t => {
+                if (mode === 'single') return t.id === id;
+                const orig = transactions.find(o => o.id === id);
+                if (!orig) return t.id === id;
+                if (orig.recurringGroupId && t.recurringGroupId === orig.recurringGroupId) return true;
+                if (orig.installmentGroupId && t.installmentGroupId === orig.installmentGroupId) return true;
+                return t.id === id;
+              });
+              if (updatedItems.length > 0 && user?.id) {
+                upsertTransactionsDirectlyToSupabase(updatedItems, user.id);
+              }
+              return currentTxs;
+            });
+          }
+        },
         deleteTransaction: (id, mode = 'single') => transactionManager.deleteTransaction(id, mode, transactions, setTransactions, handleTransactionDeleted, currentUserId, setAccounts),
         addAccount: acc => entityManager.addAccount(acc, setAccounts),
         updateAccount: (id, up) => entityManager.updateAccount(id, up, setAccounts),
