@@ -47,7 +47,7 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
     return Boolean(expandedGroups[key]);
   };
 
-  const renderTransactionRow = (tx: Transaction) => {
+  const renderTransactionRow = (tx: Transaction, isInsideNano: boolean = false) => {
     const acc = accounts.find(a => a.id === tx.accountId);
     const card = creditCards.find(c => c.id === tx.creditCardId);
     const invoicePeriod = card ? getTransactionInvoicePeriod(tx, card) : null;
@@ -57,6 +57,11 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
         ? card.manualInvoiceStatus?.[invoicePeriod.periodKey] === 'paid'
         : false);
     const accountLabel = card ? card.name : (acc?.name || 'Conta');
+
+    // Quando for item de nano-categoria: se tiver observação (notes), exibe a observação; se não, exibe o nome original
+    const displayName = isInsideNano && tx.notes && tx.notes.trim()
+      ? tx.notes.trim()
+      : tx.description;
 
     return (
       <div
@@ -77,7 +82,7 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
                 : 'text-slate-200 group-hover/tx:text-emerald-400'
             }`}
           >
-            {tx.description}
+            {displayName}
           </span>
           <span
             className={`text-[10px] shrink-0 ${
@@ -148,7 +153,7 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
   if (nanos.length === 0) {
     return (
       <div className="pt-2 border-t border-slate-800/80 pl-1.5 sm:pl-6 space-y-1.5">
-        {transactions.map(renderTransactionRow)}
+        {transactions.map(tx => renderTransactionRow(tx, false))}
       </div>
     );
   }
@@ -261,7 +266,7 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
             {/* Lista dos Lançamentos da Nano-Categoria */}
             {isExpanded && hasTxs && (
               <div className="p-2 pt-0 space-y-1.5 border-t border-slate-900">
-                {group.transactions.map(renderTransactionRow)}
+                {group.transactions.map(tx => renderTransactionRow(tx, true))}
               </div>
             )}
           </div>
@@ -299,7 +304,7 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
 
           {isGroupExpanded('_others') && (
             <div className="p-2 pt-0 space-y-1.5 border-t border-slate-900">
-              {otherTransactions.map(renderTransactionRow)}
+              {otherTransactions.map(tx => renderTransactionRow(tx, false))}
             </div>
           )}
         </div>
