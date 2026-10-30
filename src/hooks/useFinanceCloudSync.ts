@@ -47,7 +47,7 @@ export function useFinanceCloudSync({
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSyncTimestampRef = useRef<number>(0);
   const hasPendingLocalChangesRef = useRef<boolean>(false);
-  // Timestamp até o qual o loadCloudData deve ser bloqueado após um sync local
+  // Timestamp até o qual o loadCloudData deve ser bloqueado após um sync ou mutação local
   const blockRemoteFetchUntilRef = useRef<number>(0);
 
   // Armazena um fingerprint dos últimos dados enviados com sucesso para nunca reenviar dados idênticos
@@ -64,7 +64,7 @@ export function useFinanceCloudSync({
     if (hasPendingLocalChangesRef.current) return false;
     if (isSyncingToCloud.current) return false;
     if (syncTimeoutRef.current !== null) return false;
-    // Bloqueia se ainda estamos dentro do cooldown pós-sync (10 segundos)
+    // Bloqueia se ainda estamos dentro do cooldown pós-sync ou pós-edição (15 segundos)
     if (Date.now() < blockRemoteFetchUntilRef.current) return false;
     // Throttle mínimo de 30 segundos entre buscas bem-sucedidas para economizar cota do Supabase
     if (Date.now() - lastSyncTimestampRef.current < 30000) return false;
@@ -242,5 +242,10 @@ export function useFinanceCloudSync({
     await loadCloudDataRef.current(true);
   }, []);
 
-  return { refreshFromCloud };
+  const notifyDirectMutation = useCallback(() => {
+    blockRemoteFetchUntilRef.current = Date.now() + 15000;
+    lastSyncTimestampRef.current = Date.now();
+  }, []);
+
+  return { refreshFromCloud, notifyDirectMutation };
 }

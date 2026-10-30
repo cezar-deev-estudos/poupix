@@ -477,6 +477,56 @@ export const deleteTransactionFromSupabase = async (
   }
 }
 
+// 4. Salvar / Atualizar Transações Imediatamente no Supabase (Direto e Atômico)
+export const upsertTransactionsDirectlyToSupabase = async (
+  txs: Transaction[],
+  userId: string
+): Promise<void> => {
+  const supabase = getSupabaseClient()
+  if (!supabase || !userId || txs.length === 0) return
+
+  try {
+    const userUuid = ensureValidUUID(userId)
+    const payload = txs.map(tx => ({
+      id: ensureValidUUID(tx.id),
+      user_id: userUuid,
+      account_id: tx.accountId ? ensureValidUUID(tx.accountId) : null,
+      destination_account_id: tx.destinationAccountId ? ensureValidUUID(tx.destinationAccountId) : null,
+      credit_card_id: tx.creditCardId ? ensureValidUUID(tx.creditCardId) : null,
+      category_id: tx.categoryId ? ensureValidUUID(tx.categoryId) : null,
+      type: tx.type,
+      amount: Number(tx.amount) || 0,
+      description: tx.description || 'Lançamento',
+      date: tx.date || new Date().toISOString().split('T')[0],
+      paid: tx.paid ?? true,
+      is_recurring: tx.isRecurring ?? false,
+      recurring_period: tx.recurringPeriod || null,
+      recurring_group_id: tx.recurringGroupId || null,
+      installment_current: tx.installmentCurrent || null,
+      installment_total: tx.installmentTotal || null,
+      installment_group_id: tx.installmentGroupId || null,
+      ignore_in_totals: tx.ignoreInTotals ?? false,
+      invoice_date: tx.invoiceDate || null,
+      is_favorite: tx.isFavorite ?? false,
+      tags: tx.tags || [],
+      notes: tx.notes || null,
+      created_at: tx.createdAt || new Date().toISOString(),
+    }))
+
+    const { error } = await supabase.from('transactions').upsert(payload as any)
+    if (error) {
+      console.warn('[Supabase Direct Tx Upsert] Falha inicial, tentando fallback:', error.message)
+      const fallbackPayload = payload.map(({ recurring_group_id, ...rest }) => rest)
+      const { error: fbErr } = await supabase.from('transactions').upsert(fallbackPayload as any)
+      if (fbErr) {
+        console.error('[Supabase Direct Tx Upsert Fallback Error]:', fbErr.message)
+      }
+    }
+  } catch (err) {
+    console.error('[Supabase Direct Tx Upsert Exception]:', err)
+  }
+}
+
 // 4. Exclusão Direta de Entidades (Contas, Cartões, Categorias, Tags, Metas)
 export const deleteEntityFromSupabase = async (
   table: 'accounts' | 'credit_cards' | 'categories' | 'tags' | 'goals',
