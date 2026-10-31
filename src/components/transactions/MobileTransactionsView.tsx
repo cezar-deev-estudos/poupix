@@ -574,22 +574,6 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
             }
           }
         });
-
-        // Se estiver marcando como pago e houver conta bancária selecionada e valor
-        if (nextPaidStatus && accountId && invoiceInfo?.amount && invoiceInfo.amount > 0) {
-          const dateToUse = paymentDate || new Date().toISOString().split('T')[0];
-
-          addTransaction({
-            description: `Pagamento de Fatura - ${card.name}`,
-            amount: invoiceInfo.amount,
-            date: dateToUse,
-            type: 'expense',
-            accountId,
-            categoryId: '',
-            paid: true,
-            ignoreInTotals: true, // Não duplica no balanço geral, debita na conta
-          });
-        }
       }
       setConfirmingPayment(null);
       return;

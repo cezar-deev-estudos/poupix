@@ -27,11 +27,11 @@ export const TransactionsHeaderCards: React.FC<TransactionsHeaderCardsProps> = (
     return formatCurrency(amount);
   };
 
-  // Cálculos de Despesas (pendentes, pagas e total)
+  // Cálculos de Despesas (pendentes, pagas e total) respeitando ignoreInTotals (ex: pagamentos de fatura para não duplicar com cartão)
   const pendingExpense = useMemo(() => {
     return filteredTransactions
       .filter((t) => {
-        if (t.type !== 'expense') return false;
+        if (t.type !== 'expense' || t.ignoreInTotals) return false;
         const card = t.creditCardId ? creditCards.find((c) => isSameId(c.id, t.creditCardId)) : undefined;
         const invoicePeriod = card ? getTransactionInvoicePeriod(t, card) : null;
         const isEffectivelyPaid =
@@ -47,7 +47,7 @@ export const TransactionsHeaderCards: React.FC<TransactionsHeaderCardsProps> = (
   const paidExpense = useMemo(() => {
     return filteredTransactions
       .filter((t) => {
-        if (t.type !== 'expense') return false;
+        if (t.type !== 'expense' || t.ignoreInTotals) return false;
         const card = t.creditCardId ? creditCards.find((c) => isSameId(c.id, t.creditCardId)) : undefined;
         const invoicePeriod = card ? getTransactionInvoicePeriod(t, card) : null;
         const isEffectivelyPaid =
@@ -65,13 +65,13 @@ export const TransactionsHeaderCards: React.FC<TransactionsHeaderCardsProps> = (
   // Cálculos de Receitas (pendentes, recebidas e total)
   const pendingIncome = useMemo(() => {
     return filteredTransactions
-      .filter((t) => t.type === 'income' && !t.paid)
+      .filter((t) => t.type === 'income' && !t.ignoreInTotals && !t.paid)
       .reduce((acc, t) => acc + t.amount, 0);
   }, [filteredTransactions]);
 
   const paidIncome = useMemo(() => {
     return filteredTransactions
-      .filter((t) => t.type === 'income' && t.paid)
+      .filter((t) => t.type === 'income' && !t.ignoreInTotals && t.paid)
       .reduce((acc, t) => acc + t.amount, 0);
   }, [filteredTransactions]);
 

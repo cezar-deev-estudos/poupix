@@ -118,21 +118,6 @@ export const AccountDetailView: React.FC<AccountDetailViewProps> = ({
           }
         }
       });
-
-      // 3. Registrar o lançamento único consolidado da fatura debitando na conta
-      const dueDateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(card.dueDay).padStart(2, '0')}`;
-      const paymentDate = dueDateStr <= todayStr ? dueDateStr : todayStr;
-
-      addTransaction({
-        description: `Pagamento de Fatura - ${card.name}`,
-        amount,
-        date: paymentDate,
-        type: 'expense',
-        accountId: account.id,
-        categoryId: '',
-        paid: true,
-        ignoreInTotals: true, // Não duplica despesas por categoria no balanço geral, mas entra no extrato da conta
-      });
     });
 
     setIsPayingInvoices(false);

@@ -110,20 +110,6 @@ export const MobileAccountDetail: React.FC<MobileAccountDetailProps> = ({
           }
         }
       });
-
-      const dueDateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(card.dueDay).padStart(2, '0')}`;
-      const paymentDate = dueDateStr <= todayStr ? dueDateStr : todayStr;
-
-      addTransaction({
-        description: `Pagamento de Fatura - ${card.name}`,
-        amount,
-        date: paymentDate,
-        type: 'expense',
-        accountId: account.id,
-        categoryId: '',
-        paid: true,
-        ignoreInTotals: true,
-      });
     });
 
     setIsPayingInvoices(false);

@@ -257,23 +257,6 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
         }
       }
     });
-
-    // Se uma conta de débito foi selecionada e a fatura tem valor, registrar o débito na conta
-    const invoiceTotal = cardExpensesMap[card.id] || 0;
-    if (accountId && invoiceTotal > 0) {
-      const dateToUse = paymentDate || new Date().toISOString().split('T')[0];
-      
-      addTransaction({
-        description: `Pagamento de Fatura - ${card.name}`,
-        amount: invoiceTotal,
-        date: dateToUse,
-        type: 'expense',
-        accountId,
-        categoryId: '',
-        paid: true,
-        ignoreInTotals: true, // Não duplica no balanço geral por categorias, mas debita do saldo da conta
-      });
-    }
   };
 
   // Solicitar Confirmação de Pagamento de Fatura

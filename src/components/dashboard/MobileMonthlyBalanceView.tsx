@@ -73,7 +73,7 @@ export const MobileMonthlyBalanceView: React.FC<MobileMonthlyBalanceViewProps> =
     let expenseSum = 0;
 
     filteredTransactions.forEach(tx => {
-      if (tx.type === 'transfer' || tx.ignoreInTotals) return;
+      if (tx.type === 'transfer' || tx.ignoreInTotals || /^Pagamento de Fatura\s*-\s*/i.test(tx.description)) return;
 
       const directCat = categories.find(c => c.id === tx.categoryId);
       // Busca categoria raiz (pai), se a categoria atual tiver parentId

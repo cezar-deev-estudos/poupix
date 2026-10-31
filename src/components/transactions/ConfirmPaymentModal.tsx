@@ -145,25 +145,7 @@ export const ConfirmPaymentModal: React.FC<ConfirmPaymentModalProps> = ({
             </div>
           )}
 
-          {isInvoice && !isUnpaying && (
-            <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
-              <span className="text-xs text-slate-400 flex items-center gap-1.5 shrink-0">
-                <Wallet className="w-3.5 h-3.5 text-emerald-400" />
-                Pagar com a conta
-              </span>
-              <select
-                value={selectedAccountId}
-                onChange={(e) => setSelectedAccountId(e.target.value)}
-                className="bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-white focus:outline-none focus:border-emerald-500 cursor-pointer max-w-[170px] truncate"
-              >
-                {activeAccounts.map((acc) => (
-                  <option key={acc.id} value={acc.id}>
-                    {acc.name} ({formatCurrency(acc.balance || 0)})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          {/* Se for fatura, a quitação marca os lançamentos do cartão como pagos sem gerar nova transação avulsa */}
         </div>
 
         {/* Ações */}

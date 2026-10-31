@@ -567,6 +567,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     filteredTransactions.forEach(t => {
       if (t.ignoreInTotals) return;
+      if (/^Pagamento de Fatura\s*-\s*/i.test(t.description)) return;
       if (t.type === 'income') {
         expectedMonthlyIncome += t.amount;
         monthlyIncome += t.amount;

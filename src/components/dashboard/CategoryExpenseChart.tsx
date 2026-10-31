@@ -14,7 +14,7 @@ export const CategoryExpenseChart: React.FC = () => {
     const categoryTotals: Record<string, number> = {};
 
     filteredTransactions
-      .filter(t => t.type === 'expense' && !t.ignoreInTotals)
+      .filter(t => t.type === 'expense' && !t.ignoreInTotals && !/^Pagamento de Fatura\s*-\s*/i.test(t.description))
       .forEach(t => {
         const cat = categories.find(c => c.id === t.categoryId);
         // Se for subcategoria, consolidar no parentId; senão na própria categoria

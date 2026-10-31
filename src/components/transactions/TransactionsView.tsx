@@ -218,10 +218,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
       // Filtro de Categoria e Subcategoria
       if (advancedFilter.subcategoryId) {
-        // Se uma subcategoria específica foi escolhida, deve bater exatamente com ela
         if (tx.categoryId !== advancedFilter.subcategoryId) return false;
       } else if (advancedFilter.categoryId) {
-        // Se apenas a categoria pai foi escolhida, inclui transações vinculadas diretamente a ela OU a qualquer de suas subcategorias filhas
         const matchingCategoryIds = new Set([
           advancedFilter.categoryId,
           ...categories.filter((c) => c.parentId === advancedFilter.categoryId).map((c) => c.id),
@@ -257,8 +255,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     }
 
     // Se estiver agrupando por cartão:
-    // 1. Manter todas as transações que NÃO são de cartão
-    const nonCardTransactions = filtered.filter(tx => !tx.creditCardId);
+    // 1. Manter transações normais, filtrando débitos automáticos redundantes de "Pagamento de Fatura"
+    // para não duplicar com as linhas consolidadas de fatura exibidas
+    const nonCardTransactions = filtered.filter(tx => {
+      if (tx.creditCardId) return false;
+      if (/^Pagamento de Fatura\s*-\s*/i.test(tx.description)) return false;
+      return true;
+    });
 
     // 2. Agrupar transações por cada cartão de crédito presente
     const cardGroupsMap = new Map<string, Transaction[]>();
@@ -352,7 +355,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     // Se estiver agrupando por cartão, agrupar as despesas de cartão por cartão de crédito
     let expenseTxs = rawExpenseTxs;
     if (groupByCard) {
-      const nonCardExpenses = rawExpenseTxs.filter(t => !t.creditCardId);
+      const nonCardExpenses = rawExpenseTxs.filter(t => {
+        if (t.creditCardId) return false;
+        if (/^Pagamento de Fatura\s*-\s*/i.test(t.description)) return false;
+        return true;
+      });
       const cardMap = new Map<string, Transaction[]>();
       rawExpenseTxs.forEach(t => {
         if (t.creditCardId) {
