@@ -43,6 +43,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   const [categoryId, setCategoryId] = useState(initialData !== undefined && initialData !== null ? (initialData.categoryId ?? '') : defaultCatId);
   const [accountId, setAccountId] = useState(initialData?.accountId || initialAccId);
   const [ignoreInTotals, setIgnoreInTotals] = useState(initialData?.ignoreInTotals ?? false);
+  const [isDecreasing, setIsDecreasing] = useState(initialData?.isDecreasing ?? false);
 
   const selectedCategory = categories.find(c => c.id === categoryId);
   const currentNanoCategories = selectedCategory?.nanoCategories || [];
@@ -68,6 +69,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       setCategoryId(initialData.categoryId ?? '');
       setAccountId(initialData.accountId || initialAccId);
       setIgnoreInTotals(Boolean(initialData.ignoreInTotals));
+      setIsDecreasing(Boolean(initialData.isDecreasing));
       setTags(initialData.tags || []);
       setNotes(initialData.notes || '');
       setIsRecurring(Boolean(initialData.isRecurring));
@@ -101,6 +103,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
         accountId,
         paid,
         ignoreInTotals,
+        isDecreasing,
         isFavorite,
         tags: tags.length > 0 ? tags : undefined,
         notes: notes.trim() || undefined,
@@ -114,6 +117,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
     if (createAnother) {
       setAmount('');
       setDescription('');
+      setIsDecreasing(false);
       setShowValidation(false);
     }
   };
@@ -179,6 +183,34 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
             variant="rose"
             nanoCategories={currentNanoCategories.length > 0 ? currentNanoCategories : undefined}
           />
+
+          {/* Opção Despesa Decrescente (Meta/Previsão do Mês para Nano Categoria) */}
+          {description.trim().length > 0 && (
+            <div className="flex items-center justify-between px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-2xl transition-all">
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                  <span className="text-rose-400">📉</span>
+                  Despesa Decrescente
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Subtrai o saldo automaticamente conforme novos lançamentos de "{description.trim()}" no mês
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDecreasing(!isDecreasing)}
+                className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer shrink-0 ml-3 ${
+                  isDecreasing ? 'bg-rose-500' : 'bg-slate-800'
+                }`}
+              >
+                <span
+                  className={`block w-3.5 h-3.5 rounded-full bg-white transition-transform ${
+                    isDecreasing ? 'translate-x-4' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+          )}
 
           {/* Categoria com Dropdown Customizado */}
           <CategorySelectorDropdown

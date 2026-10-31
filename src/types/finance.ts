@@ -95,6 +95,8 @@ export interface Transaction {
   ignoreInTotals?: boolean; // Ignorar transação em cálculos e relatórios
   invoiceDate?: string; // Data de vencimento da fatura do cartão
   isFavorite?: boolean; // Transação marcada como favorita
+  isDecreasing?: boolean; // Despesa decrescente (reserva mensal que diminui conforme novos lançamentos da mesma nano)
+  linkedDecreasingId?: string; // ID da despesa decrescente vinculada para estorno automático na exclusão
   createdAt: string;
 }
 

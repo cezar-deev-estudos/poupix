@@ -155,7 +155,38 @@ export const transactionManager: TransactionManagerActions = {
       createdAt: new Date().toISOString(),
     };
 
-    setTransactions(prev => [newTx, ...prev]);
+    setTransactions(prev => {
+      // Se a nova transação for uma despesa normal (não decrescente)
+      if (newTx.type === 'expense' && !newTx.isDecreasing && newTx.description) {
+        const txMonthPrefix = newTx.date.substring(0, 7); // "YYYY-MM"
+        const cleanDesc = newTx.description.trim().toLowerCase();
+
+        // Localizar a despesa decrescente ativa correspondente no mesmo mês/ano
+        const targetDecIndex = prev.findIndex(t => 
+          t.type === 'expense' &&
+          Boolean(t.isDecreasing) &&
+          t.date.startsWith(txMonthPrefix) &&
+          t.description.trim().toLowerCase() === cleanDesc
+        );
+
+        if (targetDecIndex !== -1) {
+          const updated = [...prev];
+          const targetDec = updated[targetDecIndex];
+          const newDecreasedAmount = Math.max(0, targetDec.amount - newTx.amount);
+          
+          // Vincular o ID da despesa decrescente à nova transação para futuro estorno se excluída
+          newTx.linkedDecreasingId = targetDec.id;
+
+          updated[targetDecIndex] = {
+            ...targetDec,
+            amount: Number(newDecreasedAmount.toFixed(2)),
+          };
+          return [newTx, ...updated];
+        }
+      }
+
+      return [newTx, ...prev];
+    });
 
     if (tx.paid && tx.accountId && !tx.creditCardId) {
       setAccounts(prev => prev.map(a => {
@@ -372,7 +403,31 @@ export const transactionManager: TransactionManagerActions = {
       if (!target || mode === 'single' || (!target.recurringGroupId && !target.installmentGroupId)) {
         deleteTransactionFromSupabase(id, target?.recurringGroupId, target?.installmentGroupId, 'single', userId, deletedIds);
         onTransactionDeleted?.(deletedIds);
-        return prev.filter(t => t.id !== id);
+
+        // Estorno na despesa decrescente se houver vínculo
+        let nextTxs = prev.filter(t => t.id !== id);
+        if (target && target.type === 'expense' && target.amount > 0) {
+          const decId = target.linkedDecreasingId;
+          const txMonthPrefix = target.date ? target.date.substring(0, 7) : '';
+          const cleanDesc = target.description ? target.description.trim().toLowerCase() : '';
+
+          const decIndex = nextTxs.findIndex(t => 
+            t.type === 'expense' &&
+            Boolean(t.isDecreasing) &&
+            ((decId && t.id === decId) || (t.date.startsWith(txMonthPrefix) && t.description.trim().toLowerCase() === cleanDesc))
+          );
+
+          if (decIndex !== -1) {
+            const decTx = nextTxs[decIndex];
+            nextTxs = [...nextTxs];
+            nextTxs[decIndex] = {
+              ...decTx,
+              amount: Number((decTx.amount + target.amount).toFixed(2)),
+            };
+          }
+        }
+
+        return nextTxs;
       }
 
       if (mode === 'following') {

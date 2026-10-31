@@ -384,6 +384,11 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                               <Repeat className="w-2.5 h-2.5" /> Fixo
                             </span>
                           )}
+                          {tx.isDecreasing && (
+                            <span className="inline-flex items-center gap-0.5 bg-rose-950/80 text-rose-300 border border-rose-800/70 text-[10px] font-medium px-1.5 py-0.5 rounded-md shrink-0 shadow-sm" title="Despesa Decrescente (Meta Mensal)">
+                              📉 Decrescente
+                            </span>
+                          )}
                         </div>
 
                         {/* Observação */}

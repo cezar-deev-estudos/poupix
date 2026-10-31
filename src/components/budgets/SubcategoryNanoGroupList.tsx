@@ -91,6 +91,14 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
           >
             {formatDateBR(tx.date)}
           </span>
+          {tx.isDecreasing && (
+            <span
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/40 shrink-0 shadow-sm"
+              title="Despesa Decrescente (Meta/Reserva Mensal)"
+            >
+              📉 Decrescente
+            </span>
+          )}
           {card && (
             <>
               <span

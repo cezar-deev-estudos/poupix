@@ -91,6 +91,8 @@ CREATE TABLE IF NOT EXISTS public.transactions (
     ignore_in_totals BOOLEAN NOT NULL DEFAULT false,
     invoice_date DATE,
     is_favorite BOOLEAN NOT NULL DEFAULT false,
+    is_decreasing BOOLEAN NOT NULL DEFAULT false,
+    linked_decreasing_id UUID REFERENCES public.transactions(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
