@@ -94,9 +94,9 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
           {tx.isDecreasing && (
             <span
               className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/40 shrink-0 shadow-sm"
-              title="Despesa Decrescente (Meta/Reserva Mensal)"
+              title="Despesa Prevista (Reserva mensal decrescente)"
             >
-              📉 Decrescente
+              📉 Previsto
             </span>
           )}
           {card && (

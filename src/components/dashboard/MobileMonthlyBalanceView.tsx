@@ -185,33 +185,6 @@ export const MobileMonthlyBalanceView: React.FC<MobileMonthlyBalanceViewProps> =
         </button>
       </div>
 
-      {/* 3. Pílulas de Alternância (Balanço por categoria / Balanço por conta) */}
-      <div className="px-4 pt-2">
-        <div className="bg-[#21242d] rounded-2xl p-1 flex items-center gap-1 border border-slate-800">
-          <button
-            type="button"
-            onClick={() => setActiveTabType('category')}
-            className={`flex-1 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-              activeTabType === 'category'
-                ? 'bg-[#5b4f73] text-white shadow'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Balanço por categoria
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTabType('account')}
-            className={`flex-1 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-              activeTabType === 'account'
-                ? 'bg-[#5b4f73] text-white shadow'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Balanço por conta
-          </button>
-        </div>
-      </div>
 
       {/* 4. Card Central de Balanço */}
       <div className="px-4 pt-3">

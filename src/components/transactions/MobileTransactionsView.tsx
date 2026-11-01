@@ -1173,8 +1173,8 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                               </span>
                             )}
                             {tx.isDecreasing && (
-                              <span className="inline-flex items-center gap-0.5 bg-rose-950/80 text-rose-300 border border-rose-800/70 text-[9px] font-normal px-1.5 py-0.2 rounded-md shrink-0 shadow-sm" title="Despesa Decrescente (Meta Mensal)">
-                                📉 Decrescente
+                              <span className="inline-flex items-center gap-0.5 bg-rose-950/80 text-rose-300 border border-rose-800/70 text-[9px] font-normal px-1.5 py-0.2 rounded-md shrink-0 shadow-sm" title="Despesa Prevista (Reserva mensal decrescente)">
+                                📉 Previsto
                               </span>
                             )}
                           </div>

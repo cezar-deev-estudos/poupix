@@ -12,6 +12,7 @@ interface TransactionRowMenuProps {
   onDelete: (tx: Transaction) => void;
   onAttach: (tx: Transaction) => void;
   onConvertTransfer: (tx: Transaction) => void;
+  openUpward?: boolean;
 }
 
 export const TransactionRowMenu: React.FC<TransactionRowMenuProps> = ({
@@ -22,13 +23,18 @@ export const TransactionRowMenu: React.FC<TransactionRowMenuProps> = ({
   onDelete,
   onAttach,
   onConvertTransfer,
+  openUpward = false,
 }) => {
   if (!isOpen) return null;
 
   return (
     <>
       <div className="fixed inset-0 z-30" onClick={onClose} />
-      <div className="absolute right-0 top-full mt-1.5 w-48 bg-[#232733] border border-slate-700/80 rounded-2xl shadow-2xl z-40 py-1.5 animate-scaleUp overflow-hidden text-xs text-slate-200">
+      <div
+        className={`absolute right-0 ${
+          openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+        } w-48 bg-[#232733] border border-slate-700/80 rounded-2xl shadow-2xl z-40 py-1.5 animate-scaleUp overflow-hidden text-xs text-slate-200`}
+      >
         <button
           type="button"
           onClick={() => {

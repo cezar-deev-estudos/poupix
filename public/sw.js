@@ -1,5 +1,5 @@
 // Poupix PRO - Service Worker (gerado automaticamente em build)
-const CACHE_NAME = 'poupix-pro-mvwv3lgg';
+const CACHE_NAME = 'poupix-pro-mvx5w1wl';
 
 const PRECACHE_ASSETS = [
   '/manifest.json',

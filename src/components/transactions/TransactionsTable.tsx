@@ -385,8 +385,8 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                             </span>
                           )}
                           {tx.isDecreasing && (
-                            <span className="inline-flex items-center gap-0.5 bg-rose-950/80 text-rose-300 border border-rose-800/70 text-[10px] font-medium px-1.5 py-0.5 rounded-md shrink-0 shadow-sm" title="Despesa Decrescente (Meta Mensal)">
-                              📉 Decrescente
+                            <span className="inline-flex items-center gap-0.5 bg-rose-950/80 text-rose-300 border border-rose-800/70 text-[10px] font-medium px-1.5 py-0.5 rounded-md shrink-0 shadow-sm" title="Despesa Prevista (Reserva mensal decrescente)">
+                              📉 Previsto
                             </span>
                           )}
                         </div>
@@ -397,7 +397,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                             className="text-[11px] text-slate-400 italic block truncate mt-0.5"
                             title={`Observação: ${tx.notes}`}
                           >
-                            <span className="text-slate-500 not-italic font-medium">Obs:</span> {tx.notes}
+                            {tx.notes}
                           </span>
                         )}
 
@@ -494,6 +494,10 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                               onDelete={onDelete}
                               onAttach={onAttach || (() => {})}
                               onConvertTransfer={onConvertTransfer || (() => {})}
+                              openUpward={(() => {
+                                const globalIndex = paginatedTransactions.findIndex(t => t.id === tx.id);
+                                return globalIndex !== -1 && globalIndex >= paginatedTransactions.length - 4;
+                              })()}
                             />
                           </>
                         )}
