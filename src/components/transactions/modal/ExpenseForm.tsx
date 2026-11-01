@@ -110,6 +110,8 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
         isRecurring,
         recurringPeriod: isRecurring ? 'monthly' : undefined,
         installmentTotal: isRepeat ? Number(repeatCount) : undefined,
+        creditCardId: undefined,
+        invoiceDate: undefined,
       },
       createAnother
     );

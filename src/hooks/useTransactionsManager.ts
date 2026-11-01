@@ -257,7 +257,17 @@ export const transactionManager: TransactionManagerActions = {
       }
 
       if (mode === 'single' || (!target.recurringGroupId && !target.installmentGroupId)) {
-        return prev.map(t => (t.id === id ? { ...t, ...updated } : t));
+        return prev.map(t => {
+          if (t.id === id) {
+            const next = { ...t, ...updated };
+            if (updated.type === 'expense' && !updated.creditCardId) {
+              delete next.creditCardId;
+              delete next.invoiceDate;
+            }
+            return next;
+          }
+          return t;
+        });
       }
 
       // Função auxiliar para calcular a descrição adequada de cada parcela ao editar em lote
@@ -300,13 +310,18 @@ export const transactionManager: TransactionManagerActions = {
             if (t.recurringGroupId === target.recurringGroupId && t.date >= target.date) {
               const newDate = computeAdjustedDate(t.date, updated.date);
               const newInvoiceDate = computeAdjustedInvoiceDate(t.invoiceDate, updated.invoiceDate);
-              return {
+              const itemToUpdate = {
                 ...t,
                 ...updated,
                 id: t.id,
                 date: newDate,
                 invoiceDate: newInvoiceDate,
               };
+              if (updated.type === 'expense' && !updated.creditCardId) {
+                delete itemToUpdate.creditCardId;
+                delete itemToUpdate.invoiceDate;
+              }
+              return itemToUpdate;
             }
             return t;
           });
@@ -340,13 +355,18 @@ export const transactionManager: TransactionManagerActions = {
             if (t.recurringGroupId === target.recurringGroupId) {
               const newDate = computeAdjustedDate(t.date, updated.date);
               const newInvoiceDate = computeAdjustedInvoiceDate(t.invoiceDate, updated.invoiceDate);
-              return {
+              const itemToUpdate = {
                 ...t,
                 ...updated,
                 id: t.id,
                 date: newDate,
                 invoiceDate: newInvoiceDate,
               };
+              if (updated.type === 'expense' && !updated.creditCardId) {
+                delete itemToUpdate.creditCardId;
+                delete itemToUpdate.invoiceDate;
+              }
+              return itemToUpdate;
             }
             return t;
           });
