@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { Category, Transaction, getCategoryBudgetForPeriod } from '@/types/finance';
 import { formatCurrency, getMonthName, formatDateBR } from '@/lib/utils';
-import { getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
+import { getTransactionInvoicePeriod, isSameId } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { MobileCategoryDetailDrawer } from '../dashboard/MobileCategoryDetailDrawer';
@@ -402,7 +402,7 @@ export const BudgetsView: React.FC = () => {
 
   // Separação de Categorias Principais (Pais) e Subcategorias ATIVAS
   const parentCategories = activeCategories.filter(c => !c.parentId);
-  const getSubcategories = (parentCatId: string) => activeCategories.filter(c => c.parentId === parentCatId);
+  const getSubcategories = (parentCatId: string) => activeCategories.filter(c => isSameId(c.parentId, parentCatId));
 
   // Categorias elegíveis para serem Pai no formulário
   const eligibleParentCategories = activeCategories.filter(c => !c.parentId && c.type === type && (!editingCategory || c.id !== editingCategory.id));
