@@ -355,6 +355,7 @@ export const BudgetsView: React.FC = () => {
   const [budgetLimit, setBudgetLimit] = useState('');
   const [budgetMode, setBudgetMode] = useState<'default' | 'month'>('default');
   const [monthBudgetLimit, setMonthBudgetLimit] = useState('');
+  const [autoSumSubcategories, setAutoSumSubcategories] = useState(false);
   const [icon, setIcon] = useState('Tag');
   const [color, setColor] = useState('#10B981');
 
@@ -437,6 +438,7 @@ export const BudgetsView: React.FC = () => {
     setParentId(suggestedParentId || '');
     setBudgetLimit('');
     setMonthBudgetLimit('');
+    setAutoSumSubcategories(false);
     setBudgetMode('default');
     setIcon('Tag');
     setColor('#10B981');
@@ -450,6 +452,7 @@ export const BudgetsView: React.FC = () => {
     setType(cat.type);
     setParentId(cat.parentId || '');
     setBudgetLimit(cat.budgetLimit ? String(cat.budgetLimit) : '');
+    setAutoSumSubcategories(Boolean(cat.autoSumSubcategories));
 
     const monthKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
     const customForMonth = cat.monthlyBudgets && typeof cat.monthlyBudgets[monthKey] === 'number';
@@ -498,6 +501,7 @@ export const BudgetsView: React.FC = () => {
         parentId: parentId || undefined,
         budgetLimit: cleanDefaultBudget,
         monthlyBudgets: updatedMonthlyBudgets,
+        autoSumSubcategories,
         icon,
         color,
       });
@@ -513,6 +517,7 @@ export const BudgetsView: React.FC = () => {
         parentId: parentId || undefined,
         budgetLimit: cleanDefaultBudget,
         monthlyBudgets: Object.keys(initialMonthlyBudgets).length > 0 ? initialMonthlyBudgets : undefined,
+        autoSumSubcategories,
         icon,
         color,
       });
@@ -1587,11 +1592,45 @@ export const BudgetsView: React.FC = () => {
                           Teto Previsto {getMonthName(selectedMonth)}/{selectedYear}
                         </span>
                       </label>
-                      {budgetMode === 'month' && (
-                        <span className="text-[9px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-medium">
-                          Em uso
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {/* Checkbox minimalista para preenchimento automático pela soma das subcategorias */}
+                        {editingCategory && !editingCategory.parentId && getSubcategories(editingCategory.id).length > 0 && (
+                          <label
+                            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg border transition-colors cursor-pointer text-[10px] ${
+                              autoSumSubcategories
+                                ? 'bg-purple-950/60 border-purple-500/60 text-purple-200'
+                                : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800'
+                            }`}
+                            title="Calcular automaticamente somando o teto das subcategorias deste mês"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={autoSumSubcategories}
+                              className="w-3.5 h-3.5 rounded text-purple-500 bg-slate-950 border-slate-600 focus:ring-purple-500 cursor-pointer"
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setAutoSumSubcategories(checked);
+                                if (checked) {
+                                  const subs = getSubcategories(editingCategory.id);
+                                  const sumSubs = subs.reduce((sum, s) => {
+                                    const bInfo = getCategoryBudgetForPeriod(s, selectedYear, selectedMonth);
+                                    return sum + (bInfo.amount || 0);
+                                  }, 0);
+                                  setMonthBudgetLimit(sumSubs > 0 ? String(sumSubs) : '');
+                                  setBudgetMode('month');
+                                }
+                              }}
+                            />
+                            <span className="select-none font-medium">Somar filhas</span>
+                          </label>
+                        )}
+                        {budgetMode === 'month' && (
+                          <span className="text-[9px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-medium">
+                            Em uso
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="pl-6">
                       <input

@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS public.categories (
     color TEXT NOT NULL DEFAULT '#64748B',
     budget_limit NUMERIC(12, 2),
     is_default BOOLEAN NOT NULL DEFAULT false,
+    auto_sum_subcategories BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

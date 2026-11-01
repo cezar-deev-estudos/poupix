@@ -72,6 +72,7 @@ export const syncAllToSupabase = async (data: {
           budget_limit: cat.budgetLimit || null,
           is_default: cat.isDefault ?? false,
           is_archived: cat.isArchived ?? false,
+          auto_sum_subcategories: cat.autoSumSubcategories ?? false,
           nano_categories: cat.nanoCategories || [],
         }
       })
@@ -330,6 +331,7 @@ export const fetchAllFromSupabase = async (userId: string) => {
       budgetLimit: cat.budget_limit ? Number(cat.budget_limit) : undefined,
       isDefault: cat.is_default ?? false,
       isArchived: cat.is_archived ?? false,
+      autoSumSubcategories: cat.auto_sum_subcategories ?? false,
       nanoCategories: Array.isArray(cat.nano_categories) && cat.nano_categories.length > 0 ? cat.nano_categories : undefined,
     }))
 

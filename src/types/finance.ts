@@ -48,6 +48,7 @@ export interface Category {
   nanoCategories?: NanoCategory[]; // Nano-categorias / despesas frequentes vinculadas
   isDefault?: boolean;
   isArchived?: boolean;
+  autoSumSubcategories?: boolean; // Se verdadeiro, calcula automaticamente o teto somando as subcategorias filhas
 }
 
 /**
