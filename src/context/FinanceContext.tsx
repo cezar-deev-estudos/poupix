@@ -69,6 +69,7 @@ interface FinanceContextType {
   addTransaction: (tx: Omit<Transaction, 'id' | 'createdAt'>) => void;
   importTransactions: (txs: Omit<Transaction, 'id' | 'createdAt'>[]) => void;
   updateTransaction: (id: string, tx: Partial<Transaction>, mode?: 'single' | 'following' | 'all') => void;
+  updateTransactionsBatch: (ids: string[], tx: Partial<Transaction>) => void;
   deleteTransaction: (id: string, mode?: 'single' | 'following' | 'all') => void;
   addAccount: (acc: Omit<Account, 'id' | 'createdAt'>) => void;
   updateAccount: (id: string, acc: Partial<Account>) => void;
@@ -743,6 +744,20 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 if (orig.installmentGroupId && t.installmentGroupId === orig.installmentGroupId) return true;
                 return t.id === id;
               });
+              if (updatedItems.length > 0 && user?.id) {
+                upsertTransactionsDirectlyToSupabase(updatedItems, user.id);
+              }
+              return currentTxs;
+            });
+          }
+        },
+        updateTransactionsBatch: (ids, up) => {
+          transactionManager.updateTransactionsBatch(ids, up, transactions, setTransactions, setAccounts);
+          notifyDirectMutation();
+          if (user?.id) {
+            setTransactions(currentTxs => {
+              const idsSet = new Set(ids);
+              const updatedItems = currentTxs.filter(t => idsSet.has(t.id));
               if (updatedItems.length > 0 && user?.id) {
                 upsertTransactionsDirectlyToSupabase(updatedItems, user.id);
               }

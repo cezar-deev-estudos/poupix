@@ -55,6 +55,13 @@ export interface TransactionManagerActions {
     userId?: string,
     setAccounts?: React.Dispatch<React.SetStateAction<Account[]>>
   ) => void;
+  updateTransactionsBatch: (
+    ids: string[],
+    updated: Partial<Transaction>,
+    transactions: Transaction[],
+    setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>,
+    setAccounts?: React.Dispatch<React.SetStateAction<Account[]>>
+  ) => void;
 }
 
 export const transactionManager: TransactionManagerActions = {
@@ -495,6 +502,56 @@ export const transactionManager: TransactionManagerActions = {
       deleteTransactionFromSupabase(id, target?.recurringGroupId, target?.installmentGroupId, mode, userId, deletedIds);
       onTransactionDeleted?.(deletedIds);
       return prev.filter(t => t.id !== id);
+    });
+  },
+
+  updateTransactionsBatch: (ids, updated, transactions, setTransactions, setAccounts) => {
+    const idsSet = new Set(ids);
+
+    // Calcular delta de contas se aplicável
+    if (setAccounts) {
+      const targets = transactions.filter(t => idsSet.has(t.id));
+      if (targets.length > 0) {
+        setAccounts(prevAccounts => {
+          return prevAccounts.map(acc => {
+            let totalDiff = 0;
+            targets.forEach(prevTarget => {
+              const nextTarget: Transaction = { ...prevTarget, ...updated };
+              const oldDelta = getAccountDelta(prevTarget, acc.id);
+              const newDelta = getAccountDelta(nextTarget, acc.id);
+              totalDiff += (newDelta - oldDelta);
+            });
+            if (totalDiff !== 0) {
+              return { ...acc, balance: acc.balance + totalDiff };
+            }
+            return acc;
+          });
+        });
+      }
+    }
+
+    setTransactions(prev => {
+      return prev.map(t => {
+        if (!idsSet.has(t.id)) return t;
+
+        const next: Transaction = { ...t, ...updated };
+
+        // Se foi transformado explicitamente em despesa de conta (sem cartão)
+        if (updated.type === 'expense' && !updated.creditCardId) {
+          delete next.creditCardId;
+          delete next.invoiceDate;
+        }
+
+        // Se foi associado a um cartão de crédito, garante que mantenha o creditCardId
+        if (updated.creditCardId) {
+          next.creditCardId = updated.creditCardId;
+          if (updated.invoiceDate) {
+            next.invoiceDate = updated.invoiceDate;
+          }
+        }
+
+        return next;
+      });
     });
   },
 };

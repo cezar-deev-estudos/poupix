@@ -8,7 +8,8 @@ import { getTransactionInvoicePeriod, getEffectiveTransactionDate, isSameId } fr
 import { CategoryIcon } from '../ui/CategoryIcon';
 import { TransactionRowMenu } from './TransactionRowMenu';
 import { ConfirmPaymentModal } from './ConfirmPaymentModal';
-import { Check, Clock, CreditCard, MoreVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Repeat, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, Search } from 'lucide-react';
+import { BatchEditModal } from './BatchEditModal';
+import { Check, Clock, CreditCard, MoreVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Repeat, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, Search, Edit3, Trash2 } from 'lucide-react';
 
 interface TransactionsTableProps {
   transactions: Transaction[];
@@ -27,9 +28,10 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   onAttach,
   onConvertTransfer,
 }) => {
-  const { categories, accounts, creditCards, selectedMonth, selectedYear, updateTransaction, addTransaction, updateCreditCard, transactions: allTransactions } = useFinance();
+  const { categories, accounts, creditCards, selectedMonth, selectedYear, updateTransaction, updateTransactionsBatch, deleteTransaction, addTransaction, updateCreditCard, transactions: allTransactions } = useFinance();
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBatchEditOpen, setIsBatchEditOpen] = useState(false);
   const [rowsPerPage, setRowsPerPage] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isRowsDropdownOpen, setIsRowsDropdownOpen] = useState(false);
@@ -256,8 +258,40 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     }
   };
 
+  const handleSelectAllFiltered = () => {
+    if (selectedIds.length === sortedTransactions.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(sortedTransactions.map(t => t.id));
+    }
+  };
+
   const handleToggleSelect = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  };
+
+  const selectedTransactionsList = useMemo(() => {
+    const idsSet = new Set(selectedIds);
+    return transactions.filter(t => idsSet.has(t.id));
+  }, [transactions, selectedIds]);
+
+  const handleApplyBatchEdit = (updates: Partial<Transaction>) => {
+    if (selectedIds.length === 0) return;
+    updateTransactionsBatch(selectedIds, updates);
+    setSelectedIds([]);
+  };
+
+  const handleBatchTogglePaid = (targetPaid: boolean) => {
+    if (selectedIds.length === 0) return;
+    updateTransactionsBatch(selectedIds, { paid: targetPaid });
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedIds.length === 0) return;
+    selectedIds.forEach(id => {
+      deleteTransaction(id, 'single');
+    });
+    setSelectedIds([]);
   };
 
   const handleRequestTogglePaid = (id: string, currentPaid: boolean, txItem?: Transaction) => {
@@ -596,7 +630,85 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   };
 
   return (
-    <div className="bg-[#181c24] border border-slate-800/90 rounded-3xl overflow-hidden shadow-2xl space-y-0">
+    <div className="bg-[#181c24] border border-slate-800/90 rounded-3xl overflow-hidden shadow-2xl space-y-0 relative">
+      {/* Barra Flutuante de Ações em Lote */}
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 border-b border-indigo-700/60 shadow-xl text-xs animate-fadeIn sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            <span className="font-bold text-white flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[11px] font-black">
+                {selectedIds.length}
+              </span>
+              <span>{selectedIds.length === 1 ? 'transação selecionada' : 'transações selecionadas'}</span>
+            </span>
+
+            {/* Opção para selecionar todas as linhas filtradas caso haja paginação */}
+            {sortedTransactions.length > paginatedTransactions.length && selectedIds.length < sortedTransactions.length && (
+              <button
+                type="button"
+                onClick={handleSelectAllFiltered}
+                className="text-indigo-400 hover:text-indigo-200 underline cursor-pointer text-[11px] ml-1"
+              >
+                Selecionar todas as {sortedTransactions.length} filtradas
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Botão Editar em Lote */}
+            <button
+              type="button"
+              onClick={() => setIsBatchEditOpen(true)}
+              className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center gap-1.5 shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Editar em Lote</span>
+            </button>
+
+            {/* Botão Marcar como Paga */}
+            <button
+              type="button"
+              onClick={() => handleBatchTogglePaid(true)}
+              className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Marcar todas selecionadas como Pagas"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>Marcar Pagas</span>
+            </button>
+
+            {/* Botão Marcar como Pendente */}
+            <button
+              type="button"
+              onClick={() => handleBatchTogglePaid(false)}
+              className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Marcar todas selecionadas como Pendentes"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>Marcar Pendentes</span>
+            </button>
+
+            {/* Botão Excluir */}
+            <button
+              type="button"
+              onClick={handleBatchDelete}
+              className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all cursor-pointer"
+              title="Excluir selecionadas"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Botão Desmarcar */}
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="text-slate-400 hover:text-white px-2 py-1 text-xs cursor-pointer ml-1"
+            >
+              Desmarcar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Barra de Filtros Ativos das Colunas */}
       {hasActiveColumnFilters && (
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-2.5 bg-indigo-950/30 border-b border-indigo-900/40 text-xs text-indigo-300">
@@ -1173,6 +1285,17 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
         invoiceInfo={confirmingPayment?.invoiceInfo}
         onConfirm={handleConfirmExecutePayment}
         onCancel={() => setConfirmingPayment(null)}
+      />
+
+      {/* Modal de Edição em Lote */}
+      <BatchEditModal
+        isOpen={isBatchEditOpen}
+        onClose={() => setIsBatchEditOpen(false)}
+        selectedTransactions={selectedTransactionsList}
+        categories={categories}
+        creditCards={creditCards}
+        accounts={accounts}
+        onApply={handleApplyBatchEdit}
       />
     </div>
   );
