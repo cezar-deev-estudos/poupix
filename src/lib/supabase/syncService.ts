@@ -1,5 +1,6 @@
 import { getSupabaseClient } from './client'
 import { Account, CreditCard, Category, Transaction, Goal, OpenFinanceConnection, UserProfile, Tag } from '@/types/finance'
+import { isSameId } from '@/lib/invoiceHelpers'
 
 export interface CloudSyncResult {
   success: boolean
@@ -130,7 +131,9 @@ export const syncAllToSupabase = async (data: {
     const validCardIds = new Set<string>()
     if (data.creditCards.length > 0) {
       const cardsPayload = data.creditCards.map(c => {
+        const directId = c.id
         const cardUuid = ensureValidUUID(c.id)
+        validCardIds.add(directId)
         validCardIds.add(cardUuid)
         return {
           id: cardUuid,
@@ -153,15 +156,25 @@ export const syncAllToSupabase = async (data: {
       const txPayload = data.transactions.map(tx => {
         const accId = tx.accountId ? ensureValidUUID(tx.accountId) : null
         const destAccId = tx.destinationAccountId ? ensureValidUUID(tx.destinationAccountId) : null
-        const cardId = tx.creditCardId ? ensureValidUUID(tx.creditCardId) : null
+        // Resiliência no cartão: preserva o ID direto do cartão ou UUID válido
+        let cardId: string | null = null
+        if (tx.creditCardId) {
+          const directCardId = tx.creditCardId
+          const uuidCardId = ensureValidUUID(tx.creditCardId)
+          if (validCardIds.has(directCardId) || validCardIds.has(uuidCardId) || data.creditCards.some(c => isSameId(c.id, tx.creditCardId))) {
+            cardId = uuidCardId
+          } else {
+            cardId = uuidCardId // Preserva mesmo se ainda não constar no cache local
+          }
+        }
         const catId = tx.categoryId ? ensureValidUUID(tx.categoryId) : null
 
         return {
           id: ensureValidUUID(tx.id),
           user_id: userId,
-          account_id: accId && validAccountIds.has(accId) ? accId : null,
+          account_id: cardId ? null : (accId && validAccountIds.has(accId) ? accId : null),
           destination_account_id: destAccId && validAccountIds.has(destAccId) ? destAccId : null,
-          credit_card_id: cardId && validCardIds.has(cardId) ? cardId : null,
+          credit_card_id: cardId,
           category_id: catId && validCategoryIds.has(catId) ? catId : null,
           type: tx.type,
           amount: Number(tx.amount) || 0,
@@ -197,9 +210,9 @@ export const syncAllToSupabase = async (data: {
           return {
             id: ensureValidUUID(tx.id),
             user_id: userId,
-            account_id: accId && validAccountIds.has(accId) ? accId : null,
+            account_id: cardId ? null : (accId && validAccountIds.has(accId) ? accId : null),
             destination_account_id: destAccId && validAccountIds.has(destAccId) ? destAccId : null,
-            credit_card_id: cardId && validCardIds.has(cardId) ? cardId : null,
+            credit_card_id: cardId,
             category_id: catId && validCategoryIds.has(catId) ? catId : null,
             type: tx.type,
             amount: Number(tx.amount) || 0,
@@ -482,31 +495,34 @@ export const upsertTransactionsDirectlyToSupabase = async (
 
   try {
     const userUuid = ensureValidUUID(userId)
-    const payload = txs.map(tx => ({
-      id: ensureValidUUID(tx.id),
-      user_id: userUuid,
-      account_id: tx.accountId ? ensureValidUUID(tx.accountId) : null,
-      destination_account_id: tx.destinationAccountId ? ensureValidUUID(tx.destinationAccountId) : null,
-      credit_card_id: tx.creditCardId ? ensureValidUUID(tx.creditCardId) : null,
-      category_id: tx.categoryId ? ensureValidUUID(tx.categoryId) : null,
-      type: tx.type,
-      amount: Number(tx.amount) || 0,
-      description: tx.description || 'Lançamento',
-      date: tx.date || new Date().toISOString().split('T')[0],
-      paid: tx.paid ?? true,
-      is_recurring: tx.isRecurring ?? false,
-      recurring_period: tx.recurringPeriod || null,
-      recurring_group_id: tx.recurringGroupId || null,
-      installment_current: tx.installmentCurrent || null,
-      installment_total: tx.installmentTotal || null,
-      installment_group_id: tx.installmentGroupId || null,
-      ignore_in_totals: tx.ignoreInTotals ?? false,
-      invoice_date: tx.invoiceDate || null,
-      is_favorite: tx.isFavorite ?? false,
-      tags: tx.tags || [],
-      notes: tx.notes || null,
-      created_at: tx.createdAt || new Date().toISOString(),
-    }))
+    const payload = txs.map(tx => {
+      const cardId = tx.creditCardId ? ensureValidUUID(tx.creditCardId) : null
+      return {
+        id: ensureValidUUID(tx.id),
+        user_id: userUuid,
+        account_id: cardId ? null : (tx.accountId ? ensureValidUUID(tx.accountId) : null),
+        destination_account_id: tx.destinationAccountId ? ensureValidUUID(tx.destinationAccountId) : null,
+        credit_card_id: cardId,
+        category_id: tx.categoryId ? ensureValidUUID(tx.categoryId) : null,
+        type: tx.type,
+        amount: Number(tx.amount) || 0,
+        description: tx.description || 'Lançamento',
+        date: tx.date || new Date().toISOString().split('T')[0],
+        paid: tx.paid ?? true,
+        is_recurring: tx.isRecurring ?? false,
+        recurring_period: tx.recurringPeriod || null,
+        recurring_group_id: tx.recurringGroupId || null,
+        installment_current: tx.installmentCurrent || null,
+        installment_total: tx.installmentTotal || null,
+        installment_group_id: tx.installmentGroupId || null,
+        ignore_in_totals: tx.ignoreInTotals ?? false,
+        invoice_date: tx.invoiceDate || null,
+        is_favorite: tx.isFavorite ?? false,
+        tags: tx.tags || [],
+        notes: tx.notes || null,
+        created_at: tx.createdAt || new Date().toISOString(),
+      }
+    })
 
     const { error } = await supabase.from('transactions').upsert(payload as any)
     if (error) {
