@@ -466,7 +466,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     const sorted = [...displayedTransactions].sort((a, b) => {
       const dateA = getTxDate(a);
       const dateB = getTxDate(b);
-      return new Date(dateB).getTime() - new Date(dateA).getTime();
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
     });
 
     const groups: { dateKey: string; label: string; items: Transaction[]; isToday?: boolean; isYesterday?: boolean }[] = [];

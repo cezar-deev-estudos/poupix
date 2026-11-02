@@ -18,6 +18,7 @@ interface TransactionsTableProps {
   onDelete: (tx: Transaction) => void;
   onAttach?: (tx: Transaction) => void;
   onConvertTransfer?: (tx: Transaction) => void;
+  onExportExcel?: (filteredList: Transaction[]) => void;
 }
 
 export const TransactionsTable: React.FC<TransactionsTableProps> = ({
@@ -27,6 +28,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   onDelete,
   onAttach,
   onConvertTransfer,
+  onExportExcel,
 }) => {
   const { categories, accounts, creditCards, selectedMonth, selectedYear, updateTransaction, updateTransactionsBatch, deleteTransaction, addTransaction, updateCreditCard, transactions: allTransactions } = useFinance();
 
@@ -47,10 +49,10 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     currentPaid: boolean;
   } | null>(null);
 
-  // Estados de Ordenação por Coluna
+  // Estados de Ordenação por Coluna (Padrão: data crescente, menor data do mês primeiro)
   type SortField = 'date' | 'status' | 'type' | 'description' | 'category' | 'account' | 'amount';
   const [sortField, setSortField] = useState<SortField>('date');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Estados de Filtro por Coluna
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'pending'>('all');
@@ -751,12 +753,25 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
             )}
           </div>
 
-          <button
-            onClick={clearAllColumnFilters}
-            className="text-[11px] font-bold text-indigo-400 hover:text-indigo-200 transition-colors cursor-pointer underline underline-offset-2"
-          >
-            Limpar Filtros
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={clearAllColumnFilters}
+              className="text-[11px] font-bold text-indigo-400 hover:text-indigo-200 transition-colors cursor-pointer underline underline-offset-2"
+            >
+              Limpar Filtros
+            </button>
+
+            {onExportExcel && (
+              <button
+                type="button"
+                onClick={() => onExportExcel(sortedTransactions)}
+                className="px-2.5 py-1 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ml-2"
+                title="Exportar exatamente estes resultados filtrados para Excel"
+              >
+                <span>Baixar Filtrados ({sortedTransactions.length})</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 

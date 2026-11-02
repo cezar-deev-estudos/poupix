@@ -32,6 +32,8 @@ import {
 } from 'lucide-react';
 import { ExpenseHeatmapCalendar } from '../dashboard/ExpenseHeatmapCalendar';
 import { CategoryIcon } from '../ui/CategoryIcon';
+import { ExportExcelModal } from './ExportExcelModal';
+import { FileSpreadsheet } from 'lucide-react';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -89,6 +91,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [selectedHeatmapDate, setSelectedHeatmapDate] = useState<string | null>(null);
 
   // Estados de Modais
+  const [isExportExcelOpen, setIsExportExcelOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
   const [deleteMode, setDeleteMode] = useState<'single' | 'following' | 'all'>('single');
@@ -424,6 +427,33 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     (deletingTransaction?.installmentTotal && deletingTransaction.installmentTotal > 1)
   );
 
+  // Transações puras do mês e do ano para exportação sem filtros manuais
+  const monthTransactions = useMemo(() => {
+    return (allTransactions || []).filter((t) => {
+      if (t.creditCardId) {
+        const card = creditCards.find((c) => isSameId(c.id, t.creditCardId));
+        const { year, month } = getTransactionInvoicePeriod(t, card);
+        return year === selectedYear && month === selectedMonth;
+      }
+      if (!t.date) return false;
+      const [tYear, tMonth] = t.date.split('-').map(Number);
+      return tYear === selectedYear && tMonth === selectedMonth + 1;
+    });
+  }, [allTransactions, selectedYear, selectedMonth, creditCards]);
+
+  const yearTransactions = useMemo(() => {
+    return (allTransactions || []).filter((t) => {
+      if (t.creditCardId) {
+        const card = creditCards.find((c) => isSameId(c.id, t.creditCardId));
+        const { year } = getTransactionInvoicePeriod(t, card);
+        return year === selectedYear;
+      }
+      if (!t.date) return false;
+      const [tYear] = t.date.split('-').map(Number);
+      return tYear === selectedYear;
+    });
+  }, [allTransactions, selectedYear, creditCards]);
+
   // Labels do Dropdown de Tipo
   const getTypeLabel = () => {
     switch (activeTypeFilter) {
@@ -524,6 +554,17 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
         {/* Ferramentas do Lado Direito: Busca, Filtro, Opções e Nova Transação */}
         <div className="flex items-center gap-2">
+          {/* Botão de Exportar para Excel (.xlsx) */}
+          <button
+            type="button"
+            onClick={() => setIsExportExcelOpen(true)}
+            className="p-2.5 bg-[#1e2330] hover:bg-emerald-500/20 border border-slate-800 hover:border-emerald-500/40 text-slate-400 hover:text-emerald-400 rounded-2xl transition-all cursor-pointer flex items-center gap-1.5"
+            title="Exportar Transações para Excel (.xlsx)"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+            <span className="hidden xl:inline text-xs font-semibold text-slate-300 hover:text-emerald-300">Excel</span>
+          </button>
+
           {/* Busca Expandível */}
           {isSearchOpen ? (
             <div className="relative animate-fadeIn">
@@ -1109,6 +1150,21 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           onCancel={() => setDeletingTransaction(null)}
         />
       )}
+
+      {/* Modal de Exportação para Excel (.xlsx) */}
+      <ExportExcelModal
+        isOpen={isExportExcelOpen}
+        onClose={() => setIsExportExcelOpen(false)}
+        filteredTransactions={displayedTransactions}
+        monthTransactions={monthTransactions}
+        yearTransactions={yearTransactions}
+        allTransactions={allTransactions}
+        selectedMonthName={MONTH_NAMES[selectedMonth]}
+        selectedYear={selectedYear}
+        categories={categories}
+        creditCards={creditCards}
+        accounts={accounts}
+      />
     </div>
   );
 };
