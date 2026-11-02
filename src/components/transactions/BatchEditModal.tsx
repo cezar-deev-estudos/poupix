@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Category, CreditCard, Account, Transaction } from '@/types/finance';
 import { X, CreditCard as CardIcon, Landmark, Tag, Check, Calendar, ArrowRightLeft, AlertCircle } from 'lucide-react';
 import { calculateDefaultInvoiceDueDate } from '@/lib/invoiceHelpers';
+import { CategorySelectorDropdown } from './modal/CategorySelectorDropdown';
 
 interface BatchEditModalProps {
   isOpen: boolean;
@@ -199,18 +200,12 @@ export const BatchEditModal: React.FC<BatchEditModalProps> = ({
 
             {changeCategory && (
               <div className="pt-2 pl-6 animate-fadeIn">
-                <select
-                  value={selectedCategoryId}
-                  onChange={(e) => setSelectedCategoryId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="">Selecione uma categoria...</option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.parentId ? `└ ${c.name}` : c.name}
-                    </option>
-                  ))}
-                </select>
+                <CategorySelectorDropdown
+                  categories={categories.filter(c => c.type === 'expense')}
+                  selectedCategoryId={selectedCategoryId}
+                  onSelectCategory={(id) => setSelectedCategoryId(id)}
+                  variant="blue"
+                />
               </div>
             )}
           </div>

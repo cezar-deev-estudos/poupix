@@ -67,6 +67,7 @@ export function exportTransactionsToExcel({
       'Parcelas': tx.installmentTotal ? `${tx.installmentCurrent || 1}/${tx.installmentTotal}` : '',
       'Tags': tx.tags ? tx.tags.join(', ') : '',
       'Observação': tx.notes || '',
+      'ID': tx.id,
     };
   });
 
@@ -74,7 +75,7 @@ export function exportTransactionsToExcel({
   const worksheet = XLSX.utils.json_to_sheet(rows, { cellDates: true });
 
   // 3. Formatar as células de Data (dd/mm/yyyy) e Valor (moeda)
-  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:K1');
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:L1');
 
   for (let R = range.s.r + 1; R <= range.e.r; ++R) {
     // Coluna A (Data, índice 0)
@@ -105,6 +106,7 @@ export function exportTransactionsToExcel({
     { wch: 10 }, // Parcelas
     { wch: 20 }, // Tags
     { wch: 25 }, // Observação
+    { wch: 38 }, // ID
   ];
 
   // 4. Criar pasta de trabalho (Workbook)
