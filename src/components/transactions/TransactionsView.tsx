@@ -92,6 +92,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
   // Estados de Modais
   const [isExportExcelOpen, setIsExportExcelOpen] = useState(false);
+  const [tableFilteredTransactions, setTableFilteredTransactions] = useState<Transaction[] | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
   const [deleteMode, setDeleteMode] = useState<'single' | 'following' | 'all'>('single');
@@ -1033,6 +1034,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           showTypeColumn={activeTypeFilter === 'all'}
           onEdit={(tx) => setEditingTransaction(tx)}
           onDelete={(tx) => setDeletingTransaction(tx)}
+          onExportExcel={(filteredList) => {
+            setTableFilteredTransactions(filteredList);
+            setIsExportExcelOpen(true);
+          }}
+          onFilteredTransactionsChange={(filteredList) => {
+            setTableFilteredTransactions(filteredList);
+          }}
         />
       )}
 
@@ -1155,7 +1163,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       <ExportExcelModal
         isOpen={isExportExcelOpen}
         onClose={() => setIsExportExcelOpen(false)}
-        filteredTransactions={displayedTransactions}
+        filteredTransactions={tableFilteredTransactions !== null ? tableFilteredTransactions : displayedTransactions}
         monthTransactions={monthTransactions}
         yearTransactions={yearTransactions}
         allTransactions={allTransactions}

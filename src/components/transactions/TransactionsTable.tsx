@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Transaction } from '@/types/finance';
 import { useFinance } from '@/context/FinanceContext';
 import { formatCurrency, formatDateBR, getLocalDateString } from '@/lib/utils';
@@ -19,6 +19,7 @@ interface TransactionsTableProps {
   onAttach?: (tx: Transaction) => void;
   onConvertTransfer?: (tx: Transaction) => void;
   onExportExcel?: (filteredList: Transaction[]) => void;
+  onFilteredTransactionsChange?: (filtered: Transaction[]) => void;
 }
 
 export const TransactionsTable: React.FC<TransactionsTableProps> = ({
@@ -29,6 +30,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   onAttach,
   onConvertTransfer,
   onExportExcel,
+  onFilteredTransactionsChange,
 }) => {
   const { categories, accounts, creditCards, selectedMonth, selectedYear, updateTransaction, updateTransactionsBatch, deleteTransaction, addTransaction, updateCreditCard, transactions: allTransactions } = useFinance();
 
@@ -215,6 +217,11 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
       return sortDirection === 'asc' ? comparison : -comparison;
     });
   }, [filteredTransactions, sortField, sortDirection, creditCards, categories, accounts]);
+
+  // Notificar componente pai sobre os itens filtrados na tabela
+  useEffect(() => {
+    onFilteredTransactionsChange?.(sortedTransactions);
+  }, [sortedTransactions, onFilteredTransactionsChange]);
 
   // Paginação
   const totalItems = sortedTransactions.length;
