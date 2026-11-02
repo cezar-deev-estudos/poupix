@@ -36,6 +36,7 @@ import { useFinanceCloudSync } from '@/hooks/useFinanceCloudSync';
 import { transactionManager } from '@/hooks/useTransactionsManager';
 import { entityManager } from '@/hooks/useEntityManager';
 import { normalizeTransactionsInvoiceDates, getTransactionInvoicePeriod, isSameId } from '@/lib/invoiceHelpers';
+import { reconcileAllDecreasingExpenses } from '@/lib/decreasingExpenses';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { ensureValidUUID, upsertTransactionsDirectlyToSupabase } from '@/lib/supabase/syncService';
 
@@ -538,7 +539,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Filtros de Transações por Período
   const filteredTransactions = useMemo(() => {
-    return transactions.filter(t => {
+    // Reconcilia despesas decrescentes com despesas do mesmo mês e mesma nanoTag
+    const reconciled = reconcileAllDecreasingExpenses(transactions, creditCards, categories);
+
+    return reconciled.filter(t => {
       if (t.creditCardId) {
         const card = creditCards.find(c => isSameId(c.id, t.creditCardId));
         const { year, month } = getTransactionInvoicePeriod(t, card);
@@ -548,7 +552,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const [tYear, tMonth] = t.date.split('-').map(Number);
       return tYear === selectedYear && (tMonth - 1) === selectedMonth;
     });
-  }, [transactions, selectedYear, selectedMonth, creditCards]);
+  }, [transactions, selectedYear, selectedMonth, creditCards, categories]);
 
   // Alertas Inteligentes
   const alerts = useMemo(() => {
@@ -713,7 +717,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setSelectedMonth,
         setSelectedYear,
         addTransaction: tx => {
-          transactionManager.addTransaction(tx, setTransactions, setAccounts);
+          transactionManager.addTransaction(tx, setTransactions, setAccounts, creditCards, categories, user?.id);
           notifyDirectMutation();
           if (user?.id) {
             // Persiste imediatamente na nuvem com ID gerado
@@ -765,7 +769,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             });
           }
         },
-        deleteTransaction: (id, mode = 'single') => transactionManager.deleteTransaction(id, mode, transactions, setTransactions, handleTransactionDeleted, currentUserId, setAccounts),
+        deleteTransaction: (id, mode = 'single') => transactionManager.deleteTransaction(id, mode, transactions, setTransactions, handleTransactionDeleted, currentUserId, setAccounts, creditCards, categories),
         addAccount: acc => entityManager.addAccount(acc, setAccounts),
         updateAccount: (id, up) => entityManager.updateAccount(id, up, setAccounts),
         deleteAccount: id => entityManager.deleteAccount(id, setAccounts),

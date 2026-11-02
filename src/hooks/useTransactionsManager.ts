@@ -1,8 +1,9 @@
 'use client';
 
-import { Transaction, Account } from '@/types/finance';
-import { deleteTransactionFromSupabase } from '@/lib/supabase/syncService';
+import { Transaction, Account, CreditCard, Category } from '@/types/finance';
+import { deleteTransactionFromSupabase, upsertTransactionsDirectlyToSupabase } from '@/lib/supabase/syncService';
 import { getNextInvoiceDate, isSameId } from '@/lib/invoiceHelpers';
+import { applyDecreasingDeduction, getTransactionBudgetPeriod, getMatchingNanoName } from '@/lib/decreasingExpenses';
 
 // Helper para cálculo robusto de datas mês a mês (respeitando o último dia do mês)
 export const getNextMonthDate = (baseDateStr: string, monthOffset: number): string => {
@@ -31,7 +32,10 @@ export interface TransactionManagerActions {
   addTransaction: (
     tx: Omit<Transaction, 'id' | 'createdAt'>,
     setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>,
-    setAccounts: React.Dispatch<React.SetStateAction<Account[]>>
+    setAccounts: React.Dispatch<React.SetStateAction<Account[]>>,
+    creditCards?: CreditCard[],
+    categories?: Category[],
+    userId?: string
   ) => void;
   importTransactions: (
     newTxs: Omit<Transaction, 'id' | 'createdAt'>[],
@@ -44,7 +48,10 @@ export interface TransactionManagerActions {
     mode: 'single' | 'following' | 'all',
     transactions: Transaction[],
     setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>,
-    setAccounts?: React.Dispatch<React.SetStateAction<Account[]>>
+    setAccounts?: React.Dispatch<React.SetStateAction<Account[]>>,
+    creditCards?: CreditCard[],
+    categories?: Category[],
+    userId?: string
   ) => void;
   deleteTransaction: (
     id: string,
@@ -53,19 +60,24 @@ export interface TransactionManagerActions {
     setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>,
     onTransactionDeleted?: (deletedIds: string[]) => void,
     userId?: string,
-    setAccounts?: React.Dispatch<React.SetStateAction<Account[]>>
+    setAccounts?: React.Dispatch<React.SetStateAction<Account[]>>,
+    creditCards?: CreditCard[],
+    categories?: Category[]
   ) => void;
   updateTransactionsBatch: (
     ids: string[],
     updated: Partial<Transaction>,
     transactions: Transaction[],
     setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>,
-    setAccounts?: React.Dispatch<React.SetStateAction<Account[]>>
+    setAccounts?: React.Dispatch<React.SetStateAction<Account[]>>,
+    creditCards?: CreditCard[],
+    categories?: Category[],
+    userId?: string
   ) => void;
 }
 
 export const transactionManager: TransactionManagerActions = {
-  addTransaction: (tx, setTransactions, setAccounts) => {
+  addTransaction: (tx, setTransactions, setAccounts, creditCards = [], categories = [], userId) => {
     // 1. Caso seja Parcelamento / Repetição
     if (tx.installmentTotal && tx.installmentTotal > 1 && !tx.installmentGroupId) {
       const groupId = crypto.randomUUID();
@@ -163,36 +175,27 @@ export const transactionManager: TransactionManagerActions = {
     };
 
     setTransactions(prev => {
-      // Se a nova transação for uma despesa normal (não decrescente)
-      if (newTx.type === 'expense' && !newTx.isDecreasing && newTx.description) {
-        const txMonthPrefix = newTx.date.substring(0, 7); // "YYYY-MM"
-        const cleanDesc = newTx.description.trim().toLowerCase();
+      // Abatimento inteligente em despesas previstas / decrescentes via nanoTag/competência
+      const { updatedTxs, linkedDecreasingId } = applyDecreasingDeduction(
+        newTx,
+        prev,
+        creditCards,
+        categories
+      );
 
-        // Localizar a despesa decrescente ativa correspondente no mesmo mês/ano
-        const targetDecIndex = prev.findIndex(t => 
-          t.type === 'expense' &&
-          Boolean(t.isDecreasing) &&
-          t.date.startsWith(txMonthPrefix) &&
-          t.description.trim().toLowerCase() === cleanDesc
-        );
+      if (linkedDecreasingId) {
+        newTx.linkedDecreasingId = linkedDecreasingId;
+      }
 
-        if (targetDecIndex !== -1) {
-          const updated = [...prev];
-          const targetDec = updated[targetDecIndex];
-          const newDecreasedAmount = Math.max(0, targetDec.amount - newTx.amount);
-          
-          // Vincular o ID da despesa decrescente à nova transação para futuro estorno se excluída
-          newTx.linkedDecreasingId = targetDec.id;
-
-          updated[targetDecIndex] = {
-            ...targetDec,
-            amount: Number(newDecreasedAmount.toFixed(2)),
-          };
-          return [newTx, ...updated];
+      // Se atualizou alguma decrescente no banco de dados, persiste imediatamente
+      if (userId && linkedDecreasingId) {
+        const alteredDec = updatedTxs.find(t => t.id === linkedDecreasingId);
+        if (alteredDec) {
+          upsertTransactionsDirectlyToSupabase([alteredDec], userId);
         }
       }
 
-      return [newTx, ...prev];
+      return [newTx, ...updatedTxs];
     });
 
     if (tx.paid && tx.accountId && !tx.creditCardId) {
@@ -405,7 +408,7 @@ export const transactionManager: TransactionManagerActions = {
     });
   },
 
-  deleteTransaction: (id, mode, transactions, setTransactions, onTransactionDeleted, userId, setAccounts) => {
+  deleteTransaction: (id, mode, transactions, setTransactions, onTransactionDeleted, userId, setAccounts, creditCards = [], categories = []) => {
     // 1. Estornar saldo se a transação excluída estava paga
     if (setAccounts) {
       const target = transactions.find(t => t.id === id);
@@ -435,22 +438,28 @@ export const transactionManager: TransactionManagerActions = {
         let nextTxs = prev.filter(t => t.id !== id);
         if (target && target.type === 'expense' && target.amount > 0) {
           const decId = target.linkedDecreasingId;
-          const txMonthPrefix = target.date ? target.date.substring(0, 7) : '';
-          const cleanDesc = target.description ? target.description.trim().toLowerCase() : '';
+          const txPeriod = getTransactionBudgetPeriod(target, creditCards);
+          const txNano = getMatchingNanoName(target, categories);
 
           const decIndex = nextTxs.findIndex(t => 
             t.type === 'expense' &&
             Boolean(t.isDecreasing) &&
-            ((decId && t.id === decId) || (t.date.startsWith(txMonthPrefix) && t.description.trim().toLowerCase() === cleanDesc))
+            ((decId && t.id === decId) || (getTransactionBudgetPeriod(t, creditCards) === txPeriod && getMatchingNanoName(t, categories) === txNano))
           );
 
           if (decIndex !== -1) {
             const decTx = nextTxs[decIndex];
-            nextTxs = [...nextTxs];
-            nextTxs[decIndex] = {
+            const restoredDec = {
               ...decTx,
               amount: Number((decTx.amount + target.amount).toFixed(2)),
             };
+            nextTxs = [...nextTxs];
+            nextTxs[decIndex] = restoredDec;
+
+            // Persiste restauração do saldo no Supabase imediatamente
+            if (userId) {
+              upsertTransactionsDirectlyToSupabase([restoredDec], userId);
+            }
           }
         }
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { Transaction, Account, CreditCard } from '@/types/finance';
+import { Transaction, Account, CreditCard, Category } from '@/types/finance';
+import { applyDecreasingDeduction } from '@/lib/decreasingExpenses';
 
 describe('Transaction Engine & Specialized Flows', () => {
   const mockAccounts: Account[] = [
@@ -111,5 +112,68 @@ describe('Transaction Engine & Specialized Flows', () => {
 
     expect(fromAccBalance).toBe(4000);
     expect(toAccBalance).toBe(3000);
+  });
+
+  it('deve abater despesa decrescente prevista quando uma despesa do mesmo nanoTag for lançada no mesmo mês de competência (inclusive fatura de cartão)', () => {
+    const mockSubcategory: Category = {
+      id: 'sub-carro',
+      name: 'Carro',
+      type: 'expense',
+      icon: 'Car',
+      color: '#3B82F6',
+      nanoCategories: [
+        { id: 'nano-combustivel', name: 'Combustível' },
+      ],
+    };
+
+    const mockItauCard: CreditCard = {
+      id: 'card-itau',
+      name: 'Itaú Personalité',
+      limit: 15000,
+      closingDay: 12,
+      dueDay: 20,
+      brand: 'visa',
+      color: '#EC7000',
+      createdAt: '2026-01-01',
+    };
+
+    // Despesa Prevista / Decrescente de R$ 350,00 para Novembro/2026 com nano Combustível
+    const decreasingExpense: Transaction = {
+      id: 'tx-dec-1',
+      description: 'Combustível',
+      amount: 350.00,
+      date: '2026-11-30',
+      type: 'expense',
+      categoryId: 'sub-carro',
+      paid: false,
+      isDecreasing: true,
+      createdAt: '2026-11-01',
+    };
+
+    // Compra no Cartão em 31/10/2026 de R$ 246,72 com a mesma nano Combustível (cai na fatura de Nov/2026)
+    const cardExpense: Transaction = {
+      id: 'tx-normal-1',
+      description: 'Combustível',
+      amount: 246.72,
+      date: '2026-10-31',
+      type: 'expense',
+      categoryId: 'sub-carro',
+      creditCardId: mockItauCard.id,
+      paid: false,
+      createdAt: '2026-10-31',
+    };
+
+    const result = applyDecreasingDeduction(
+      cardExpense,
+      [decreasingExpense],
+      [mockItauCard],
+      [mockSubcategory]
+    );
+
+    expect(result.linkedDecreasingId).toBe('tx-dec-1');
+    const updatedDec = result.updatedTxs.find((t: Transaction) => t.id === 'tx-dec-1');
+    expect(updatedDec).toBeDefined();
+    // 350.00 - 246.72 = 103.28
+    expect(updatedDec!.amount).toBe(103.28);
   });
 });
