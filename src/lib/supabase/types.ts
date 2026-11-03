@@ -308,6 +308,112 @@ export interface Database {
           created_at?: string
         }
       }
+      user_preferences: {
+        Row: {
+          user_id: string
+          theme: string
+          language: string
+          currency: string
+          receive_notifications: boolean
+          financial_alerts: boolean
+          dashboard_layout_desktop: Json
+          dashboard_layout_mobile: Json
+          budgets_layout_columns: string
+          group_by_card: boolean
+          desktop_category_order: string[]
+          mobile_category_order: string[]
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          theme?: string
+          language?: string
+          currency?: string
+          receive_notifications?: boolean
+          financial_alerts?: boolean
+          dashboard_layout_desktop?: Json
+          dashboard_layout_mobile?: Json
+          budgets_layout_columns?: string
+          group_by_card?: boolean
+          desktop_category_order?: string[]
+          mobile_category_order?: string[]
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          theme?: string
+          language?: string
+          currency?: string
+          receive_notifications?: boolean
+          financial_alerts?: boolean
+          dashboard_layout_desktop?: Json
+          dashboard_layout_mobile?: Json
+          budgets_layout_columns?: string
+          group_by_card?: boolean
+          desktop_category_order?: string[]
+          mobile_category_order?: string[]
+          updated_at?: string
+        }
+      }
+      saved_transaction_filters: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          scope: string | null
+          year: number | null
+          month: number | null
+          type: string | null
+          status: string | null
+          category_id: string | null
+          sub_category_id: string | null
+          account_id: string | null
+          credit_card_id: string | null
+          tag: string | null
+          search_query: string | null
+          start_date: string | null
+          end_date: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          scope?: string | null
+          year?: number | null
+          month?: number | null
+          type?: string | null
+          status?: string | null
+          category_id?: string | null
+          sub_category_id?: string | null
+          account_id?: string | null
+          credit_card_id?: string | null
+          tag?: string | null
+          search_query?: string | null
+          start_date?: string | null
+          end_date?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          scope?: string | null
+          year?: number | null
+          month?: number | null
+          type?: string | null
+          status?: string | null
+          category_id?: string | null
+          sub_category_id?: string | null
+          account_id?: string | null
+          credit_card_id?: string | null
+          tag?: string | null
+          search_query?: string | null
+          start_date?: string | null
+          end_date?: string | null
+          created_at?: string
+        }
+      }
     }
   }
 }

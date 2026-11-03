@@ -36,6 +36,7 @@ import {
 } from '@/types/settings';
 import { ExpenseHeatmapCalendar } from './ExpenseHeatmapCalendar';
 import { MobileDashboardCardsDrawer } from './MobileDashboardCardsDrawer';
+import { loadUserPreferencesFromSupabase } from '@/lib/supabase/syncService';
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -119,6 +120,21 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
     }
     return DEFAULT_MOBILE_DASHBOARD_LAYOUT;
   });
+
+  // Carregar layout do Supabase se autenticado
+  useEffect(() => {
+    if (!user?.id) return;
+    loadUserPreferencesFromSupabase(user.id).then(cloudPrefs => {
+      if (cloudPrefs?.dashboard_layout_mobile) {
+        try {
+          const raw = typeof cloudPrefs.dashboard_layout_mobile === 'string'
+            ? cloudPrefs.dashboard_layout_mobile
+            : JSON.stringify(cloudPrefs.dashboard_layout_mobile);
+          setMobileLayout(mergeMobileDashboardLayout(raw));
+        } catch {}
+      }
+    });
+  }, [user?.id]);
 
   // Mês alvo para as faturas
   const targetCardMonth = useMemo(() => {

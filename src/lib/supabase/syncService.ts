@@ -562,3 +562,161 @@ export const deleteEntityFromSupabase = async (
     console.error(`[Supabase Delete ${table} Error]`, err)
   }
 }
+
+
+// ==============================================================================
+// 5. Preferências do Usuário (Tabela: user_preferences)
+// ==============================================================================
+export interface UserPreferencesRecord {
+  theme?: string;
+  language?: string;
+  currency?: string;
+  receive_notifications?: boolean;
+  financial_alerts?: boolean;
+  dashboard_layout_desktop?: any;
+  dashboard_layout_mobile?: any;
+  budgets_layout_columns?: string;
+  group_by_card?: boolean;
+  desktop_category_order?: string[];
+  mobile_category_order?: string[];
+}
+
+export const loadUserPreferencesFromSupabase = async (
+  userId: string
+): Promise<UserPreferencesRecord | null> => {
+  const supabase = getSupabaseClient();
+  if (!supabase || !userId) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('user_preferences')
+      .select('*')
+      .eq('user_id', ensureValidUUID(userId))
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[Supabase Sync] Erro ao carregar preferências do usuário:', error.message);
+      return null;
+    }
+    return data as UserPreferencesRecord | null;
+  } catch (err) {
+    console.error('[Supabase Sync Exception loadUserPreferences]:', err);
+    return null;
+  }
+};
+
+export const upsertUserPreferencesToSupabase = async (
+  userId: string,
+  prefs: Partial<UserPreferencesRecord>
+): Promise<void> => {
+  const supabase = getSupabaseClient();
+  if (!supabase || !userId) return;
+
+  try {
+    const payload = {
+      user_id: ensureValidUUID(userId),
+      ...prefs,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from('user_preferences').upsert(payload as any);
+    if (error) {
+      console.warn('[Supabase Sync] Erro ao salvar preferências:', error.message);
+    }
+  } catch (err) {
+    console.error('[Supabase Sync Exception upsertUserPreferences]:', err);
+  }
+};
+
+// ==============================================================================
+// 6. Filtros Salvos de Transações (Tabela: saved_transaction_filters)
+// ==============================================================================
+export const loadSavedFiltersFromSupabase = async (userId: string) => {
+  const supabase = getSupabaseClient();
+  if (!supabase || !userId) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('saved_transaction_filters')
+      .select('*')
+      .eq('user_id', ensureValidUUID(userId))
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('[Supabase Sync] Erro ao carregar filtros salvos:', error.message);
+      return [];
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      scope: row.scope || 'monthly',
+      year: row.year ?? undefined,
+      month: row.month ?? undefined,
+      type: row.type ?? undefined,
+      status: row.status ?? undefined,
+      categoryId: row.category_id ?? undefined,
+      subCategoryId: row.sub_category_id ?? undefined,
+      accountId: row.account_id ?? undefined,
+      creditCardId: row.credit_card_id ?? undefined,
+      tag: row.tag ?? undefined,
+      searchQuery: row.search_query ?? undefined,
+      startDate: row.start_date ?? undefined,
+      endDate: row.end_date ?? undefined,
+      createdAt: row.created_at,
+    }));
+  } catch (err) {
+    console.error('[Supabase Sync Exception loadSavedFilters]:', err);
+    return [];
+  }
+};
+
+export const upsertSavedFilterToSupabase = async (userId: string, filter: any) => {
+  const supabase = getSupabaseClient();
+  if (!supabase || !userId) return;
+
+  try {
+    const payload = {
+      id: ensureValidUUID(filter.id),
+      user_id: ensureValidUUID(userId),
+      name: filter.name,
+      scope: filter.scope || 'monthly',
+      year: filter.year ?? null,
+      month: filter.month ?? null,
+      type: filter.type ?? null,
+      status: filter.status ?? null,
+      category_id: filter.categoryId ? ensureValidUUID(filter.categoryId) : null,
+      sub_category_id: filter.subCategoryId ? ensureValidUUID(filter.subCategoryId) : null,
+      account_id: filter.accountId ? ensureValidUUID(filter.accountId) : null,
+      credit_card_id: filter.creditCardId ? ensureValidUUID(filter.creditCardId) : null,
+      tag: filter.tag ?? null,
+      search_query: filter.searchQuery ?? null,
+      start_date: filter.startDate ?? null,
+      end_date: filter.endDate ?? null,
+      created_at: filter.createdAt || new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from('saved_transaction_filters').upsert(payload as any);
+    if (error) {
+      console.warn('[Supabase Sync] Erro ao salvar filtro:', error.message);
+    }
+  } catch (err) {
+    console.error('[Supabase Sync Exception upsertSavedFilter]:', err);
+  }
+};
+
+export const deleteSavedFilterFromSupabase = async (userId: string, filterId: string) => {
+  const supabase = getSupabaseClient();
+  if (!supabase || !userId || !filterId) return;
+
+  try {
+    const uuid = ensureValidUUID(filterId);
+    await supabase
+      .from('saved_transaction_filters')
+      .delete()
+      .eq('user_id', ensureValidUUID(userId))
+      .eq('id', uuid);
+  } catch (err) {
+    console.error('[Supabase Sync Exception deleteSavedFilter]:', err);
+  }
+};

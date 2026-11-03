@@ -3,7 +3,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { SavedTransactionFilter } from '@/types/finance';
 import { useAuth } from '@/context/AuthContext';
-import { getSupabaseClient } from '@/lib/supabase/client';
+import {
+  loadSavedFiltersFromSupabase,
+  upsertSavedFilterToSupabase,
+  deleteSavedFilterFromSupabase,
+} from '@/lib/supabase/syncService';
 
 export function useSavedFilters() {
   const { user, isDemoMode } = useAuth();
@@ -17,32 +21,49 @@ export function useSavedFilters() {
     : 'mobills_saved_tx_filters';
 
   useEffect(() => {
-    try {
-      // 1. Prioriza dados do Supabase se o usuário estiver autenticado
-      if (user?.user_metadata?.saved_tx_filters && Array.isArray(user.user_metadata.saved_tx_filters)) {
-        setSavedFilters(user.user_metadata.saved_tx_filters);
-        // Atualiza cache local
-        localStorage.setItem(storageKey, JSON.stringify(user.user_metadata.saved_tx_filters));
-      } else {
+    let isCancelled = false;
+
+    const loadFilters = async () => {
+      try {
+        // 1. Se usuário autenticado, carregar diretamente da tabela oficial saved_transaction_filters
+        if (user?.id) {
+          const cloudFilters = await loadSavedFiltersFromSupabase(user.id);
+          if (!isCancelled && cloudFilters && cloudFilters.length > 0) {
+            setSavedFilters(cloudFilters);
+            localStorage.setItem(storageKey, JSON.stringify(cloudFilters));
+            setIsLoaded(true);
+            return;
+          }
+        }
+
+        // 2. Fallback de cache local ou demo
         const data = localStorage.getItem(storageKey);
-        if (data) {
+        if (data && !isCancelled) {
           setSavedFilters(JSON.parse(data));
-        } else {
+        } else if (!isCancelled) {
           setSavedFilters([]);
         }
+      } catch (e) {
+        console.error('[useSavedFilters] Erro ao carregar filtros salvos:', e);
+      } finally {
+        if (!isCancelled) {
+          setIsLoaded(true);
+        }
       }
-    } catch (e) {
-      console.error('[useSavedFilters] Erro ao carregar filtros salvos:', e);
-    } finally {
-      setIsLoaded(true);
-    }
+    };
+
+    loadFilters();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [storageKey, user]);
 
   const saveFilter = useCallback(
     (filter: Omit<SavedTransactionFilter, 'id' | 'createdAt'>): SavedTransactionFilter => {
       const newFilter: SavedTransactionFilter = {
         ...filter,
-        id: `filter-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
       };
 
@@ -54,16 +75,11 @@ export function useSavedFilters() {
           console.error('[useSavedFilters] Erro ao salvar filtro no storage local:', e);
         }
 
-        // Persistir no Supabase de forma assíncrona
-        if (user) {
-          const supabase = getSupabaseClient();
-          if (supabase) {
-            supabase.auth.updateUser({
-              data: { saved_tx_filters: updated },
-            }).catch((err) => {
-              console.error('[useSavedFilters] Erro ao sincronizar filtro com Supabase:', err);
-            });
-          }
+        // Persistir na tabela do Supabase
+        if (user?.id) {
+          upsertSavedFilterToSupabase(user.id, newFilter).catch((err) => {
+            console.error('[useSavedFilters] Erro ao sincronizar filtro com Supabase:', err);
+          });
         }
 
         return updated;
@@ -84,16 +100,11 @@ export function useSavedFilters() {
           console.error('[useSavedFilters] Erro ao excluir filtro do storage local:', e);
         }
 
-        // Persistir no Supabase de forma assíncrona
-        if (user) {
-          const supabase = getSupabaseClient();
-          if (supabase) {
-            supabase.auth.updateUser({
-              data: { saved_tx_filters: updated },
-            }).catch((err) => {
-              console.error('[useSavedFilters] Erro ao atualizar remoção de filtro no Supabase:', err);
-            });
-          }
+        // Excluir da tabela do Supabase
+        if (user?.id) {
+          deleteSavedFilterFromSupabase(user.id, id).catch((err) => {
+            console.error('[useSavedFilters] Erro ao remover filtro no Supabase:', err);
+          });
         }
 
         return updated;

@@ -38,7 +38,7 @@ import { entityManager } from '@/hooks/useEntityManager';
 import { normalizeTransactionsInvoiceDates, getTransactionInvoicePeriod, isSameId } from '@/lib/invoiceHelpers';
 import { reconcileAllDecreasingExpenses } from '@/lib/decreasingExpenses';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { ensureValidUUID, upsertTransactionsDirectlyToSupabase } from '@/lib/supabase/syncService';
+import { ensureValidUUID, upsertTransactionsDirectlyToSupabase, loadUserPreferencesFromSupabase, upsertUserPreferencesToSupabase } from '@/lib/supabase/syncService';
 
 interface FinanceContextType {
   users: UserProfile[];
@@ -169,6 +169,24 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       };
 
       if (user) {
+        // Limpar caches antigos do localStorage para garantir 100% Supabase First
+        if (typeof window !== 'undefined') {
+          try {
+            const keysToRemove = [
+              `${userStoragePrefix}accounts`,
+              `${userStoragePrefix}cards`,
+              `${userStoragePrefix}categories`,
+              `${userStoragePrefix}tags`,
+              `${userStoragePrefix}transactions`,
+              `${userStoragePrefix}goals`,
+              `${userStoragePrefix}open_finance`,
+              `${userStoragePrefix}pending_bank_txs`,
+              `${userStoragePrefix}group_by_card`,
+            ];
+            keysToRemove.forEach(k => localStorage.removeItem(k));
+          } catch {}
+        }
+
         const authProfile: UserProfile = {
           id: user.id,
           name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuário',
@@ -177,52 +195,37 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           currency: 'BRL',
           createdAt: user.created_at || new Date().toISOString(),
         };
-        const savedDeletedIds = localStorage.getItem('mobills_deleted_tx_ids');
-        const activeTombstones = savedDeletedIds ? new Set<string>(JSON.parse(savedDeletedIds)) : new Set<string>();
-
-        const loadedCards: CreditCard[] = savedCards ? JSON.parse(savedCards) : [];
-        const rawTxs: Transaction[] = savedTransactions ? JSON.parse(savedTransactions) : [];
-        const filteredTxs = rawTxs.filter(t => !activeTombstones.has(t.id) && !activeTombstones.has(ensureValidUUID(t.id)));
-        const normalizedTxs = normalizeTransactionsInvoiceDates(filteredTxs, loadedCards);
-        const rawCats: Category[] = savedCategories ? JSON.parse(savedCategories) : INITIAL_CATEGORIES;
-        const userMetadataOrder: string[] | null = user.user_metadata?.[deviceOrderKey] || initialDeviceOrderIds;
-        const userMetadataMonthlyBudgets = (user.user_metadata?.category_monthly_budgets || {}) as Record<string, Record<string, number>>;
-        const userMetadataNanoCategories = (user.user_metadata?.category_nano_categories || {}) as Record<string, NanoCategory[]>;
-
-        const categoriesWithMonthlyBudgets = rawCats.map(c => {
-          const metaMonthly = userMetadataMonthlyBudgets[c.id] || userMetadataMonthlyBudgets[ensureValidUUID(c.id)];
-          const metaNanos = userMetadataNanoCategories[c.id] || userMetadataNanoCategories[ensureValidUUID(c.id)];
-          const updatedCat: Category = { ...c };
-          if (metaMonthly && Object.keys(metaMonthly).length > 0) {
-            updatedCat.monthlyBudgets = {
-              ...metaMonthly,
-              ...(c.monthlyBudgets || {}),
-            };
-          }
-          if (metaNanos && metaNanos.length > 0 && (!c.nanoCategories || c.nanoCategories.length === 0)) {
-            updatedCat.nanoCategories = metaNanos;
-          }
-          return updatedCat;
-        });
 
         setUsers([authProfile]);
         setCurrentUserId(user.id);
-        setAccounts(savedAccounts ? JSON.parse(savedAccounts) : []);
-        setCreditCards(loadedCards);
-        setCategories(sortCategoriesByDeviceOrder(categoriesWithMonthlyBudgets, userMetadataOrder));
-        setTags(savedTags ? JSON.parse(savedTags) : INITIAL_TAGS);
-        setTransactions(normalizedTxs);
-        setGoals(savedGoals ? JSON.parse(savedGoals) : []);
-        const rawSavedOF: OpenFinanceConnection[] = savedOpenFinance ? JSON.parse(savedOpenFinance) : [];
-        const cleanOF = rawSavedOF.filter(
-          (c, idx, arr) => idx === arr.findIndex(item => item.institutionName.toLowerCase() === c.institutionName.toLowerCase())
-        );
-        setOpenFinanceConnections(cleanOF);
+
+        // Inicializa com listas vazias no usuário autenticado;
+        // O useFinanceCloudSync buscará 100% dos dados reais do Supabase na inicialização
+        setAccounts([]);
+        setCreditCards([]);
+        setCategories([]);
+        setTags([]);
+        setTransactions([]);
+        setGoals([]);
+        setOpenFinanceConnections([]);
+
+        // Carregar preferências persistidas no Supabase
+        loadUserPreferencesFromSupabase(user.id).then(prefs => {
+          if (!prefs) return;
+          if (prefs.group_by_card !== undefined) {
+            setGroupByCard(Boolean(prefs.group_by_card));
+          }
+          if (prefs.theme) {
+            setTheme(prefs.theme as 'dark' | 'light');
+          }
+          const cloudOrder = isMobileDevice ? prefs.mobile_category_order : prefs.desktop_category_order;
+          if (cloudOrder && cloudOrder.length > 0) {
+            setCategories(prev => sortCategoriesByDeviceOrder(prev, cloudOrder));
+          }
+        });
 
         if (user.user_metadata?.group_by_card !== undefined) {
           setGroupByCard(Boolean(user.user_metadata.group_by_card));
-        } else if (savedGroupByCard !== null) {
-          setGroupByCard(JSON.parse(savedGroupByCard));
         }
       } else {
         const savedDeletedIds = localStorage.getItem('mobills_deleted_tx_ids');
@@ -275,21 +278,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [user, isDemoMode, userStoragePrefix]);
 
-  // 2. Persistência LocalStorage
+  // 2. Persistência de tema e modo de privacidade na interface
   useEffect(() => {
     if (!isInitialized) return;
-    localStorage.setItem(`${userStoragePrefix}accounts`, JSON.stringify(accounts));
-    localStorage.setItem(`${userStoragePrefix}cards`, JSON.stringify(creditCards));
-    localStorage.setItem(`${userStoragePrefix}categories`, JSON.stringify(categories));
-    localStorage.setItem(`${userStoragePrefix}tags`, JSON.stringify(tags));
-    localStorage.setItem(`${userStoragePrefix}transactions`, JSON.stringify(transactions));
-    localStorage.setItem(`${userStoragePrefix}goals`, JSON.stringify(goals));
-    localStorage.setItem(`${userStoragePrefix}read_alerts`, JSON.stringify(readAlertIds));
-    localStorage.setItem(`${userStoragePrefix}open_finance`, JSON.stringify(openFinanceConnections));
-    localStorage.setItem(`${userStoragePrefix}pending_bank_txs`, JSON.stringify(pendingBankTransactions));
-    localStorage.setItem(`${userStoragePrefix}group_by_card`, JSON.stringify(groupByCard));
-    localStorage.setItem('mobills_privacy_mode', JSON.stringify(isPrivacyMode));
-    localStorage.setItem('mobills_theme', theme);
+    
+    // Salva apenas configurações puras de interface local (sem dados financeiros sensíveis)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('mobills_privacy_mode', JSON.stringify(isPrivacyMode));
+      localStorage.setItem('mobills_theme', theme);
+    }
 
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -298,14 +295,17 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       document.documentElement.classList.add('light');
       document.documentElement.classList.remove('dark');
     }
-  }, [accounts, creditCards, categories, tags, transactions, goals, readAlertIds, openFinanceConnections, pendingBankTransactions, isPrivacyMode, groupByCard, theme, isInitialized, userStoragePrefix]);
+  }, [isPrivacyMode, theme, isInitialized]);
 
   const toggleGroupByCard = useCallback(async () => {
     const nextVal = !groupByCard;
     setGroupByCard(nextVal);
     try {
       localStorage.setItem(`${userStoragePrefix}group_by_card`, JSON.stringify(nextVal));
-      if (user) {
+      if (user?.id) {
+        // Persistência oficial na tabela user_preferences
+        upsertUserPreferencesToSupabase(user.id, { group_by_card: nextVal });
+
         const supabase = getSupabaseClient();
         if (supabase) {
           await supabase.auth.updateUser({
@@ -611,7 +611,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         localStorage.setItem(`${userStoragePrefix}${deviceKey}`, JSON.stringify(orderIds));
       }
 
-      if (user) {
+      if (user?.id) {
+        // Persistência oficial na tabela user_preferences
+        upsertUserPreferencesToSupabase(user.id, {
+          [isMobile ? 'mobile_category_order' : 'desktop_category_order']: orderIds,
+        });
+
         const supabase = getSupabaseClient();
         if (supabase) {
           await supabase.auth.updateUser({
@@ -700,7 +705,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         alerts,
         openFinanceConnections,
         theme,
-        toggleTheme: () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark')),
+        toggleTheme: () => {
+          setTheme(prev => {
+            const next = prev === 'dark' ? 'light' : 'dark';
+            if (user?.id) {
+              upsertUserPreferencesToSupabase(user.id, { theme: next });
+            }
+            return next;
+          });
+        },
         isPrivacyMode,
         togglePrivacyMode: () => setIsPrivacyMode(prev => !prev),
         groupByCard,
