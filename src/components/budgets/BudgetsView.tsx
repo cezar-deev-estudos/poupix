@@ -1033,7 +1033,18 @@ export const BudgetsView: React.FC = () => {
                   {subs.length > 0 && isExpanded && (
                     <div className="mt-3 pt-3 border-t border-slate-800/80">
                       <div className="space-y-2 pl-1 sm:pl-2 border-l-2 border-slate-800">
-                          {subs.map(sub => {
+                          {[...subs].sort((a, b) => {
+                            const spentA = filteredTransactions
+                              .filter(t => !t.ignoreInTotals && !/^Pagamento de Fatura\s*-\s*/i.test(t.description) && t.categoryId === a.id && t.type === 'expense')
+                              .reduce((sum, t) => sum + t.amount, 0);
+                            const spentB = filteredTransactions
+                              .filter(t => !t.ignoreInTotals && !/^Pagamento de Fatura\s*-\s*/i.test(t.description) && t.categoryId === b.id && t.type === 'expense')
+                              .reduce((sum, t) => sum + t.amount, 0);
+                            if (spentB !== spentA) {
+                              return spentB - spentA;
+                            }
+                            return a.name.localeCompare(b.name);
+                          }).map(sub => {
                             const subSpent = filteredTransactions
                               .filter(t => !t.ignoreInTotals && !/^Pagamento de Fatura\s*-\s*/i.test(t.description) && t.categoryId === sub.id && t.type === 'expense')
                               .reduce((sum, t) => sum + t.amount, 0);

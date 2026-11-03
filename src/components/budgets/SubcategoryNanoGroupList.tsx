@@ -200,6 +200,15 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
       percent,
       isOver,
     };
+  }).sort((a, b) => {
+    // Ordenar do maior gasto para o menor; se empatar, ordenar pelo maior teto e depois nome
+    if (b.totalSpent !== a.totalSpent) {
+      return b.totalSpent - a.totalSpent;
+    }
+    if (b.budget !== a.budget) {
+      return b.budget - a.budget;
+    }
+    return a.nano.name.localeCompare(b.nano.name);
   });
 
   const otherTransactions = transactions.filter(tx => !assignedTxIds.has(tx.id));
