@@ -41,7 +41,7 @@ import {
   DashboardCardId,
   mergeDashboardLayout,
 } from '@/types/settings';
-import { Plus, ArrowRight, CloudDownload, Bell, Check, Loader2 } from 'lucide-react';
+import { Plus, ArrowRight, CloudDownload, Bell, Check, Loader2, Eye, EyeOff } from 'lucide-react';
 
 function DashboardContent() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -57,8 +57,9 @@ function DashboardContent() {
   const [isAlertsDrawerOpen, setIsAlertsDrawerOpen] = useState(false);
   const [isDownloadingCloud, setIsDownloadingCloud] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  const { unreadAlertsCount, refreshFromCloud } = useFinance();
+  const { unreadAlertsCount, refreshFromCloud, isPrivacyMode, togglePrivacyMode } = useFinance();
 
   const [dashboardLayout, setDashboardLayout] = useState<DashboardLayoutPreferences>(DEFAULT_DASHBOARD_LAYOUT);
 
@@ -221,10 +222,16 @@ function DashboardContent() {
         setActiveTab={handleNavigateTab}
         onOpenNewTransaction={handleOpenNewTransaction}
         onOpenImporter={() => setIsImporterOpen(true)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
       />
 
-      {/* Área Principal de Conteúdo */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-2 py-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+      {/* Área Principal de Conteúdo (Expande para 100% da largura em relatórios ou quando sidebar recolhida) */}
+      <main
+        className={`flex-1 w-full px-2 py-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 transition-all duration-300 ${
+          activeTab === 'reports' || isSidebarCollapsed ? 'max-w-none' : 'max-w-7xl mx-auto'
+        }`}
+      >
         {/* Top Header com Seletor de Período & Ações Globais (Apenas no Desktop) */}
         <header className="hidden md:flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-900">
           <div>
@@ -284,6 +291,15 @@ function DashboardContent() {
                   ? 'Nuvem Atualizada!'
                   : 'Baixar da Nuvem'}
               </span>
+            </button>
+
+            {/* Modo Privacidade */}
+            <button
+              onClick={togglePrivacyMode}
+              title={isPrivacyMode ? 'Desativar Modo Privacidade' : 'Ativar Modo Privacidade'}
+              className="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-xl transition-all cursor-pointer"
+            >
+              {isPrivacyMode ? <EyeOff className="w-4 h-4 text-emerald-400" /> : <Eye className="w-4 h-4" />}
             </button>
 
             {/* Sininho de Notificações / Alertas */}

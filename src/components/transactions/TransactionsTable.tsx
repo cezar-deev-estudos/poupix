@@ -52,7 +52,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   } | null>(null);
 
   // Estados de Ordenação por Coluna (Padrão: data crescente, menor data do mês primeiro)
-  type SortField = 'date' | 'status' | 'type' | 'description' | 'category' | 'account' | 'amount';
+  type SortField = 'date' | 'status' | 'type' | 'description' | 'category' | 'subcategory' | 'account' | 'amount';
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
@@ -61,6 +61,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   const [filterType, setFilterType] = useState<string>('all');
   const [filterDescription, setFilterDescription] = useState<string>('');
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
+  const [filterSubcategoryId, setFilterSubcategoryId] = useState<string>('all');
   const [filterAccountId, setFilterAccountId] = useState<string>('all');
 
   // Controle de Dropdown de Filtro Aberto no Cabeçalho
@@ -84,8 +85,21 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   };
 
   const getTxCategoryName = (tx: Transaction) => {
-    const cat = categories.find((c) => isSameId(c.id, tx.categoryId));
-    return cat?.name || 'Sem Categoria';
+    const rawCat = categories.find((c) => isSameId(c.id, tx.categoryId));
+    if (!rawCat) return 'Sem Categoria';
+    if (rawCat.parentId) {
+      const parent = categories.find((c) => isSameId(c.id, rawCat.parentId));
+      return parent?.name || rawCat.name;
+    }
+    return rawCat.name;
+  };
+
+  const getTxSubcategoryName = (tx: Transaction) => {
+    const rawCat = categories.find((c) => isSameId(c.id, tx.categoryId));
+    if (rawCat?.parentId) {
+      return rawCat.name;
+    }
+    return '';
   };
 
   const getTxTypeLabel = (tx: Transaction) => {
@@ -100,6 +114,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     filterType !== 'all' || 
     filterDescription.trim() !== '' || 
     filterCategoryId !== 'all' || 
+    filterSubcategoryId !== 'all' || 
     filterAccountId !== 'all';
 
   const clearAllColumnFilters = () => {
@@ -107,6 +122,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     setFilterType('all');
     setFilterDescription('');
     setFilterCategoryId('all');
+    setFilterSubcategoryId('all');
     setFilterAccountId('all');
     setCurrentPage(1);
   };
@@ -150,6 +166,13 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
           if (!directCat?.parentId || !isSameId(directCat.parentId, filterCategoryId)) {
             return false;
           }
+        }
+      }
+
+      // Filtro de Subcategoria
+      if (filterSubcategoryId !== 'all') {
+        if (!isSameId(tx.categoryId, filterSubcategoryId)) {
+          return false;
         }
       }
 
@@ -200,6 +223,12 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
           const catA = getTxCategoryName(a);
           const catB = getTxCategoryName(b);
           comparison = catA.localeCompare(catB, 'pt-BR');
+          break;
+        }
+        case 'subcategory': {
+          const subA = getTxSubcategoryName(a);
+          const subB = getTxSubcategoryName(b);
+          comparison = subA.localeCompare(subB, 'pt-BR');
           break;
         }
         case 'account': {
@@ -381,6 +410,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     const directCat = categories.find((c) => c.id === tx.categoryId);
     const parentCat = directCat?.parentId ? categories.find((c) => c.id === directCat.parentId) : null;
     const cat = parentCat || directCat;
+    const subCat = parentCat ? directCat : null;
     const acc = accounts.find((a) => a.id === tx.accountId);
     const card = creditCards.find((c) => isSameId(c.id, tx.creditCardId));
     const destAcc = accounts.find((a) => a.id === tx.destinationAccountId);
@@ -570,6 +600,25 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
           )}
         </td>
 
+        {/* Subcategoria */}
+        <td className="py-3 px-4">
+          {isGroupedCard ? (
+            <span className="text-slate-600">-</span>
+          ) : subCat ? (
+            <div className="flex items-center gap-2">
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center text-white shrink-0"
+                style={{ backgroundColor: subCat.color || cat?.color || '#6B7280' }}
+              >
+                <CategoryIcon name={subCat.icon || cat?.icon || 'Tag'} size={12} />
+              </div>
+              <span className="text-slate-300 truncate">{subCat.name}</span>
+            </div>
+          ) : (
+            <span className="text-slate-600">-</span>
+          )}
+        </td>
+
         {/* Conta / Cartão */}
         <td className="py-3 px-4 text-slate-300 whitespace-nowrap">
           {isTransfer ? (
@@ -748,6 +797,12 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-[11px]">
                 Categoria: {categories.find(c => isSameId(c.id, filterCategoryId))?.name || 'Selecionada'}
                 <button onClick={() => setFilterCategoryId('all')} className="hover:text-white cursor-pointer"><X className="w-3 h-3" /></button>
+              </span>
+            )}
+            {filterSubcategoryId !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-[11px]">
+                Subcategoria: {categories.find(c => isSameId(c.id, filterSubcategoryId))?.name || 'Selecionada'}
+                <button onClick={() => setFilterSubcategoryId('all')} className="hover:text-white cursor-pointer"><X className="w-3 h-3" /></button>
               </span>
             )}
             {filterAccountId !== 'all' && (
@@ -1062,6 +1117,72 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                 )}
               </th>
 
+              {/* Coluna: Subcategoria */}
+              <th className="py-3 px-4 relative">
+                <div className="inline-flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('subcategory')}
+                    className="hover:text-white transition-colors flex items-center gap-1 cursor-pointer font-semibold uppercase"
+                    title="Ordenar por Subcategoria (A-Z / Z-A)"
+                  >
+                    <span>Subcategoria</span>
+                    {sortField === 'subcategory' ? (
+                      sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-indigo-400" /> : <ArrowDown className="w-3.5 h-3.5 text-indigo-400" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 text-slate-600 hover:text-slate-400 opacity-60" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveFilterDropdown(activeFilterDropdown === 'subcategory' ? null : 'subcategory')}
+                    className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${
+                      filterSubcategoryId !== 'all' ? 'text-indigo-400 bg-indigo-500/15' : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                    title="Filtrar por Subcategoria"
+                  >
+                    <Filter className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {activeFilterDropdown === 'subcategory' && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setActiveFilterDropdown(null)} />
+                    <div className="absolute left-2 top-full mt-1 w-56 max-h-64 overflow-y-auto bg-[#1e2330] border border-slate-700 rounded-2xl shadow-2xl z-40 py-1.5 text-xs normal-case animate-fadeIn">
+                      <button
+                        type="button"
+                        onClick={() => { setFilterSubcategoryId('all'); setActiveFilterDropdown(null); setCurrentPage(1); }}
+                        className={`w-full text-left px-3 py-1.5 hover:bg-slate-700/60 transition-colors ${filterSubcategoryId === 'all' ? 'text-indigo-400 font-bold bg-slate-800/80' : 'text-slate-300'}`}
+                      >
+                        Todas as subcategorias
+                      </button>
+                      {categories.filter(c => Boolean(c.parentId)).map(sub => {
+                        const parent = categories.find(p => p.id === sub.parentId);
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => { setFilterSubcategoryId(sub.id); setActiveFilterDropdown(null); setCurrentPage(1); }}
+                            className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 hover:bg-slate-700/60 transition-colors ${filterSubcategoryId === sub.id ? 'text-indigo-400 font-bold bg-slate-800/80' : 'text-slate-300'}`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: sub.color || parent?.color }} />
+                              <span className="truncate">{sub.name}</span>
+                            </div>
+                            {parent && (
+                              <span className="text-[10px] text-slate-500 truncate shrink-0">
+                                {parent.name}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </th>
+
               {/* Coluna: Conta / Cartão */}
               <th className="py-3 px-4 relative">
                 <div className="inline-flex items-center gap-1.5">
@@ -1180,7 +1301,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                       id={isTodayGroup ? 'desktop-tx-row-hoje' : isYesterdayGroup ? 'desktop-tx-row-ontem' : undefined}
                       className="bg-[#14171f]/90 border-t border-slate-800/80"
                     >
-                      <td colSpan={showTypeColumn ? 9 : 8} className="py-2.5 px-4">
+                      <td colSpan={showTypeColumn ? 10 : 9} className="py-2.5 px-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             {isTodayGroup ? (

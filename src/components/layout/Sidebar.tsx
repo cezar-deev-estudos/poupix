@@ -19,7 +19,9 @@ import {
   UserCheck,
   LogOut,
   Tag as TagIcon,
-  MoreHorizontal
+  MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { MonthSelector } from './MonthSelector';
 import { useFinance } from '@/context/FinanceContext';
@@ -34,6 +36,8 @@ interface SidebarProps {
   setActiveTab: (tab: ActiveTab) => void;
   onOpenNewTransaction: (flowType?: import('../transactions/modal/TransactionModal').TransactionFlowType) => void;
   onOpenImporter?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 import { NewTransactionPopover } from './NewTransactionPopover';
@@ -44,6 +48,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveTab,
   onOpenNewTransaction,
   onOpenImporter,
+  isCollapsed = false,
+  onToggleCollapse,
 }) => {
   const { isPrivacyMode, togglePrivacyMode, theme, toggleTheme } = useFinance();
   const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
@@ -66,32 +72,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Sidebar Desktop */}
-      <aside className="hidden md:flex flex-col justify-between w-64 bg-slate-950/80 border-r border-slate-800/80 p-5 backdrop-blur-xl h-screen sticky top-0 overflow-y-auto">
-        <div className="relative">
-          {/* Logo & Marca */}
-          <div className="flex items-center justify-between px-2 py-2 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+      {/* Sidebar Desktop com suporte a Recolher/Expandir */}
+      <aside
+        className={`hidden md:flex flex-col justify-between bg-slate-950/80 border-r border-slate-800/80 backdrop-blur-xl h-screen sticky top-0 overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-20 p-3 items-center' : 'w-64 p-5'
+          }`}
+      >
+        <div className="relative w-full">
+          {/* Logo & Marca & Botão de Recolher */}
+          <div className={`flex items-center justify-between py-2 mb-4 ${isCollapsed ? 'flex-col gap-3 px-0' : 'px-2'}`}>
+            <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
+              <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
                 <Sparkles className="w-4 h-4 text-slate-950 font-bold" />
               </div>
-              <div>
-                <h1 className="font-black text-base text-white tracking-tight flex items-center gap-1">
-                  Poupix<span className="text-emerald-400 text-[10px] bg-emerald-500/10 border border-emerald-500/20 px-1 py-0.2 rounded">PRO</span>
-                </h1>
-                <span className="text-[10px] text-slate-400">Controle Financeiro</span>
-              </div>
+              {!isCollapsed && (
+                <div>
+                  <h1 className="font-black text-base text-white tracking-tight flex items-center gap-1">
+                    Poupix<span className="text-emerald-400 text-[10px] bg-emerald-500/10 border border-emerald-500/20 px-1 py-0.2 rounded">PRO</span>
+                  </h1>
+                  <span className="text-[10px] text-slate-400">Controle Financeiro</span>
+                </div>
+              )}
             </div>
 
-            {/* Controles Topo: Modo Privacidade */}
+            {/* Controle Topo: Toggle Sidebar (Recolher/Expandir) */}
             <div className="flex items-center gap-1.5">
-              <button
-                onClick={togglePrivacyMode}
-                title={isPrivacyMode ? 'Desativar Modo Privacidade' : 'Ativar Modo Privacidade'}
-                className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-              >
-                {isPrivacyMode ? <EyeOff className="w-3.5 h-3.5 text-emerald-400" /> : <Eye className="w-3.5 h-3.5" />}
-              </button>
+              {onToggleCollapse && (
+                <button
+                  type="button"
+                  onClick={onToggleCollapse}
+                  title={isCollapsed ? 'Expandir Menu Lateral' : 'Recolher Menu Lateral'}
+                  className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  {isCollapsed ? <PanelLeftOpen className="w-3.5 h-3.5 text-emerald-400" /> : <PanelLeftClose className="w-3.5 h-3.5" />}
+                </button>
+              )}
             </div>
           </div>
 
@@ -99,10 +113,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="relative mb-3">
             <button
               onClick={() => setIsPopoverOpen(!isPopoverOpen)}
-              className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold rounded-2xl shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.02] text-xs"
+              title={isCollapsed ? 'Nova Transação' : undefined}
+              className={`w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold rounded-2xl shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.02] text-xs ${isCollapsed ? 'p-2.5 h-10 w-10 mx-auto' : 'py-2.5 px-4'
+                }`}
             >
-              <Plus className="w-4 h-4" />
-              <span>+ Novo</span>
+              <Plus className="w-4 h-4 shrink-0" />
+              {!isCollapsed && <span>+ Novo</span>}
             </button>
 
             <NewTransactionPopover
@@ -120,16 +136,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                    isActive
+                  title={isCollapsed ? item.label : undefined}
+                  className={`w-full flex items-center rounded-xl text-xs font-semibold transition-all cursor-pointer ${isCollapsed ? 'justify-center p-2.5 h-10' : 'gap-3 px-3.5 py-2'
+                    } ${isActive
                       ? 'bg-slate-900 text-emerald-400 border border-slate-800 shadow-md'
                       : 'text-slate-400 hover:text-white hover:bg-slate-900/40'
-                  }`}
+                    }`}
                 >
-                  <span className={isActive ? 'text-emerald-400' : 'text-slate-500'}>
+                  <span className={`shrink-0 ${isActive ? 'text-emerald-400' : 'text-slate-500'}`}>
                     {item.icon}
                   </span>
-                  <span>{item.label}</span>
+                  {!isCollapsed && <span className="truncate">{item.label}</span>}
                 </button>
               );
             })}
@@ -137,17 +154,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Rodapé da Sidebar: Usuário Logado & Configurações */}
-        <div className="pt-3 border-t border-slate-900 space-y-2 text-xs">
-          <SidebarUserBadge />
-
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl transition-colors ${
-              activeTab === 'settings' ? 'text-emerald-400 bg-slate-900' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <span>⚙️ Configurações & Backup</span>
-          </button>
+        <div className="pt-3 border-t border-slate-900 space-y-2 text-xs w-full">
+          {!isCollapsed ? (
+            <>
+              <SidebarUserBadge />
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl transition-colors ${activeTab === 'settings' ? 'text-emerald-400 bg-slate-900' : 'text-slate-400 hover:text-white'
+                  }`}
+              >
+                <span>⚙️ Configurações & Backup</span>
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setActiveTab('settings')}
+              title="Configurações & Backup"
+              className={`w-full flex items-center justify-center p-2.5 rounded-xl transition-colors ${activeTab === 'settings' ? 'text-emerald-400 bg-slate-900' : 'text-slate-400 hover:text-white'
+                }`}
+            >
+              <span>⚙️</span>
+            </button>
+          )}
         </div>
       </aside>
 
@@ -163,9 +191,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
             }
           }}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-all cursor-pointer ${
-            activeTab === 'dashboard' ? 'text-purple-400 font-bold' : 'text-slate-500 hover:text-slate-300'
-          }`}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-all cursor-pointer ${activeTab === 'dashboard' ? 'text-purple-400 font-bold' : 'text-slate-500 hover:text-slate-300'
+            }`}
         >
           <LayoutDashboard className="w-5 h-5" />
           <span className="text-[10px]">Principal</span>
@@ -175,9 +202,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('transactions')}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-all cursor-pointer ${
-            activeTab === 'transactions' ? 'text-purple-400 font-bold' : 'text-slate-500 hover:text-slate-300'
-          }`}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-all cursor-pointer ${activeTab === 'transactions' ? 'text-purple-400 font-bold' : 'text-slate-500 hover:text-slate-300'
+            }`}
         >
           <ArrowLeftRight className="w-5 h-5" />
           <span className="text-[10px]">Transações</span>
@@ -197,9 +223,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('budgets')}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-all cursor-pointer ${
-            activeTab === 'budgets' ? 'text-purple-400 font-bold' : 'text-slate-500 hover:text-slate-300'
-          }`}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-all cursor-pointer ${activeTab === 'budgets' ? 'text-purple-400 font-bold' : 'text-slate-500 hover:text-slate-300'
+            }`}
         >
           <PieChart className="w-5 h-5" />
           <span className="text-[10px]">Planejamento</span>
@@ -209,11 +234,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           type="button"
           onClick={() => setIsMoreDrawerOpen(true)}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-all cursor-pointer ${
-            !['dashboard', 'transactions', 'budgets'].includes(activeTab)
+          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-all cursor-pointer ${!['dashboard', 'transactions', 'budgets'].includes(activeTab)
               ? 'text-purple-400 font-bold'
               : 'text-slate-500 hover:text-slate-300'
-          }`}
+            }`}
         >
           <MoreHorizontal className="w-5 h-5" />
           <span className="text-[10px]">Mais</span>
@@ -233,7 +257,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onClose={() => setIsMoreDrawerOpen(false)}
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        onOpenImporter={onOpenImporter || (() => {})}
+        onOpenImporter={onOpenImporter || (() => { })}
       />
     </>
   );

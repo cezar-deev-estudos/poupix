@@ -6,6 +6,7 @@ import { Transaction } from '@/types/finance';
 import { TransactionFlowType } from '../transactions/modal/TransactionModal';
 import { DesktopMonthlyBalanceView } from '../dashboard/DesktopMonthlyBalanceView';
 import { MobileMonthlyBalanceView } from '../dashboard/MobileMonthlyBalanceView';
+import { AnnualMatrixReportView } from './AnnualMatrixReportView';
 import {
   FileText,
   Download,
@@ -18,6 +19,7 @@ import {
   Printer,
   Scale,
   BarChart3,
+  Table,
 } from 'lucide-react';
 
 interface ReportsViewProps {
@@ -32,7 +34,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   onBack,
 }) => {
   const { summary, filteredTransactions, selectedMonth, selectedYear, categories, accounts, exportDatabaseBackup } = useFinance();
-  const [activeTab, setActiveTab] = useState<'balance' | 'statement'>('balance');
+  const [activeTab, setActiveTab] = useState<'balance' | 'matrix' | 'statement'>('matrix');
   const [reportType, setReportType] = useState<'monthly' | 'categories' | 'accounts'>('monthly');
 
   const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -97,7 +99,19 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
 
         {/* Alternador de Abas Superiores */}
-        <div className="flex items-center bg-slate-950/80 border border-slate-800 p-1 rounded-2xl text-xs self-start sm:self-auto">
+        <div className="flex flex-wrap items-center bg-slate-950/80 border border-slate-800 p-1 rounded-2xl text-xs self-start sm:self-auto gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('matrix')}
+            className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
+              activeTab === 'matrix'
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-md shadow-emerald-500/20 font-bold'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Table className="w-4 h-4" />
+            <span>Matriz Horizontal Anual</span>
+          </button>
           <button
             type="button"
             onClick={() => setActiveTab('balance')}
@@ -124,6 +138,23 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Conteúdo da Aba 0: Matriz Horizontal Anual (Exclusiva Desktop) */}
+      {activeTab === 'matrix' && (
+        <div>
+          <div className="hidden md:block">
+            <AnnualMatrixReportView onBack={onBack} />
+          </div>
+          <div className="block md:hidden bg-slate-900/60 border border-slate-800 rounded-3xl p-6 text-center space-y-3">
+            <Table className="w-8 h-8 text-teal-400 mx-auto" />
+            <h3 className="text-base font-bold text-white">Relatório Otimizado para Desktop</h3>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              A visualização em planilha horizontal (12 colunas de meses) é projetada para telas de computadores.
+              No celular, utilize a aba <strong>Balanço Mensal</strong>.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Conteúdo da Aba 1: Balanço Mensal */}
       {activeTab === 'balance' && (

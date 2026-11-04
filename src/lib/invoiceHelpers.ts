@@ -233,4 +233,74 @@ export function isInvoicePeriodPaid(
   return false;
 }
 
+/**
+ * Corrige e redistribui parcelas fora de cartão que estejam acidentalmente presas
+ * na mesma data devido a edições anteriores em lote.
+ */
+export function repairCorruptedInstallmentDates(transactions: Transaction[]): {
+  repaired: Transaction[];
+  hasChanges: boolean;
+} {
+  // Agrupa transações com indicador de parcelamento "(X/Total)" sem creditCardId
+  const groups: Record<string, Transaction[]> = {};
+
+  transactions.forEach(tx => {
+    if (tx.creditCardId) return;
+    const match = (tx.description || '').match(/^(.*?)\s*\((\d+)\/(\d+)\)\s*$/);
+    if (!match) return;
+
+    const baseName = match[1].trim();
+    const current = parseInt(match[2], 10);
+    const total = parseInt(match[3], 10);
+
+    if (total <= 1 || isNaN(current) || isNaN(total)) return;
+
+    const groupKey = tx.installmentGroupId || `${baseName}_${total}_${tx.amount}_${tx.categoryId}`;
+    if (!groups[groupKey]) groups[groupKey] = [];
+    groups[groupKey].push(tx);
+  });
+
+  const idToNewDate: Record<string, string> = {};
+  let anyChange = false;
+
+  Object.values(groups).forEach(items => {
+    // Se o grupo tem 2 ou mais parcelas e todas têm exatamente a mesma data
+    if (items.length > 1) {
+      const dates = new Set(items.map(t => t.date));
+      if (dates.size === 1) {
+        // Encontramos parcelas com datas idênticas que deveriam estar distribuídas mês a mês
+        const sampleDate = items[0].date;
+        const [baseYear, , baseDay] = sampleDate.split('-').map(Number);
+
+        items.forEach(item => {
+          const match = (item.description || '').match(/\((\d+)\/(\d+)\)/);
+          const parcelNum = match ? parseInt(match[1], 10) : item.installmentCurrent || 1;
+          const targetMonth = Math.min(Math.max(parcelNum, 1), 12);
+          const maxDays = new Date(baseYear, targetMonth, 0).getDate();
+          const targetDay = Math.min(baseDay, maxDays);
+          const correctDate = `${baseYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+
+          if (item.date !== correctDate) {
+            idToNewDate[item.id] = correctDate;
+            anyChange = true;
+          }
+        });
+      }
+    }
+  });
+
+  if (!anyChange) {
+    return { repaired: transactions, hasChanges: false };
+  }
+
+  const repaired = transactions.map(t => {
+    if (idToNewDate[t.id]) {
+      return { ...t, date: idToNewDate[t.id] };
+    }
+    return t;
+  });
+
+  return { repaired, hasChanges: true };
+}
+
 

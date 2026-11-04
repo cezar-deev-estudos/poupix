@@ -35,7 +35,7 @@ import { useAuth } from './AuthContext';
 import { useFinanceCloudSync } from '@/hooks/useFinanceCloudSync';
 import { transactionManager } from '@/hooks/useTransactionsManager';
 import { entityManager } from '@/hooks/useEntityManager';
-import { normalizeTransactionsInvoiceDates, getTransactionInvoicePeriod, isSameId } from '@/lib/invoiceHelpers';
+import { normalizeTransactionsInvoiceDates, getTransactionInvoicePeriod, isSameId, repairCorruptedInstallmentDates } from '@/lib/invoiceHelpers';
 import { reconcileAllDecreasingExpenses } from '@/lib/decreasingExpenses';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { ensureValidUUID, upsertTransactionsDirectlyToSupabase, loadUserPreferencesFromSupabase, upsertUserPreferencesToSupabase } from '@/lib/supabase/syncService';
@@ -512,9 +512,22 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         : cloudData.transactions.filter(t => !tombstones.has(t.id) && !tombstones.has(ensureValidUUID(t.id)));
       const normalizedCloudTxs = normalizeTransactionsInvoiceDates(validCloudTxs, currentCards);
 
+      // Repara automaticamente parcelas que tenham ficado presas na mesma data por edições anteriores em lote
+      const { repaired, hasChanges } = repairCorruptedInstallmentDates(normalizedCloudTxs);
+      if (hasChanges && user?.id) {
+        // Envia as datas corrigidas para persistência no Supabase
+        const changedTxs = repaired.filter(t => {
+          const original = normalizedCloudTxs.find(o => o.id === t.id);
+          return original && original.date !== t.date;
+        });
+        if (changedTxs.length > 0) {
+          upsertTransactionsDirectlyToSupabase(changedTxs, user.id);
+        }
+      }
+
       // O Supabase é a Fonte Única da Verdade para todos os dispositivos e telas conectadas.
       // Substitui diretamente o estado local pelas transações oficiais da nuvem.
-      setTransactions(normalizedCloudTxs);
+      setTransactions(repaired);
     }
     if (cloudData.goals !== undefined) setGoals(cloudData.goals);
     if (cloudData.openFinanceConnections !== undefined && cloudData.openFinanceConnections.length > 0) {

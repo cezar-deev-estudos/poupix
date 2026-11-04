@@ -314,18 +314,22 @@ export const transactionManager: TransactionManagerActions = {
         return `${origY}-${String(origM).padStart(2, '0')}-${String(adjustedDay).padStart(2, '0')}`;
       };
 
+      // Prepara objeto com apenas as propriedades que devem ser propagadas para os outros itens do grupo
+      // A data (date e invoiceDate) JAMAIS é propagada para outros itens na edição em lote
+      const { date: _ignoreDate, invoiceDate: _ignoreInvDate, ...otherPropsToUpdate } = updated;
+
       if (mode === 'following') {
         if (target.recurringGroupId) {
           return prev.map(t => {
             if (t.recurringGroupId === target.recurringGroupId && t.date >= target.date) {
-              const newDate = computeAdjustedDate(t.date, updated.date);
-              const newInvoiceDate = computeAdjustedInvoiceDate(t.invoiceDate, updated.invoiceDate);
-              const itemToUpdate = {
+              const isDirectTarget = t.id === id;
+              const itemToUpdate: Transaction = {
                 ...t,
-                ...updated,
+                ...otherPropsToUpdate,
                 id: t.id,
-                date: newDate,
-                invoiceDate: newInvoiceDate,
+                // Somente altera a data do próprio item diretamente editado
+                date: isDirectTarget && updated.date ? updated.date : t.date,
+                invoiceDate: isDirectTarget && updated.invoiceDate ? updated.invoiceDate : t.invoiceDate,
               };
               if (updated.type === 'expense' && !updated.creditCardId) {
                 delete itemToUpdate.creditCardId;
@@ -337,19 +341,17 @@ export const transactionManager: TransactionManagerActions = {
           });
         }
         if (target.installmentGroupId) {
-          const isCardInstallment = Boolean(target.creditCardId);
           return prev.map(t => {
             if (t.installmentGroupId === target.installmentGroupId && (t.installmentCurrent || 0) >= (target.installmentCurrent || 0)) {
-              // Se for cartão, a data da compra (date) é a mesma em todas as parcelas; se for fora de cartão, ajusta apenas o dia
-              const newDate = isCardInstallment && updated.date ? updated.date : computeAdjustedDate(t.date, updated.date);
-              const newInvoiceDate = computeAdjustedInvoiceDate(t.invoiceDate, updated.invoiceDate);
+              const isDirectTarget = t.id === id;
               return {
                 ...t,
-                ...updated,
+                ...otherPropsToUpdate,
                 id: t.id,
                 description: computeInstallmentDescription(t),
-                date: newDate,
-                invoiceDate: newInvoiceDate,
+                // Somente altera a data do próprio item diretamente editado
+                date: isDirectTarget && updated.date ? updated.date : t.date,
+                invoiceDate: isDirectTarget && updated.invoiceDate ? updated.invoiceDate : t.invoiceDate,
                 installmentCurrent: t.installmentCurrent,
                 installmentTotal: t.installmentTotal,
               };
@@ -363,14 +365,14 @@ export const transactionManager: TransactionManagerActions = {
         if (target.recurringGroupId) {
           return prev.map(t => {
             if (t.recurringGroupId === target.recurringGroupId) {
-              const newDate = computeAdjustedDate(t.date, updated.date);
-              const newInvoiceDate = computeAdjustedInvoiceDate(t.invoiceDate, updated.invoiceDate);
-              const itemToUpdate = {
+              const isDirectTarget = t.id === id;
+              const itemToUpdate: Transaction = {
                 ...t,
-                ...updated,
+                ...otherPropsToUpdate,
                 id: t.id,
-                date: newDate,
-                invoiceDate: newInvoiceDate,
+                // Somente altera a data do próprio item diretamente editado
+                date: isDirectTarget && updated.date ? updated.date : t.date,
+                invoiceDate: isDirectTarget && updated.invoiceDate ? updated.invoiceDate : t.invoiceDate,
               };
               if (updated.type === 'expense' && !updated.creditCardId) {
                 delete itemToUpdate.creditCardId;
@@ -382,19 +384,17 @@ export const transactionManager: TransactionManagerActions = {
           });
         }
         if (target.installmentGroupId) {
-          const isCardInstallment = Boolean(target.creditCardId);
           return prev.map(t => {
             if (t.installmentGroupId === target.installmentGroupId) {
-              // Se for cartão, a data da compra (date) é a mesma em todas as parcelas; se for fora de cartão, ajusta apenas o dia
-              const newDate = isCardInstallment && updated.date ? updated.date : computeAdjustedDate(t.date, updated.date);
-              const newInvoiceDate = computeAdjustedInvoiceDate(t.invoiceDate, updated.invoiceDate);
+              const isDirectTarget = t.id === id;
               return {
                 ...t,
-                ...updated,
+                ...otherPropsToUpdate,
                 id: t.id,
                 description: computeInstallmentDescription(t),
-                date: newDate,
-                invoiceDate: newInvoiceDate,
+                // Somente altera a data do próprio item diretamente editado
+                date: isDirectTarget && updated.date ? updated.date : t.date,
+                invoiceDate: isDirectTarget && updated.invoiceDate ? updated.invoiceDate : t.invoiceDate,
                 installmentCurrent: t.installmentCurrent,
                 installmentTotal: t.installmentTotal,
               };
