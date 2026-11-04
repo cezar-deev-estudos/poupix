@@ -1033,6 +1033,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           transactions={displayedTransactions}
           showTypeColumn={activeTypeFilter === 'all'}
           onEdit={(tx) => setEditingTransaction(tx)}
+          onAttach={(tx) => setEditingTransaction(tx)}
           onDelete={(tx) => setDeletingTransaction(tx)}
           onExportExcel={(filteredList) => {
             setTableFilteredTransactions(filteredList);

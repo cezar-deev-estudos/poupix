@@ -10,7 +10,7 @@ import { TagsChipSelector } from './TagsChipSelector';
 import { DescriptionInputAutocomplete, SuggestionItem } from './DescriptionInputAutocomplete';
 import { CategorySelectorDropdown } from './CategorySelectorDropdown';
 import { AccountSelectorDropdown } from './AccountSelectorDropdown';
-import { FileText, Heart, ChevronDown, Pin, RefreshCw, Check, Trash2 } from 'lucide-react';
+import { FileText, Heart, ChevronDown, Pin, RefreshCw, Check, Trash2, Paperclip, Image as ImageIcon, X } from 'lucide-react';
 
 interface IncomeFormProps {
   initialData?: Transaction | null;
@@ -43,6 +43,8 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
   const [categoryId, setCategoryId] = useState(initialData !== undefined && initialData !== null ? (initialData.categoryId ?? '') : defaultCatId);
   const [accountId, setAccountId] = useState(initialData?.accountId || initialAccId);
   const [ignoreInTotals, setIgnoreInTotals] = useState(initialData?.ignoreInTotals ?? false);
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(initialData?.attachmentUrl || null);
+  const [previewAttachmentModalOpen, setPreviewAttachmentModalOpen] = useState(false);
 
   // Coluna "Mais detalhes"
   const [showMoreDetails, setShowMoreDetails] = useState(false);
@@ -65,6 +67,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
       setCategoryId(initialData.categoryId ?? '');
       setAccountId(initialData.accountId || initialAccId);
       setIgnoreInTotals(Boolean(initialData.ignoreInTotals));
+      setAttachmentUrl(initialData.attachmentUrl || null);
       setTags(initialData.tags || []);
       setNotes(initialData.notes || '');
       setIsRecurring(Boolean(initialData.isRecurring));
@@ -99,6 +102,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
         paid,
         ignoreInTotals,
         isFavorite,
+        attachmentUrl: attachmentUrl || undefined,
         tags: tags.length > 0 ? tags : undefined,
         notes: notes.trim() || undefined,
         isRecurring,
@@ -113,6 +117,55 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
       setDescription('');
       setShowValidation(false);
     }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = event => {
+      const img = new Image();
+      img.onload = () => {
+        // Redimensionar e comprimir no cliente para manter leve no Supabase
+        const maxDimension = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          setAttachmentUrl(compressedDataUrl);
+        } else {
+          setAttachmentUrl(event.target?.result as string);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleRemoveAttachment = () => {
+    setAttachmentUrl(null);
   };
 
   const isFormValid = parseFloat(amount.replace(',', '.')) > 0 && description.trim().length > 0;
@@ -202,6 +255,69 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
               onChange={e => setNotes(e.target.value)}
               className="w-full bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
             />
+          </div>
+
+          {/* Anexo de Imagem / Comprovante */}
+          <div className="pt-1">
+            {attachmentUrl ? (
+              <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 border border-emerald-500/30">
+                <div
+                  className="flex items-center gap-2.5 cursor-pointer group/thumb flex-1 min-w-0"
+                  onClick={() => setPreviewAttachmentModalOpen(true)}
+                  title="Clique para visualizar o comprovante em tamanho maior"
+                >
+                  <div className="w-9 h-9 rounded-lg overflow-hidden bg-slate-950 border border-slate-700 shrink-0 relative flex items-center justify-center">
+                    <img
+                      src={attachmentUrl}
+                      alt="Comprovante"
+                      className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-semibold text-emerald-400 block truncate group-hover/thumb:underline">
+                      Comprovante anexado
+                    </span>
+                    <span className="text-[10px] text-slate-400 block">Clique para ampliar</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <label
+                    className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="Trocar imagem"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleRemoveAttachment}
+                    className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
+                    title="Remover anexo"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <label
+                className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-slate-700/80 hover:border-emerald-500/50 hover:bg-emerald-500/5 text-xs text-slate-400 hover:text-emerald-300 transition-all cursor-pointer group"
+              >
+                <Paperclip className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition-colors" />
+                <span className="font-medium">Anexar comprovante / imagem</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </label>
+            )}
           </div>
 
           {/* Botão de Alternância Mais Detalhes */}
@@ -350,6 +466,48 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
           </button>
         </div>
       </div>
+      {/* Modal Lightbox para Visualização Expandida do Comprovante */}
+      {previewAttachmentModalOpen && attachmentUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setPreviewAttachmentModalOpen(false)}
+        >
+          <div
+            className="relative max-w-2xl w-full max-h-[85vh] bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/80">
+              <span className="text-sm font-bold text-white flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-emerald-400" />
+                Comprovante da Receita
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewAttachmentModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 overflow-auto flex items-center justify-center bg-slate-950/50 min-h-[250px]">
+              <img
+                src={attachmentUrl}
+                alt="Comprovante da Receita"
+                className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-md"
+              />
+            </div>
+            <div className="p-3 border-t border-slate-800 bg-slate-950/80 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setPreviewAttachmentModalOpen(false)}
+                className="px-4 py-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 };

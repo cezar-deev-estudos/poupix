@@ -31,6 +31,7 @@ import {
   Calendar,
   Eye,
   EyeOff,
+  Paperclip,
 } from 'lucide-react';
 import { ExpenseHeatmapCalendar } from '../dashboard/ExpenseHeatmapCalendar';
 import { TransactionsFilterModal, AdvancedFilterState } from './TransactionsFilterModal';
@@ -1177,6 +1178,11 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                                 📉 Previsto
                               </span>
                             )}
+                            {tx.attachmentUrl && (
+                              <span className="inline-flex items-center gap-0.5 bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 text-[9px] font-medium px-1.5 py-0.2 rounded-md shrink-0 shadow-sm" title="Comprovante anexado">
+                                <Paperclip className="w-2 h-2 text-emerald-400" /> Anexo
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] text-slate-400 flex items-center gap-1.5 truncate mt-0.5">
                             <span className="truncate">{categoryName}</span>
@@ -1193,8 +1199,8 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
 
                           {/* Observação / Notas */}
                           {tx.notes && (
-                            <p className="text-[11px] text-slate-400 italic truncate mt-0.5 flex items-center gap-1">
-                              <span className="text-slate-500 not-italic font-medium">Obs:</span> {tx.notes}
+                            <p className="text-[11px] text-slate-400 italic truncate mt-0.5">
+                              {tx.notes}
                             </p>
                           )}
 

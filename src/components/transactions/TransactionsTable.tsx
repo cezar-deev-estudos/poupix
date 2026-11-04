@@ -9,7 +9,7 @@ import { CategoryIcon } from '../ui/CategoryIcon';
 import { TransactionRowMenu } from './TransactionRowMenu';
 import { ConfirmPaymentModal } from './ConfirmPaymentModal';
 import { BatchEditModal } from './BatchEditModal';
-import { Check, Clock, CreditCard, MoreVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Repeat, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, Search, Edit3, Trash2 } from 'lucide-react';
+import { Check, Clock, CreditCard, MoreVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Repeat, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, Search, Edit3, Trash2, Paperclip, Image as ImageIcon } from 'lucide-react';
 
 interface TransactionsTableProps {
   transactions: Transaction[];
@@ -40,6 +40,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isRowsDropdownOpen, setIsRowsDropdownOpen] = useState(false);
   const [openMenuTxId, setOpenMenuTxId] = useState<string | null>(null);
+  const [viewingAttachmentUrl, setViewingAttachmentUrl] = useState<string | null>(null);
 
   // Estado para caixa box de confirmação de pagamento
   const [confirmingPayment, setConfirmingPayment] = useState<{
@@ -569,6 +570,17 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
               <span className="inline-flex items-center gap-0.5 bg-rose-950/80 text-rose-300 border border-rose-800/70 text-[10px] font-medium px-1.5 py-0.5 rounded-md shrink-0 shadow-sm" title="Despesa Prevista (Reserva mensal decrescente)">
                 📉 Previsto
               </span>
+            )}
+            {tx.attachmentUrl && (
+              <button
+                type="button"
+                onClick={() => setViewingAttachmentUrl(tx.attachmentUrl || null)}
+                className="inline-flex items-center gap-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 shadow-sm transition-colors cursor-pointer"
+                title="Clique para visualizar o comprovante anexado"
+              >
+                <Paperclip className="w-2.5 h-2.5 text-emerald-400" />
+                <span>Anexo</span>
+              </button>
             )}
           </div>
 
@@ -1502,6 +1514,49 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
         accounts={accounts}
         onApply={handleApplyBatchEdit}
       />
+
+      {/* Modal Lightbox para Visualização do Anexo */}
+      {viewingAttachmentUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setViewingAttachmentUrl(null)}
+        >
+          <div
+            className="relative max-w-2xl w-full max-h-[85vh] bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/80">
+              <span className="text-sm font-bold text-white flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-emerald-400" />
+                Comprovante Anexado
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewingAttachmentUrl(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 overflow-auto flex items-center justify-center bg-slate-950/50 min-h-[250px]">
+              <img
+                src={viewingAttachmentUrl}
+                alt="Comprovante"
+                className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-md"
+              />
+            </div>
+            <div className="p-3 border-t border-slate-800 bg-slate-950/80 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setViewingAttachmentUrl(null)}
+                className="px-4 py-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

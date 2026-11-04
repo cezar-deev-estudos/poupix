@@ -98,6 +98,7 @@ export interface Transaction {
   isFavorite?: boolean; // Transação marcada como favorita
   isDecreasing?: boolean; // Despesa decrescente (reserva mensal que diminui conforme novos lançamentos da mesma nano)
   linkedDecreasingId?: string; // ID da despesa decrescente vinculada para estorno automático na exclusão
+  attachmentUrl?: string; // Comprovante ou imagem anexada
   createdAt: string;
 }
 

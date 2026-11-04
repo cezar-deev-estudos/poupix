@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
     is_favorite BOOLEAN NOT NULL DEFAULT false,
     is_decreasing BOOLEAN NOT NULL DEFAULT false,
     linked_decreasing_id UUID REFERENCES public.transactions(id) ON DELETE SET NULL,
+    attachment_url TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
