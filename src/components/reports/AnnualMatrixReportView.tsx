@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { Category } from '@/types/finance';
 import { formatCurrency } from '@/lib/utils';
-import { reconcileAllDecreasingExpenses } from '@/lib/decreasingExpenses';
+import { reconcileAllDecreasingExpenses, getMatchingNanoName, normalizeKey } from '@/lib/decreasingExpenses';
 import { getTransactionInvoicePeriod, isSameId } from '@/lib/invoiceHelpers';
 import {
   Table,
@@ -34,6 +34,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
   const { transactions, categories, creditCards, selectedYear: currentYear } = useFinance();
   const [reportYear, setReportYear] = useState<number>(currentYear || new Date().getFullYear());
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [expandedSubcategories, setExpandedSubcategories] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income'>('all');
 
   // Categorias ativas
@@ -45,16 +46,27 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     setExpandedCategories(prev => ({ ...prev, [catId]: !prev[catId] }));
   };
 
+  const toggleExpandSubcategory = (subId: string) => {
+    setExpandedSubcategories(prev => ({ ...prev, [subId]: !prev[subId] }));
+  };
+
   const expandAll = () => {
-    const next: Record<string, boolean> = {};
+    const nextCats: Record<string, boolean> = {};
+    const nextSubs: Record<string, boolean> = {};
     activeCategories.forEach(c => {
-      if (!c.parentId) next[c.id] = true;
+      if (!c.parentId) {
+        nextCats[c.id] = true;
+      } else if (c.nanoCategories && c.nanoCategories.length > 0) {
+        nextSubs[c.id] = true;
+      }
     });
-    setExpandedCategories(next);
+    setExpandedCategories(nextCats);
+    setExpandedSubcategories(nextSubs);
   };
 
   const collapseAll = () => {
     setExpandedCategories({});
+    setExpandedSubcategories({});
   };
 
   // Mapa rápido de transações por Mês e por Categoria/Subcategoria
@@ -64,9 +76,18 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     const monthlyIncomeTotals: number[] = Array(12).fill(0);
     const monthlyExpenseTotals: number[] = Array(12).fill(0);
     const catMonthTotals: Record<string, number[]> = {};
+    // nanoMonthTotals[subcategoryId][nanoKey] = [m0, m1, ..., m11]
+    const nanoMonthTotals: Record<string, Record<string, number[]>> = {};
 
     activeCategories.forEach(c => {
       catMonthTotals[c.id] = Array(12).fill(0);
+      if (c.parentId && c.nanoCategories && c.nanoCategories.length > 0) {
+        nanoMonthTotals[c.id] = {};
+        c.nanoCategories.forEach(nano => {
+          nanoMonthTotals[c.id][normalizeKey(nano.name)] = Array(12).fill(0);
+        });
+        nanoMonthTotals[c.id]['_others'] = Array(12).fill(0);
+      }
     });
 
     // Reconcilia despesas decrescentes com despesas do mesmo mês e mesma nanoTag
@@ -101,10 +122,25 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
 
       // Mapear com segurança a categoria/subcategoria usando isSameId
       const matchedCat = activeCategories.find(c => isSameId(c.id, tx.categoryId));
-      if (matchedCat && catMonthTotals[matchedCat.id]) {
-        catMonthTotals[matchedCat.id][txMonth] += tx.amount;
-      } else if (catMonthTotals[tx.categoryId]) {
-        catMonthTotals[tx.categoryId][txMonth] += tx.amount;
+      const targetCatId = matchedCat?.id || tx.categoryId;
+      if (catMonthTotals[targetCatId]) {
+        catMonthTotals[targetCatId][txMonth] += tx.amount;
+      }
+
+      // Se a categoria for subcategoria com nanos registradas, computar também na nano correspondente
+      if (matchedCat && matchedCat.parentId && matchedCat.nanoCategories && matchedCat.nanoCategories.length > 0) {
+        const subId = matchedCat.id;
+        const subNanos = matchedCat.nanoCategories;
+        const matchedNanoKey = getMatchingNanoName(tx, [matchedCat]);
+
+        if (nanoMonthTotals[subId]) {
+          const isKnownNano = matchedNanoKey && subNanos.some(n => normalizeKey(n.name) === matchedNanoKey);
+          if (isKnownNano && matchedNanoKey && nanoMonthTotals[subId][matchedNanoKey]) {
+            nanoMonthTotals[subId][matchedNanoKey][txMonth] += tx.amount;
+          } else {
+            nanoMonthTotals[subId]['_others'][txMonth] += tx.amount;
+          }
+        }
       }
     });
 
@@ -123,6 +159,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
       monthlyIncomeTotals,
       monthlyExpenseTotals,
       catMonthTotals,
+      nanoMonthTotals,
       monthlyCashFlow,
       monthlyAccumulated,
     };
@@ -151,6 +188,12 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     return monthly.reduce((sum, v) => sum + v, 0);
   };
 
+  // Obter total anual de uma nano-categoria
+  const getNanoCategoryAnnualTotal = (subId: string, nanoKey: string) => {
+    const monthly = matrixData.nanoMonthTotals[subId]?.[nanoKey] || [];
+    return monthly.reduce((sum, v) => sum + v, 0);
+  };
+
   // Exportar para CSV formatado em matriz horizontal
   const handleExportCSV = () => {
     const headers = ['Grupo / Categoria', ...MONTH_SHORT_NAMES, 'TOTAL ANUAL'];
@@ -161,6 +204,18 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     parentIncomeCategories.forEach(p => {
       const monthVals = MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(p, m).toFixed(2).replace('.', ','));
       rows.push([`"${p.name}"`, ...monthVals, getParentCategoryAnnualTotal(p).toFixed(2).replace('.', ',')]);
+      const subs = activeCategories.filter(c => isSameId(c.parentId, p.id));
+      subs.forEach(s => {
+        const subMonthVals = MONTH_SHORT_NAMES.map((_, m) => (matrixData.catMonthTotals[s.id]?.[m] || 0).toFixed(2).replace('.', ','));
+        rows.push([`"   - ${s.name}"`, ...subMonthVals, getSubcategoryAnnualTotal(s).toFixed(2).replace('.', ',')]);
+        if (s.nanoCategories && s.nanoCategories.length > 0) {
+          s.nanoCategories.forEach(nano => {
+            const nanoKey = normalizeKey(nano.name);
+            const nanoVals = MONTH_SHORT_NAMES.map((_, m) => (matrixData.nanoMonthTotals[s.id]?.[nanoKey]?.[m] || 0).toFixed(2).replace('.', ','));
+            rows.push([`"      * ${nano.name}"`, ...nanoVals, getNanoCategoryAnnualTotal(s.id, nanoKey).toFixed(2).replace('.', ',')]);
+          });
+        }
+      });
     });
     rows.push([
       '"TOTAL RECEITAS"',
@@ -177,6 +232,13 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
       subs.forEach(s => {
         const subMonthVals = MONTH_SHORT_NAMES.map((_, m) => (matrixData.catMonthTotals[s.id]?.[m] || 0).toFixed(2).replace('.', ','));
         rows.push([`"   - ${s.name}"`, ...subMonthVals, getSubcategoryAnnualTotal(s).toFixed(2).replace('.', ',')]);
+        if (s.nanoCategories && s.nanoCategories.length > 0) {
+          s.nanoCategories.forEach(nano => {
+            const nanoKey = normalizeKey(nano.name);
+            const nanoVals = MONTH_SHORT_NAMES.map((_, m) => (matrixData.nanoMonthTotals[s.id]?.[nanoKey]?.[m] || 0).toFixed(2).replace('.', ','));
+            rows.push([`"      * ${nano.name}"`, ...nanoVals, getNanoCategoryAnnualTotal(s.id, nanoKey).toFixed(2).replace('.', ',')]);
+          });
+        }
       });
     });
     rows.push([
@@ -438,23 +500,70 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                         {/* Subcategorias de Receita */}
                         {isExpanded && subs.map(sub => {
                           const subAnnual = getSubcategoryAnnualTotal(sub);
+                          const hasNanos = Boolean(sub.nanoCategories && sub.nanoCategories.length > 0);
+                          const isSubExpanded = Boolean(expandedSubcategories[sub.id]);
+
                           return (
-                            <tr key={sub.id} className="bg-slate-950/40 hover:bg-slate-800/20 text-xs">
-                              <td className="p-2 pl-9 sticky left-0 z-10 bg-slate-950/95 border-r border-slate-800 text-slate-400 font-normal shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
-                                <span className="truncate">• {sub.name}</span>
-                              </td>
-                              {MONTH_SHORT_NAMES.map((_, m) => {
-                                const val = matrixData.catMonthTotals[sub.id]?.[m] || 0;
+                            <React.Fragment key={sub.id}>
+                              <tr className="bg-slate-950/40 hover:bg-slate-800/20 text-xs">
+                                <td className="p-2 pl-9 sticky left-0 z-10 bg-slate-950/95 border-r border-slate-800 text-slate-400 font-normal shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                                  <div className="flex items-center gap-1.5">
+                                    {hasNanos ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleExpandSubcategory(sub.id)}
+                                        className="p-0.5 text-slate-400 hover:text-white transition-colors"
+                                        title={isSubExpanded ? "Recolher divisões" : "Expandir divisões"}
+                                      >
+                                        {isSubExpanded ? (
+                                          <ChevronDown className="w-3 h-3 text-emerald-400" />
+                                        ) : (
+                                          <ChevronRight className="w-3 h-3 text-slate-400" />
+                                        )}
+                                      </button>
+                                    ) : (
+                                      <span className="w-3 inline-block text-center text-slate-600">•</span>
+                                    )}
+                                    <span className="truncate">{sub.name}</span>
+                                  </div>
+                                </td>
+                                {MONTH_SHORT_NAMES.map((_, m) => {
+                                  const val = matrixData.catMonthTotals[sub.id]?.[m] || 0;
+                                  return (
+                                    <td key={m} className="p-2 text-right tabular-nums text-slate-400">
+                                      {val > 0 ? formatCurrency(val) : <span className="text-slate-700">-</span>}
+                                    </td>
+                                  );
+                                })}
+                                <td className="p-2 text-right tabular-nums text-slate-300 font-medium bg-slate-950/60 border-l border-slate-800">
+                                  {subAnnual > 0 ? formatCurrency(subAnnual) : '-'}
+                                </td>
+                              </tr>
+
+                              {/* Linhas das Nano-Categorias de Receita */}
+                              {isSubExpanded && sub.nanoCategories?.map(nano => {
+                                const nanoKey = normalizeKey(nano.name);
+                                const nanoAnnual = getNanoCategoryAnnualTotal(sub.id, nanoKey);
                                 return (
-                                  <td key={m} className="p-2 text-right tabular-nums text-slate-400">
-                                    {val > 0 ? formatCurrency(val) : <span className="text-slate-700">-</span>}
-                                  </td>
+                                  <tr key={nano.id || nanoKey} className="bg-slate-950/70 hover:bg-slate-800/30 text-[11px] text-slate-500">
+                                    <td className="p-1.5 pl-14 sticky left-0 z-10 bg-slate-950/95 border-r border-slate-800 italic shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                                      <span className="truncate">↳ {nano.name}</span>
+                                    </td>
+                                    {MONTH_SHORT_NAMES.map((_, m) => {
+                                      const val = matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0;
+                                      return (
+                                        <td key={m} className="p-1.5 text-right tabular-nums">
+                                          {val > 0 ? formatCurrency(val) : <span className="text-slate-800">-</span>}
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="p-1.5 text-right tabular-nums font-normal text-slate-400 bg-slate-950/80 border-l border-slate-800">
+                                      {nanoAnnual > 0 ? formatCurrency(nanoAnnual) : '-'}
+                                    </td>
+                                  </tr>
                                 );
                               })}
-                              <td className="p-2 text-right tabular-nums text-slate-300 font-medium bg-slate-950/60 border-l border-slate-800">
-                                {subAnnual > 0 ? formatCurrency(subAnnual) : '-'}
-                              </td>
-                            </tr>
+                            </React.Fragment>
                           );
                         })}
                       </React.Fragment>
@@ -526,23 +635,70 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                         {/* Subcategorias de Despesa */}
                         {isExpanded && subs.map(sub => {
                           const subAnnual = getSubcategoryAnnualTotal(sub);
+                          const hasNanos = Boolean(sub.nanoCategories && sub.nanoCategories.length > 0);
+                          const isSubExpanded = Boolean(expandedSubcategories[sub.id]);
+
                           return (
-                            <tr key={sub.id} className="bg-slate-950/40 hover:bg-slate-800/20 text-xs">
-                              <td className="p-2 pl-9 sticky left-0 z-10 bg-slate-950/95 border-r border-slate-800 text-slate-400 font-normal shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
-                                <span className="truncate">• {sub.name}</span>
-                              </td>
-                              {MONTH_SHORT_NAMES.map((_, m) => {
-                                const val = matrixData.catMonthTotals[sub.id]?.[m] || 0;
+                            <React.Fragment key={sub.id}>
+                              <tr className="bg-slate-950/40 hover:bg-slate-800/20 text-xs">
+                                <td className="p-2 pl-9 sticky left-0 z-10 bg-slate-950/95 border-r border-slate-800 text-slate-400 font-normal shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                                  <div className="flex items-center gap-1.5">
+                                    {hasNanos ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleExpandSubcategory(sub.id)}
+                                        className="p-0.5 text-slate-400 hover:text-white transition-colors"
+                                        title={isSubExpanded ? "Recolher divisões" : "Expandir divisões"}
+                                      >
+                                        {isSubExpanded ? (
+                                          <ChevronDown className="w-3 h-3 text-teal-400" />
+                                        ) : (
+                                          <ChevronRight className="w-3 h-3 text-slate-400" />
+                                        )}
+                                      </button>
+                                    ) : (
+                                      <span className="w-3 inline-block text-center text-slate-600">•</span>
+                                    )}
+                                    <span className="truncate">{sub.name}</span>
+                                  </div>
+                                </td>
+                                {MONTH_SHORT_NAMES.map((_, m) => {
+                                  const val = matrixData.catMonthTotals[sub.id]?.[m] || 0;
+                                  return (
+                                    <td key={m} className="p-2 text-right tabular-nums text-slate-400">
+                                      {val > 0 ? formatCurrency(val) : <span className="text-slate-700">-</span>}
+                                    </td>
+                                  );
+                                })}
+                                <td className="p-2 text-right tabular-nums text-slate-300 font-medium bg-slate-950/60 border-l border-slate-800">
+                                  {subAnnual > 0 ? formatCurrency(subAnnual) : '-'}
+                                </td>
+                              </tr>
+
+                              {/* Linhas das Nano-Categorias de Despesa */}
+                              {isSubExpanded && sub.nanoCategories?.map(nano => {
+                                const nanoKey = normalizeKey(nano.name);
+                                const nanoAnnual = getNanoCategoryAnnualTotal(sub.id, nanoKey);
                                 return (
-                                  <td key={m} className="p-2 text-right tabular-nums text-slate-400">
-                                    {val > 0 ? formatCurrency(val) : <span className="text-slate-700">-</span>}
-                                  </td>
+                                  <tr key={nano.id || nanoKey} className="bg-slate-950/70 hover:bg-slate-800/30 text-[11px] text-slate-500">
+                                    <td className="p-1.5 pl-14 sticky left-0 z-10 bg-slate-950/95 border-r border-slate-800 italic shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                                      <span className="truncate">↳ {nano.name}</span>
+                                    </td>
+                                    {MONTH_SHORT_NAMES.map((_, m) => {
+                                      const val = matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0;
+                                      return (
+                                        <td key={m} className="p-1.5 text-right tabular-nums">
+                                          {val > 0 ? formatCurrency(val) : <span className="text-slate-800">-</span>}
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="p-1.5 text-right tabular-nums font-normal text-slate-400 bg-slate-950/80 border-l border-slate-800">
+                                      {nanoAnnual > 0 ? formatCurrency(nanoAnnual) : '-'}
+                                    </td>
+                                  </tr>
                                 );
                               })}
-                              <td className="p-2 text-right tabular-nums text-slate-300 font-medium bg-slate-950/60 border-l border-slate-800">
-                                {subAnnual > 0 ? formatCurrency(subAnnual) : '-'}
-                              </td>
-                            </tr>
+                            </React.Fragment>
                           );
                         })}
                       </React.Fragment>
