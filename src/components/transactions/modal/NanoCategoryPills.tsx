@@ -18,6 +18,9 @@ export const NanoCategoryPills: React.FC<NanoCategoryPillsProps> = ({
 }) => {
   if (!nanoCategories || nanoCategories.length === 0) return null;
 
+  const activeNanos = nanoCategories.filter(n => n.active !== false);
+  if (activeNanos.length === 0) return null;
+
   const activeStyles = {
     rose: 'bg-rose-500/20 text-rose-300 border-rose-500/50 font-medium',
     cyan: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 font-medium',
@@ -27,7 +30,7 @@ export const NanoCategoryPills: React.FC<NanoCategoryPillsProps> = ({
   return (
     <div className="flex items-center gap-1.5 flex-wrap pt-0.5 pb-1">
       <span className="text-[10px] text-slate-500 font-medium">Nano:</span>
-      {nanoCategories.map(nano => {
+      {activeNanos.map(nano => {
         const isSelected =
           currentDescription.trim().toLowerCase() === nano.name.trim().toLowerCase();
 

@@ -33,6 +33,8 @@ export interface NanoCategory {
   id: string;
   name: string;
   budgetLimit?: number; // Teto de gastos opcional específico da nano-categoria
+  year?: number | null; // Ano específico de vigência (ex: 2026, 2027) ou null para todos os anos
+  active?: boolean; // Se está habilitada (default: true)
   createdAt?: string;
 }
 

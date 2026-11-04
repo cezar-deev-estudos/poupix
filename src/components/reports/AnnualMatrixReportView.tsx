@@ -194,22 +194,58 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     return monthly.reduce((sum, v) => sum + v, 0);
   };
 
+  // Filtrar nano-categorias que devem aparecer no relatório anual:
+  // - A nano deve estar ativa (active !== false)
+  // - Se tiver ano definido (nano.year), deve ser igual ao reportYear
+  // - OU se o próprio nome contiver ano (ex: "2026"), só exibe se for o reportYear selecionado ou se tiver movimentação real
+  const getVisibleNanosForYear = (sub: Category) => {
+    if (!sub.nanoCategories || sub.nanoCategories.length === 0) return [];
+    return sub.nanoCategories.filter(nano => {
+      // Se estiver desativada explicitamente, não exibe
+      if (nano.active === false) return false;
+
+      // Se tiver ano fixado específico (ex: 2026), só exibe no relatório daquele ano
+      if (nano.year !== undefined && nano.year !== null) {
+        return nano.year === reportYear;
+      }
+
+      // Se o próprio nome contiver indicação de ano (ex: "2026", "2027"), respeitar caso não seja o reportYear e tiver total 0
+      const nanoKey = normalizeKey(nano.name);
+      const nanoAnnual = getNanoCategoryAnnualTotal(sub.id, nanoKey);
+      
+      const yearMatch = nano.name.match(/\b(20\d\d)\b/);
+      if (yearMatch) {
+        const foundYear = parseInt(yearMatch[1], 10);
+        if (foundYear !== reportYear && nanoAnnual === 0) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  };
+
   // Exportar para CSV formatado em matriz horizontal
   const handleExportCSV = () => {
     const headers = ['Grupo / Categoria', ...MONTH_SHORT_NAMES, 'TOTAL ANUAL'];
     const rows: string[][] = [];
 
-    // Receitas
+    // Receitas (Ordenadas do maior para o menor valor)
     rows.push(['--- RECEITAS ---', ...Array(13).fill('')]);
-    parentIncomeCategories.forEach(p => {
-      const monthVals = MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(p, m).toFixed(2).replace('.', ','));
-      rows.push([`"${p.name}"`, ...monthVals, getParentCategoryAnnualTotal(p).toFixed(2).replace('.', ',')]);
-      const subs = activeCategories.filter(c => isSameId(c.parentId, p.id));
-      subs.forEach(s => {
+    [...parentIncomeCategories]
+      .sort((a, b) => getParentCategoryAnnualTotal(b) - getParentCategoryAnnualTotal(a))
+      .forEach(p => {
+        const monthVals = MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(p, m).toFixed(2).replace('.', ','));
+        rows.push([`"${p.name}"`, ...monthVals, getParentCategoryAnnualTotal(p).toFixed(2).replace('.', ',')]);
+        const subs = activeCategories
+          .filter(c => isSameId(c.parentId, p.id))
+          .sort((a, b) => getSubcategoryAnnualTotal(b) - getSubcategoryAnnualTotal(a));
+        subs.forEach(s => {
         const subMonthVals = MONTH_SHORT_NAMES.map((_, m) => (matrixData.catMonthTotals[s.id]?.[m] || 0).toFixed(2).replace('.', ','));
         rows.push([`"   - ${s.name}"`, ...subMonthVals, getSubcategoryAnnualTotal(s).toFixed(2).replace('.', ',')]);
-        if (s.nanoCategories && s.nanoCategories.length > 0) {
-          s.nanoCategories.forEach(nano => {
+        const visibleNanos = getVisibleNanosForYear(s);
+        if (visibleNanos.length > 0) {
+          visibleNanos.forEach(nano => {
             const nanoKey = normalizeKey(nano.name);
             const nanoVals = MONTH_SHORT_NAMES.map((_, m) => (matrixData.nanoMonthTotals[s.id]?.[nanoKey]?.[m] || 0).toFixed(2).replace('.', ','));
             rows.push([`"      * ${nano.name}"`, ...nanoVals, getNanoCategoryAnnualTotal(s.id, nanoKey).toFixed(2).replace('.', ',')]);
@@ -232,8 +268,9 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
       subs.forEach(s => {
         const subMonthVals = MONTH_SHORT_NAMES.map((_, m) => (matrixData.catMonthTotals[s.id]?.[m] || 0).toFixed(2).replace('.', ','));
         rows.push([`"   - ${s.name}"`, ...subMonthVals, getSubcategoryAnnualTotal(s).toFixed(2).replace('.', ',')]);
-        if (s.nanoCategories && s.nanoCategories.length > 0) {
-          s.nanoCategories.forEach(nano => {
+        const visibleNanos = getVisibleNanosForYear(s);
+        if (visibleNanos.length > 0) {
+          visibleNanos.forEach(nano => {
             const nanoKey = normalizeKey(nano.name);
             const nanoVals = MONTH_SHORT_NAMES.map((_, m) => (matrixData.nanoMonthTotals[s.id]?.[nanoKey]?.[m] || 0).toFixed(2).replace('.', ','));
             rows.push([`"      * ${nano.name}"`, ...nanoVals, getNanoCategoryAnnualTotal(s.id, nanoKey).toFixed(2).replace('.', ',')]);
@@ -457,10 +494,14 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                     </td>
                   </tr>
 
-                  {/* Categorias de Receita */}
-                  {parentIncomeCategories.map(cat => {
-                    const annualTot = getParentCategoryAnnualTotal(cat);
-                    const subs = activeCategories.filter(c => isSameId(c.parentId, cat.id));
+                  {/* Categorias de Receita (Ordenadas do maior para o menor valor) */}
+                  {[...parentIncomeCategories]
+                    .sort((a, b) => getParentCategoryAnnualTotal(b) - getParentCategoryAnnualTotal(a))
+                    .map(cat => {
+                      const annualTot = getParentCategoryAnnualTotal(cat);
+                      const subs = activeCategories
+                        .filter(c => isSameId(c.parentId, cat.id))
+                        .sort((a, b) => getSubcategoryAnnualTotal(b) - getSubcategoryAnnualTotal(a));
                     const isExpanded = Boolean(expandedCategories[cat.id]);
 
                     return (
@@ -541,7 +582,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                               </tr>
 
                               {/* Linhas das Nano-Categorias de Receita */}
-                              {isSubExpanded && sub.nanoCategories?.map(nano => {
+                              {isSubExpanded && getVisibleNanosForYear(sub).map(nano => {
                                 const nanoKey = normalizeKey(nano.name);
                                 const nanoAnnual = getNanoCategoryAnnualTotal(sub.id, nanoKey);
                                 return (
@@ -676,7 +717,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                               </tr>
 
                               {/* Linhas das Nano-Categorias de Despesa */}
-                              {isSubExpanded && sub.nanoCategories?.map(nano => {
+                              {isSubExpanded && getVisibleNanosForYear(sub).map(nano => {
                                 const nanoKey = normalizeKey(nano.name);
                                 const nanoAnnual = getNanoCategoryAnnualTotal(sub.id, nanoKey);
                                 return (

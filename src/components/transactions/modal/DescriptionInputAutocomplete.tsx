@@ -62,6 +62,7 @@ export const DescriptionInputAutocomplete: React.FC<DescriptionInputAutocomplete
       const parent = cat.parentId ? categories.find(c => c.id === cat.parentId) : null;
       const label = parent ? `${parent.name} / ${cat.name}` : cat.name;
       cat.nanoCategories.forEach(nano => {
+        if (nano.active === false) return;
         result.push({
           nano,
           categoryId: cat.id,

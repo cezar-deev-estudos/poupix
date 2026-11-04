@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Category, NanoCategory } from '@/types/finance';
 import { formatCurrency } from '@/lib/utils';
 import { CategoryIcon } from '../ui/CategoryIcon';
-import { X, Plus, Edit2, Trash2, Check, AlertCircle, DollarSign } from 'lucide-react';
+import { X, Plus, Edit2, Trash2, Check, AlertCircle, DollarSign, Calendar } from 'lucide-react';
 
 interface NanoCategoriesModalProps {
   isOpen: boolean;
@@ -19,11 +19,14 @@ export const NanoCategoriesModal: React.FC<NanoCategoriesModalProps> = ({
   onClose,
   onUpdateSubcategory,
 }) => {
+  const currentYear = new Date().getFullYear();
   const [newName, setNewName] = useState('');
   const [newBudget, setNewBudget] = useState('');
+  const [newYear, setNewYear] = useState<string>('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editBudget, setEditBudget] = useState('');
+  const [editYear, setEditYear] = useState<string>('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -45,11 +48,14 @@ export const NanoCategoriesModal: React.FC<NanoCategoriesModalProps> = ({
     }
 
     const budgetVal = newBudget.trim() ? parseFloat(newBudget.replace(',', '.')) : undefined;
+    const parsedYear = newYear.trim() ? parseInt(newYear, 10) : undefined;
 
     const newNano: NanoCategory = {
       id: crypto.randomUUID(),
       name: trimmed,
       budgetLimit: budgetVal && !isNaN(budgetVal) && budgetVal > 0 ? budgetVal : undefined,
+      year: parsedYear && !isNaN(parsedYear) ? parsedYear : null,
+      active: true,
       createdAt: new Date().toISOString(),
     };
 
@@ -57,13 +63,28 @@ export const NanoCategoriesModal: React.FC<NanoCategoriesModalProps> = ({
     onUpdateSubcategory(subcategory.id, updated);
     setNewName('');
     setNewBudget('');
+    setNewYear('');
     setErrorMessage('');
+  };
+
+  const handleToggleActive = (nanoId: string) => {
+    const updated = currentNanos.map(n => {
+      if (n.id === nanoId) {
+        return {
+          ...n,
+          active: n.active === false ? true : false,
+        };
+      }
+      return n;
+    });
+    onUpdateSubcategory(subcategory.id, updated);
   };
 
   const handleStartEdit = (nano: NanoCategory) => {
     setEditingId(nano.id);
     setEditName(nano.name);
     setEditBudget(nano.budgetLimit ? nano.budgetLimit.toString() : '');
+    setEditYear(nano.year ? nano.year.toString() : '');
     setDeletingId(null);
   };
 
@@ -72,6 +93,7 @@ export const NanoCategoriesModal: React.FC<NanoCategoriesModalProps> = ({
     if (!trimmed) return;
 
     const budgetVal = editBudget.trim() ? parseFloat(editBudget.replace(',', '.')) : undefined;
+    const parsedYear = editYear.trim() ? parseInt(editYear, 10) : undefined;
 
     const updated = currentNanos.map(n => {
       if (n.id === id) {
@@ -79,6 +101,7 @@ export const NanoCategoriesModal: React.FC<NanoCategoriesModalProps> = ({
           ...n,
           name: trimmed,
           budgetLimit: budgetVal && !isNaN(budgetVal) && budgetVal > 0 ? budgetVal : undefined,
+          year: parsedYear && !isNaN(parsedYear) ? parsedYear : null,
         };
       }
       return n;
@@ -129,7 +152,7 @@ export const NanoCategoriesModal: React.FC<NanoCategoriesModalProps> = ({
         {/* Form para adicionar nova */}
         <form onSubmit={handleAdd} className="p-4 bg-slate-950/20 border-b border-slate-800 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-            <div className="sm:col-span-7">
+            <div className="sm:col-span-5">
               <label className="block text-[11px] text-slate-400 mb-1">Nome da Despesa Frequente</label>
               <input
                 type="text"
@@ -142,7 +165,7 @@ export const NanoCategoriesModal: React.FC<NanoCategoriesModalProps> = ({
                 className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none transition-colors"
               />
             </div>
-            <div className="sm:col-span-5">
+            <div className="sm:col-span-4">
               <label className="block text-[11px] text-slate-400 mb-1">Teto Mensal (R$) (Opcional)</label>
               <div className="relative">
                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-500">R$</span>
@@ -154,6 +177,21 @@ export const NanoCategoriesModal: React.FC<NanoCategoriesModalProps> = ({
                   className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg pl-7 pr-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none transition-colors"
                 />
               </div>
+            </div>
+            <div className="sm:col-span-3">
+              <label className="block text-[11px] text-slate-400 mb-1">Ano Vigente</label>
+              <select
+                value={newYear}
+                onChange={e => setNewYear(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg px-2 py-1.5 text-xs text-white outline-none transition-colors cursor-pointer"
+              >
+                <option value="">Todos os anos</option>
+                {[currentYear - 2, currentYear - 1, currentYear, currentYear + 1, currentYear + 2].map(yr => (
+                  <option key={yr} value={yr}>
+                    {yr}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -188,6 +226,7 @@ export const NanoCategoriesModal: React.FC<NanoCategoriesModalProps> = ({
             currentNanos.map(nano => {
               const isEditing = editingId === nano.id;
               const isDeleting = deletingId === nano.id;
+              const isActive = nano.active !== false;
 
               if (isEditing) {
                 return (
@@ -196,7 +235,8 @@ export const NanoCategoriesModal: React.FC<NanoCategoriesModalProps> = ({
                     className="p-2.5 bg-slate-950 border border-emerald-500/40 rounded-xl space-y-2"
                   >
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-                      <div className="sm:col-span-7">
+                      <div className="sm:col-span-5">
+                        <label className="block text-[10px] text-slate-400 mb-0.5">Nome</label>
                         <input
                           type="text"
                           value={editName}
@@ -205,7 +245,8 @@ export const NanoCategoriesModal: React.FC<NanoCategoriesModalProps> = ({
                           placeholder="Nome"
                         />
                       </div>
-                      <div className="sm:col-span-5">
+                      <div className="sm:col-span-4">
+                        <label className="block text-[10px] text-slate-400 mb-0.5">Teto (R$)</label>
                         <input
                           type="text"
                           value={editBudget}
@@ -213,6 +254,21 @@ export const NanoCategoriesModal: React.FC<NanoCategoriesModalProps> = ({
                           className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white outline-none"
                           placeholder="Teto (R$)"
                         />
+                      </div>
+                      <div className="sm:col-span-3">
+                        <label className="block text-[10px] text-slate-400 mb-0.5">Ano</label>
+                        <select
+                          value={editYear}
+                          onChange={e => setEditYear(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none"
+                        >
+                          <option value="">Todos</option>
+                          {[currentYear - 2, currentYear - 1, currentYear, currentYear + 1, currentYear + 2].map(yr => (
+                            <option key={yr} value={yr}>
+                              {yr}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                     <div className="flex justify-end gap-1.5">
@@ -239,11 +295,15 @@ export const NanoCategoriesModal: React.FC<NanoCategoriesModalProps> = ({
               return (
                 <div
                   key={nano.id}
-                  className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800/80 rounded-xl text-xs hover:border-slate-700/80 transition-colors"
+                  className={`flex items-center justify-between p-2.5 bg-slate-950/60 border rounded-xl text-xs transition-colors ${
+                    isActive ? 'border-slate-800/80 hover:border-slate-700/80' : 'border-slate-800/40 opacity-60'
+                  }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span className="font-medium text-slate-200">{nano.name}</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                    <span className={`font-medium ${isActive ? 'text-slate-200' : 'text-slate-400 line-through'}`}>
+                      {nano.name}
+                    </span>
                     {nano.budgetLimit && nano.budgetLimit > 0 ? (
                       <span className="text-[11px] text-slate-400 px-2 py-0.5 rounded-md bg-slate-900 border border-slate-800">
                         Teto: {formatCurrency(nano.budgetLimit)}
@@ -251,9 +311,34 @@ export const NanoCategoriesModal: React.FC<NanoCategoriesModalProps> = ({
                     ) : (
                       <span className="text-[10px] text-slate-500">Sem teto</span>
                     )}
+                    {nano.year ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-950/60 border border-indigo-800/60 text-indigo-300">
+                        Ano: {nano.year}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
+                        Todos os anos
+                      </span>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
+                    {/* Switch / Toggle Ativo/Inativo */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleActive(nano.id)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        isActive ? 'bg-emerald-600' : 'bg-slate-700'
+                      }`}
+                      title={isActive ? 'Desabilitar nano-categoria' : 'Habilitar nano-categoria'}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          isActive ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+
                     {isDeleting ? (
                       <div className="flex items-center gap-1 bg-rose-950/30 border border-rose-800/50 rounded-lg p-1 animate-in fade-in duration-150">
                         <span className="text-[10px] text-rose-300 px-1">Excluir?</span>

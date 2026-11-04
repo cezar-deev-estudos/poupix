@@ -708,7 +708,12 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                 onConvertTransfer={onConvertTransfer || (() => {})}
                 openUpward={(() => {
                   const globalIndex = paginatedTransactions.findIndex(t => t.id === tx.id);
-                  return globalIndex !== -1 && globalIndex >= paginatedTransactions.length - 4;
+                  // Nunca abrir para cima se for uma das primeiras 2 linhas ou se a lista for muito curta
+                  return (
+                    paginatedTransactions.length > 3 &&
+                    globalIndex > 1 &&
+                    globalIndex >= paginatedTransactions.length - 3
+                  );
                 })()}
               />
             </>
