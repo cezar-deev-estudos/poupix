@@ -288,6 +288,25 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     return groups;
   }, [paginatedTransactions, isDateSort, creditCards]);
 
+  // Totais agregados de TODAS as transações filtradas na tabela (independente de paginação)
+  const filteredTotals = useMemo(() => {
+    let income = 0;
+    let expense = 0;
+    sortedTransactions.forEach(tx => {
+      if (tx.type === 'income') {
+        income += tx.amount || 0;
+      } else if (tx.type === 'expense') {
+        expense += tx.amount || 0;
+      }
+    });
+    return {
+      income,
+      expense,
+      balance: income - expense,
+      count: sortedTransactions.length,
+    };
+  }, [sortedTransactions]);
+
   const handleSelectAll = () => {
     if (selectedIds.length === paginatedTransactions.length) {
       setSelectedIds([]);
@@ -816,6 +835,25 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Soma dos itens filtrados */}
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-900/90 border border-indigo-500/30 text-[11px] font-semibold text-slate-200">
+              {filteredTotals.income > 0 && filteredTotals.expense > 0 ? (
+                <>
+                  <span className="text-emerald-400">+{formatCurrency(filteredTotals.income)}</span>
+                  <span className="text-slate-500">|</span>
+                  <span className="text-rose-400">-{formatCurrency(filteredTotals.expense)}</span>
+                  <span className="text-slate-500">=</span>
+                  <span className={filteredTotals.balance >= 0 ? 'text-teal-300 font-bold' : 'text-rose-400 font-bold'}>
+                    {formatCurrency(filteredTotals.balance)}
+                  </span>
+                </>
+              ) : filteredTotals.income > 0 ? (
+                <span>Total Receitas: <strong className="text-emerald-400">{formatCurrency(filteredTotals.income)}</strong></span>
+              ) : (
+                <span>Total Despesas: <strong className="text-rose-400">{formatCurrency(filteredTotals.expense)}</strong></span>
+              )}
+            </div>
+
             <button
               onClick={clearAllColumnFilters}
               className="text-[11px] font-bold text-indigo-400 hover:text-indigo-200 transition-colors cursor-pointer underline underline-offset-2"
@@ -1302,25 +1340,26 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                       className="bg-[#14171f]/90 border-t border-slate-800/80"
                     >
                       <td colSpan={showTypeColumn ? 10 : 9} className="py-2.5 px-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {isTodayGroup ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-sm">
-                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                                Hoje
-                                <span className="text-indigo-400/70 font-normal">({formatDateBR(group.date)})</span>
-                              </span>
-                            ) : isYesterdayGroup ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700/70 shadow-sm">
-                                Ontem
-                                <span className="text-slate-400 font-normal">({formatDateBR(group.date)})</span>
-                              </span>
-                            ) : (
-                              <span className="text-[11px] font-semibold text-slate-300 px-1">
-                                {formatDateBR(group.date)}
-                              </span>
-                            )}
-                          </div>
+                        <div className="flex items-center gap-2">
+                          {isTodayGroup ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-sm">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                              Hoje
+                              <span className="text-indigo-400/70 font-normal">({formatDateBR(group.date)})</span>
+                            </span>
+                          ) : isYesterdayGroup ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700/70 shadow-sm">
+                              Ontem
+                              <span className="text-slate-400 font-normal">({formatDateBR(group.date)})</span>
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-semibold text-slate-300 px-1">
+                              {formatDateBR(group.date)}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-500 font-normal">
+                            ({group.items.length} {group.items.length === 1 ? 'lançamento' : 'lançamentos'})
+                          </span>
                         </div>
                       </td>
                     </tr>
@@ -1336,88 +1375,111 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
         </table>
       </div>
 
-      {/* Barra Inferior de Paginação */}
-      <div className="flex flex-wrap items-center justify-end gap-6 px-6 py-3 border-t border-slate-800 bg-[#14171f] text-xs text-slate-400">
-        {/* Seletor de Linhas por página */}
-        <div className="flex items-center gap-2 relative">
-          <span>Linhas por página:</span>
-          <button
-            type="button"
-            onClick={() => setIsRowsDropdownOpen(!isRowsDropdownOpen)}
-            className="flex items-center gap-1 bg-[#232733] border border-slate-700 text-white px-2.5 py-1 rounded-xl cursor-pointer hover:border-slate-600 transition-colors"
-          >
-            <span>{rowsPerPage}</span>
-            <span className="text-[10px]">▾</span>
-          </button>
-
-          {isRowsDropdownOpen && (
-            <>
-              <div className="fixed inset-0 z-30" onClick={() => setIsRowsDropdownOpen(false)} />
-              <div className="absolute bottom-full mb-1 left-0 w-20 bg-[#232733] border border-slate-700 rounded-xl shadow-2xl z-40 py-1 overflow-hidden">
-                {[5, 10, 25, 50, 100, 150, 200].map((val) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => {
-                      setRowsPerPage(val);
-                      setCurrentPage(1);
-                      setIsRowsDropdownOpen(false);
-                    }}
-                    className={`w-full text-center py-1 text-xs hover:bg-slate-700 cursor-pointer ${
-                      rowsPerPage === val ? 'text-indigo-400 font-bold bg-slate-800' : 'text-slate-300'
-                    }`}
-                  >
-                    {val}
-                  </button>
-                ))}
-              </div>
-            </>
+      {/* Barra Inferior com Totais Filtrados e Paginação */}
+      <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-3 border-t border-slate-800 bg-[#14171f] text-xs text-slate-400">
+        {/* Resumo da soma de todos os itens filtrados na tabela */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="font-medium text-slate-300">
+            {hasActiveColumnFilters ? 'Soma dos Filtrados:' : 'Soma da Tabela:'}
+          </span>
+          {filteredTotals.income > 0 && (
+            <span className="inline-flex items-center gap-1 font-semibold text-emerald-400">
+              Receitas: <strong>{formatCurrency(filteredTotals.income)}</strong>
+            </span>
           )}
+          {filteredTotals.expense > 0 && (
+            <span className="inline-flex items-center gap-1 font-semibold text-rose-400">
+              Despesas: <strong>{formatCurrency(filteredTotals.expense)}</strong>
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1 font-bold">
+            Saldo: <strong className={filteredTotals.balance >= 0 ? 'text-teal-400' : 'text-rose-400'}>{formatCurrency(filteredTotals.balance)}</strong>
+          </span>
         </div>
 
-        {/* Indicador de faixa: 1-25 de 163 */}
-        <span>
-          {paginationStart}-{paginationEnd} de {totalItems}
-        </span>
+        {/* Controles de Paginação */}
+        <div className="flex items-center gap-6 ml-auto">
+          {/* Seletor de Linhas por página */}
+          <div className="flex items-center gap-2 relative">
+            <span>Linhas por página:</span>
+            <button
+              type="button"
+              onClick={() => setIsRowsDropdownOpen(!isRowsDropdownOpen)}
+              className="flex items-center gap-1 bg-[#232733] border border-slate-700 text-white px-2.5 py-1 rounded-xl cursor-pointer hover:border-slate-600 transition-colors"
+            >
+              <span>{rowsPerPage}</span>
+              <span className="text-[10px]">▾</span>
+            </button>
 
-        {/* Controles de Navegação de Página */}
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            disabled={safeCurrentPage <= 1}
-            onClick={() => setCurrentPage(1)}
-            className="p-1 text-slate-400 hover:text-white disabled:text-slate-600 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            title="Primeira página"
-          >
-            <ChevronsLeft className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            disabled={safeCurrentPage <= 1}
-            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-            className="p-1 text-slate-400 hover:text-white disabled:text-slate-600 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            title="Página anterior"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            disabled={safeCurrentPage >= totalPages}
-            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-            className="p-1 text-slate-400 hover:text-white disabled:text-slate-600 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            title="Próxima página"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            disabled={safeCurrentPage >= totalPages}
-            onClick={() => setCurrentPage(totalPages)}
-            className="p-1 text-slate-400 hover:text-white disabled:text-slate-600 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            title="Última página"
-          >
-            <ChevronsRight className="w-4 h-4" />
-          </button>
+            {isRowsDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setIsRowsDropdownOpen(false)} />
+                <div className="absolute bottom-full mb-1 left-0 w-20 bg-[#232733] border border-slate-700 rounded-xl shadow-2xl z-40 py-1 overflow-hidden">
+                  {[5, 10, 25, 50, 100, 150, 200].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => {
+                        setRowsPerPage(val);
+                        setCurrentPage(1);
+                        setIsRowsDropdownOpen(false);
+                      }}
+                      className={`w-full text-center py-1 text-xs hover:bg-slate-700 cursor-pointer ${
+                        rowsPerPage === val ? 'text-indigo-400 font-bold bg-slate-800' : 'text-slate-300'
+                      }`}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Indicador de faixa: 1-25 de 163 */}
+          <span>
+            {paginationStart}-{paginationEnd} de {totalItems}
+          </span>
+
+          {/* Controles de Navegação de Página */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={safeCurrentPage <= 1}
+              onClick={() => setCurrentPage(1)}
+              className="p-1 text-slate-400 hover:text-white disabled:text-slate-600 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              title="Primeira página"
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              disabled={safeCurrentPage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+              className="p-1 text-slate-400 hover:text-white disabled:text-slate-600 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              title="Página anterior"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              disabled={safeCurrentPage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              className="p-1 text-slate-400 hover:text-white disabled:text-slate-600 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              title="Próxima página"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              disabled={safeCurrentPage >= totalPages}
+              onClick={() => setCurrentPage(totalPages)}
+              className="p-1 text-slate-400 hover:text-white disabled:text-slate-600 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              title="Última página"
+            >
+              <ChevronsRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 

@@ -173,7 +173,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     parentExpenseCategories.forEach(p => {
       const monthVals = MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(p, m).toFixed(2).replace('.', ','));
       rows.push([`"${p.name}"`, ...monthVals, getParentCategoryAnnualTotal(p).toFixed(2).replace('.', ',')]);
-      const subs = activeCategories.filter(c => c.parentId === p.id);
+      const subs = activeCategories.filter(c => isSameId(c.parentId, p.id));
       subs.forEach(s => {
         const subMonthVals = MONTH_SHORT_NAMES.map((_, m) => (matrixData.catMonthTotals[s.id]?.[m] || 0).toFixed(2).replace('.', ','));
         rows.push([`"   - ${s.name}"`, ...subMonthVals, getSubcategoryAnnualTotal(s).toFixed(2).replace('.', ',')]);
