@@ -232,11 +232,11 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
                 hasTxs ? 'cursor-pointer hover:bg-slate-900/60' : 'opacity-70'
               }`}
             >
-              <div className="flex items-center gap-1.5 min-w-0">
+              <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-3">
                 {hasTxs ? (
                   <button
                     type="button"
-                    className="p-0.5 text-slate-400 hover:text-emerald-400 transition-colors"
+                    className="p-0.5 text-slate-400 hover:text-emerald-400 transition-colors shrink-0"
                   >
                     {isExpanded ? (
                       <ChevronDown className="w-3.5 h-3.5 text-emerald-400" />
@@ -245,7 +245,7 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
                     )}
                   </button>
                 ) : (
-                  <div className="w-3.5 h-3.5" />
+                  <div className="w-3.5 h-3.5 shrink-0" />
                 )}
 
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
@@ -261,20 +261,26 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
                 )}
               </div>
 
-              <div className="flex items-center gap-2 shrink-0 ml-2">
-                {/* Mini Barra de Progresso no Desktop */}
-                {group.budget > 0 && (
-                  <div className="hidden md:block w-20 bg-slate-900 h-1.5 rounded-full overflow-hidden border border-slate-800">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        group.percent > 100 ? 'bg-rose-500' : 'bg-emerald-400'
-                      }`}
-                      style={{ width: `${Math.min(100, group.percent)}%` }}
-                    />
-                  </div>
-                )}
+              {/* Bloco Direito com Posição e Alinhamento Fixo: Barra inicia estritamente no mesmo ponto e Valor tem largura padronizada */}
+              <div className="flex items-center gap-3 shrink-0">
+                {/* Mini Barra de Progresso com largura idêntica para todas */}
+                <div className="hidden sm:block w-28 md:w-36">
+                  {group.budget > 0 ? (
+                    <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden border border-slate-800">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          group.percent > 100 ? 'bg-rose-500' : 'bg-emerald-400'
+                        }`}
+                        style={{ width: `${Math.min(100, group.percent)}%` }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-full h-1.5" />
+                  )}
+                </div>
 
-                <span className={`font-semibold ${group.isOver ? 'text-rose-400' : 'text-white'}`}>
+                {/* Valor Gasto com largura fixa para não oscilar o final */}
+                <span className={`font-semibold text-right tabular-nums min-w-[78px] sm:min-w-[88px] ${group.isOver ? 'text-rose-400' : 'text-white'}`}>
                   {formatCurrency(group.totalSpent)}
                 </span>
               </div>
@@ -297,10 +303,10 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
             onClick={() => toggleGroup('_others')}
             className="flex items-center justify-between p-2 text-xs cursor-pointer hover:bg-slate-900/60 transition-colors"
           >
-            <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-3">
               <button
                 type="button"
-                className="p-0.5 text-slate-400 hover:text-emerald-400 transition-colors"
+                className="p-0.5 text-slate-400 hover:text-emerald-400 transition-colors shrink-0"
               >
                 {isGroupExpanded('_others') ? (
                   <ChevronDown className="w-3.5 h-3.5 text-emerald-400" />
@@ -314,9 +320,13 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
                 ({otherTransactions.length}x)
               </span>
             </div>
-            <span className="font-semibold text-slate-300">
-              {formatCurrency(otherTotalSpent)}
-            </span>
+
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="hidden sm:block w-28 md:w-36 h-1.5" />
+              <span className="font-semibold text-slate-300 text-right tabular-nums min-w-[78px] sm:min-w-[88px]">
+                {formatCurrency(otherTotalSpent)}
+              </span>
+            </div>
           </div>
 
           {isGroupExpanded('_others') && (

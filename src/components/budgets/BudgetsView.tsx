@@ -849,11 +849,11 @@ export const BudgetsView: React.FC = () => {
                 >
                   <div>
                     {/* Linha Superior: Cabeçalho com Ícone/Nome à esquerda, Barra no Desktop ao centro, e Ações à direita */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-6 mb-2">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 mb-2">
                       {/* Topo Mobile / Esquerda Desktop: [Chevron] + Ícone + Nome/Teto E Ações no Mobile */}
-                      <div className="flex items-center justify-between w-full md:w-auto shrink-0">
+                      <div className="flex items-center justify-between w-full md:w-44 lg:w-48 shrink-0">
                         {/* Bloco: Chevron + Ícone + Nome + Teto/Previsto */}
-                        <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                           {subs.length > 0 && (
                             <button
                               type="button"
@@ -861,7 +861,7 @@ export const BudgetsView: React.FC = () => {
                                 e.stopPropagation();
                                 toggleExpand(cat.id);
                               }}
-                              className="p-1 -ml-1 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                              className="p-1 -ml-1 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer shrink-0"
                               title={isExpanded ? 'Recolher subcategorias' : `Expandir subcategorias (${subs.length})`}
                             >
                               {isExpanded ? (
@@ -877,18 +877,18 @@ export const BudgetsView: React.FC = () => {
                           >
                             <CategoryIcon name={cat.icon} size={18} />
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <h3 className="font-bold text-white text-sm">{cat.name}</h3>
+                              <h3 className="font-bold text-white text-sm truncate">{cat.name}</h3>
                             </div>
-                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5 truncate">
                               {/* No mobile exibe 'Previsto:' e no desktop 'Teto:' */}
                               <span className="md:hidden">Previsto:</span>
                               <span className="hidden md:inline">Teto:</span>
                               <button
                                 type="button"
                                 onClick={() => handleOpenEdit(cat)}
-                                className="font-bold text-slate-200 hover:text-emerald-400 hover:underline cursor-pointer transition-colors"
+                                className="font-bold text-slate-200 hover:text-emerald-400 hover:underline cursor-pointer transition-colors truncate"
                                 title="Clique para editar teto previsto"
                               >
                                 {budget > 0 ? formatCurrency(budget) : 'Sem teto definido'}
@@ -1092,9 +1092,9 @@ export const BudgetsView: React.FC = () => {
                                     : 'border-slate-800/40 hover:border-slate-700/70'
                                 }`}
                               >
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4">
-                                  {/* Bloco Esquerdo: Chevron (se houver transações) + Drag/Move + Cor + Nome + Teto */}
-                                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink-0">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-3">
+                                  {/* Bloco Esquerdo: Chevron (se houver transações) + Drag/Move + Cor + Nome + Teto com largura padronizada */}
+                                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 md:w-44 lg:w-48 shrink-0">
                                     {/* Seta/Chevron para expandir os itens da subcategoria */}
                                     {subTransactions.length > 0 ? (
                                       <button
@@ -1206,9 +1206,9 @@ export const BudgetsView: React.FC = () => {
                                     )}
                                   </div>
 
-                                  {/* Bloco Central: Barra de Progresso no Desktop */}
-                                  {subBudget > 0 && (
-                                    <div className="flex-1 w-full md:w-auto min-w-0">
+                                  {/* Bloco Central: Barra de Progresso no Desktop alinhada */}
+                                  <div className="flex-1 w-full md:w-auto min-w-0">
+                                    {subBudget > 0 ? (
                                       <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden p-0.2 border border-slate-800">
                                         <div
                                           className={`h-full rounded-full transition-all ${
@@ -1221,12 +1221,14 @@ export const BudgetsView: React.FC = () => {
                                           style={{ width: `${Math.min(100, subPercent)}%` }}
                                         />
                                       </div>
-                                    </div>
-                                  )}
+                                    ) : (
+                                      <div className="w-full h-1.5" />
+                                    )}
+                                  </div>
 
-                                  {/* Bloco Direito: Valor Gasto + Ações */}
+                                  {/* Bloco Direito: Valor Gasto com largura fixa + Ações */}
                                   <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
-                                    <span className="font-semibold text-white">
+                                    <span className="font-semibold text-white text-right tabular-nums min-w-[78px] sm:min-w-[90px]">
                                       {formatCurrency(subSpent)}
                                       {isSubOver && subBudget > 0 && (
                                         <span className="font-bold text-rose-400 ml-1">
