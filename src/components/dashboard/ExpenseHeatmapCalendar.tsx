@@ -5,7 +5,7 @@ import { Transaction } from '@/types/finance';
 import { Flame, Info } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useFinance } from '@/context/FinanceContext';
-import { getEffectiveTransactionDate, isSameId } from '@/lib/invoiceHelpers';
+import { getTransactionInvoicePeriod, isSameId } from '@/lib/invoiceHelpers';
 
 interface ExpenseHeatmapCalendarProps {
   transactions: Transaction[];
@@ -40,13 +40,25 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
     let totalAll = 0;
 
     transactions.forEach(t => {
-      const card = t.creditCardId ? creditCards.find(c => isSameId(c.id, t.creditCardId)) : undefined;
-      const effectiveDateStr = getEffectiveTransactionDate(t, card);
-      const dateStr = effectiveDateStr ? effectiveDateStr.split('T')[0] : '';
-      if (!dateStr) return;
+      let dateStr = '';
 
-      const [y, m] = dateStr.split('-').map(Number);
-      if (y !== year || m !== month + 1) return;
+      if (t.creditCardId) {
+        // Despesas de Cartão de Crédito incidem na data de vencimento da fatura
+        const card = creditCards.find(c => isSameId(c.id, t.creditCardId));
+        const invoicePeriod = getTransactionInvoicePeriod(t, card);
+        // Garantir que a fatura pertence ao mês e ano visualizados no calendário
+        if (invoicePeriod.year !== year || invoicePeriod.month !== month) return;
+
+        const dueDay = card?.dueDay || 10;
+        dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+      } else {
+        // Transações de conta/carteira utilizam a data de lançamento
+        dateStr = t.date ? t.date.split('T')[0] : '';
+        if (!dateStr) return;
+
+        const [y, m] = dateStr.split('-').map(Number);
+        if (y !== year || m !== month + 1) return;
+      }
 
       if (t.type === 'income') {
         incomes[dateStr] = (incomes[dateStr] || 0) + t.amount;
@@ -85,7 +97,7 @@ export const ExpenseHeatmapCalendar: React.FC<ExpenseHeatmapCalendarProps> = ({
       activeDaysCount: Object.keys(totals).length,
       totalMonthExpenses: totalAll,
     };
-  }, [transactions, year, month]);
+  }, [transactions, year, month, creditCards]);
 
   // 2. Construir matriz de dias do mês (com offset inicial)
   const calendarDays = useMemo(() => {

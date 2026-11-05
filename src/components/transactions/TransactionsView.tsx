@@ -342,64 +342,88 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       };
     }
 
-    // Filtrar de baseTransactions (itens individuais reais daquele dia usando data efetiva de vencimento para cartões)
-    const txs = baseTransactions.filter(t => {
-      const card = t.creditCardId ? creditCards.find(c => isSameId(c.id, t.creditCardId)) : undefined;
-      const effectiveDateStr = getEffectiveTransactionDate(t, card);
-      const d = effectiveDateStr ? effectiveDateStr.split('T')[0] : '';
+    // Receitas do dia selecionado
+    const incomeTxs = baseTransactions.filter(t => {
+      if (t.type !== 'income') return false;
+      const d = t.date ? t.date.split('T')[0] : '';
+      return d === targetDate;
+    });
+    const incomeTotal = incomeTxs.reduce((sum, t) => sum + t.amount, 0);
+
+    // Despesas de conta normais do dia selecionado
+    const nonCardExpenseTxs = baseTransactions.filter(t => {
+      if (t.type !== 'expense' || t.creditCardId) return false;
+      if (/^Pagamento de Fatura\s*-\s*/i.test(t.description)) return false;
+      const d = t.date ? t.date.split('T')[0] : '';
       return d === targetDate;
     });
 
-    const rawExpenseTxs = txs.filter(t => t.type === 'expense' || !!t.creditCardId);
-    const incomeTxs = txs.filter(t => t.type === 'income');
+    let expenseTxs: Transaction[] = [];
 
-    const expenseTotal = rawExpenseTxs.reduce((sum, t) => sum + t.amount, 0);
-    const incomeTotal = incomeTxs.reduce((sum, t) => sum + t.amount, 0);
-
-    // Se estiver agrupando por cartão, agrupar as despesas de cartão por cartão de crédito
-    let expenseTxs = rawExpenseTxs;
     if (groupByCard) {
-      const nonCardExpenses = rawExpenseTxs.filter(t => {
-        if (t.creditCardId) return false;
-        if (/^Pagamento de Fatura\s*-\s*/i.test(t.description)) return false;
-        return true;
-      });
-      const cardMap = new Map<string, Transaction[]>();
-      rawExpenseTxs.forEach(t => {
-        if (t.creditCardId) {
-          const list = cardMap.get(t.creditCardId) || [];
-          list.push(t);
-          cardMap.set(t.creditCardId, list);
-        }
-      });
-
+      // Visão Agrupada: Faturas completas incidem exatamente no dia de vencimento de cada cartão
       const currentPeriodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
       const groupedCardItems: Transaction[] = [];
 
-      cardMap.forEach((txList, cardId) => {
-        const card = creditCards.find(c => isSameId(c.id, cardId));
-        const totalAmount = txList.reduce((acc, t) => acc + t.amount, 0);
-        const isPaid = card?.manualInvoiceStatus?.[currentPeriodKey] === 'paid' || txList.every(t => t.paid);
-        const linkedAccountId = txList.find(t => t.accountId)?.accountId || accounts[0]?.id;
-
-        groupedCardItems.push({
-          id: `grouped-heatmap-${cardId}-${targetDate}`,
-          description: card ? `Cartão ${card.name}` : 'Cartão de Crédito',
-          amount: totalAmount,
-          date: targetDate,
-          invoiceDate: targetDate,
-          type: 'expense',
-          categoryId: 'grouped-card-category',
-          creditCardId: cardId,
-          accountId: linkedAccountId,
-          paid: isPaid,
-          createdAt: new Date().toISOString(),
-          notes: `${txList.length} compras agrupadas na fatura`,
-        });
+      // Mapear todas as compras da fatura do mês selecionado por cartão
+      const monthCardTxsMap = new Map<string, Transaction[]>();
+      baseTransactions.forEach(t => {
+        if (!t.creditCardId) return;
+        const card = creditCards.find(c => isSameId(c.id, t.creditCardId));
+        const invoicePeriod = getTransactionInvoicePeriod(t, card);
+        if (invoicePeriod.year === selectedYear && invoicePeriod.month === selectedMonth) {
+          const list = monthCardTxsMap.get(t.creditCardId) || [];
+          list.push(t);
+          monthCardTxsMap.set(t.creditCardId, list);
+        }
       });
 
-      expenseTxs = [...nonCardExpenses, ...groupedCardItems];
+      monthCardTxsMap.forEach((txList, cardId) => {
+        const card = creditCards.find(c => isSameId(c.id, cardId));
+        const dueDay = card?.dueDay || 10;
+        const cardDueDateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+
+        // A fatura agrupada só aparece se o dia selecionado for o dia de vencimento deste cartão
+        if (cardDueDateStr === targetDate) {
+          const totalAmount = txList.reduce((acc, t) => acc + t.amount, 0);
+          const isPaid = card?.manualInvoiceStatus?.[currentPeriodKey] === 'paid' || txList.every(t => t.paid);
+          const linkedAccountId = txList.find(t => t.accountId)?.accountId || accounts[0]?.id;
+
+          groupedCardItems.push({
+            id: `grouped-heatmap-${cardId}-${targetDate}`,
+            description: card ? `Cartão ${card.name}` : 'Cartão de Crédito',
+            amount: totalAmount,
+            date: targetDate,
+            invoiceDate: targetDate,
+            type: 'expense',
+            categoryId: 'grouped-card-category',
+            creditCardId: cardId,
+            accountId: linkedAccountId,
+            paid: isPaid,
+            createdAt: new Date().toISOString(),
+            notes: `${txList.length} compras agrupadas na fatura`,
+          });
+        }
+      });
+
+      expenseTxs = [...nonCardExpenseTxs, ...groupedCardItems];
+    } else {
+      // Visão Detalhada: Compras individuais do cartão incidem na data de vencimento da respectiva fatura
+      const cardExpenseTxs = baseTransactions.filter(t => {
+        if (!t.creditCardId) return false;
+        const card = creditCards.find(c => isSameId(c.id, t.creditCardId));
+        const invoicePeriod = getTransactionInvoicePeriod(t, card);
+        if (invoicePeriod.year !== selectedYear || invoicePeriod.month !== selectedMonth) return false;
+
+        const dueDay = card?.dueDay || 10;
+        const cardDueDateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+        return cardDueDateStr === targetDate;
+      });
+
+      expenseTxs = [...nonCardExpenseTxs, ...cardExpenseTxs];
     }
+
+    const expenseTotal = expenseTxs.reduce((sum, t) => sum + t.amount, 0);
 
     return {
       selectedDateTransactions: [...incomeTxs, ...expenseTxs],
