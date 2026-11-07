@@ -191,6 +191,7 @@ export const syncAllToSupabase = async (data: {
           invoice_date: tx.invoiceDate || null,
           is_favorite: tx.isFavorite ?? false,
           is_decreasing: tx.isDecreasing ?? false,
+          initial_amount: tx.isDecreasing ? (tx.initialAmount !== undefined ? tx.initialAmount : tx.amount) : (tx.initialAmount ?? null),
           linked_decreasing_id: tx.linkedDecreasingId ? ensureValidUUID(tx.linkedDecreasingId) : null,
           attachment_url: tx.attachmentUrl || null,
           tags: tx.tags || [],
@@ -377,6 +378,7 @@ export const fetchAllFromSupabase = async (userId: string) => {
       invoiceDate: t.invoice_date || undefined,
       isFavorite: t.is_favorite ?? false,
       isDecreasing: t.is_decreasing ?? false,
+      initialAmount: t.initial_amount !== null && t.initial_amount !== undefined ? Number(t.initial_amount) : undefined,
       linkedDecreasingId: t.linked_decreasing_id || undefined,
       attachmentUrl: t.attachment_url || undefined,
       tags: t.tags || [],
@@ -520,6 +522,9 @@ export const upsertTransactionsDirectlyToSupabase = async (
         ignore_in_totals: tx.ignoreInTotals ?? false,
         invoice_date: tx.invoiceDate || null,
         is_favorite: tx.isFavorite ?? false,
+        is_decreasing: tx.isDecreasing ?? false,
+        initial_amount: tx.isDecreasing ? (tx.initialAmount !== undefined ? tx.initialAmount : tx.amount) : (tx.initialAmount ?? null),
+        linked_decreasing_id: tx.linkedDecreasingId ? ensureValidUUID(tx.linkedDecreasingId) : null,
         attachment_url: tx.attachmentUrl || null,
         tags: tx.tags || [],
         notes: tx.notes || null,
@@ -582,6 +587,7 @@ export interface UserPreferencesRecord {
   group_by_card?: boolean;
   desktop_category_order?: string[];
   mobile_category_order?: string[];
+  collapsed_categories?: string[];
 }
 
 export const loadUserPreferencesFromSupabase = async (

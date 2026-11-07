@@ -40,6 +40,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isRowsDropdownOpen, setIsRowsDropdownOpen] = useState(false);
   const [openMenuTxId, setOpenMenuTxId] = useState<string | null>(null);
+  const [menuTriggerRect, setMenuTriggerRect] = useState<DOMRect | null>(null);
   const [viewingAttachmentUrl, setViewingAttachmentUrl] = useState<string | null>(null);
 
   // Estado para caixa box de confirmação de pagamento
@@ -692,7 +693,15 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
             <>
               <button
                 type="button"
-                onClick={() => setOpenMenuTxId(openMenuTxId === tx.id ? null : tx.id)}
+                onClick={(e) => {
+                  if (openMenuTxId === tx.id) {
+                    setOpenMenuTxId(null);
+                    setMenuTriggerRect(null);
+                  } else {
+                    setOpenMenuTxId(tx.id);
+                    setMenuTriggerRect(e.currentTarget.getBoundingClientRect());
+                  }
+                }}
                 className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-xl transition-colors cursor-pointer"
               >
                 <MoreVertical className="w-4 h-4" />
@@ -701,20 +710,15 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
               <TransactionRowMenu
                 transaction={tx}
                 isOpen={openMenuTxId === tx.id}
-                onClose={() => setOpenMenuTxId(null)}
+                triggerRect={openMenuTxId === tx.id ? menuTriggerRect : null}
+                onClose={() => {
+                  setOpenMenuTxId(null);
+                  setMenuTriggerRect(null);
+                }}
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onAttach={onAttach || (() => {})}
                 onConvertTransfer={onConvertTransfer || (() => {})}
-                openUpward={(() => {
-                  const globalIndex = paginatedTransactions.findIndex(t => t.id === tx.id);
-                  // Nunca abrir para cima se for uma das primeiras 2 linhas ou se a lista for muito curta
-                  return (
-                    paginatedTransactions.length > 3 &&
-                    globalIndex > 1 &&
-                    globalIndex >= paginatedTransactions.length - 3
-                  );
-                })()}
               />
             </>
           )}

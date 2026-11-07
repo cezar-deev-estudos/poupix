@@ -239,7 +239,31 @@ export const transactionManager: TransactionManagerActions = {
     }
   },
 
-  updateTransaction: (id, updated, mode, transactions, setTransactions, setAccounts) => {
+  updateTransaction: (id, updated, mode, transactions, setTransactions, setAccounts, creditCards, categories, userId) => {
+    // Se for uma despesa decrescente sendo editada, calcular o valor restante com base no novo initialAmount
+    if (updated.isDecreasing) {
+      const targetTx = transactions.find(t => t.id === id);
+      const newInitial = updated.initialAmount !== undefined ? updated.initialAmount : (updated.amount !== undefined ? updated.amount : targetTx?.initialAmount ?? targetTx?.amount ?? 0);
+      const txPeriod = targetTx ? getTransactionBudgetPeriod(targetTx, creditCards || []) : '';
+      const txNano = targetTx ? getMatchingNanoName(targetTx, categories || []) : '';
+
+      let matchingNormalExpensesSum = 0;
+      if (txPeriod && txNano) {
+        matchingNormalExpensesSum = transactions
+          .filter(t => {
+            if (t.type !== 'expense' || t.isDecreasing || t.id === id) return false;
+            const tPeriod = getTransactionBudgetPeriod(t, creditCards || []);
+            if (tPeriod !== txPeriod) return false;
+            const tNano = getMatchingNanoName(t, categories || []);
+            return tNano === txNano;
+          })
+          .reduce((sum, t) => sum + t.amount, 0);
+      }
+
+      updated.initialAmount = newInitial;
+      updated.amount = Math.max(0, Number((newInitial - matchingNormalExpensesSum).toFixed(2)));
+    }
+
     // 1. Calcular delta de saldo nas contas caso setAccounts tenha sido fornecido
     if (setAccounts) {
       const prevTarget = transactions.find(t => t.id === id);

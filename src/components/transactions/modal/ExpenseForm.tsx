@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { Transaction } from '@/types/finance';
-import { getLocalDateString } from '@/lib/utils';
+import { getLocalDateString, formatCurrency } from '@/lib/utils';
+import { getTransactionBudgetPeriod, getMatchingNanoName, normalizeKey } from '@/lib/decreasingExpenses';
 import { MoneyInput } from './MoneyInput';
 import { QuickDateSelector } from './QuickDateSelector';
 import { TagsChipSelector } from './TagsChipSelector';
@@ -29,13 +30,42 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   onDelete,
   onToggleDetails,
 }) => {
-  const { categories, accounts } = useFinance();
+  const { categories, accounts, transactions, creditCards } = useFinance();
 
   const expenseCategories = categories.filter(c => c.type === 'expense');
   const defaultCatId = expenseCategories[0]?.id || '';
   const initialAccId = defaultAccountId || accounts[0]?.id || '';
 
-  const [amount, setAmount] = useState(initialData?.amount ? initialData.amount.toString() : '');
+  const getInitialAmountValue = () => {
+    if (!initialData) return '';
+    let initialVal = initialData.initialAmount;
+    if (initialData.isDecreasing && (initialVal === undefined || initialVal === null)) {
+      const txNano = getMatchingNanoName(initialData, categories);
+      const sub = categories.find(c => c.id === initialData.categoryId);
+      const matchedNano = sub?.nanoCategories?.find(n => normalizeKey(n.name) === txNano);
+      if (matchedNano?.budgetLimit && matchedNano.budgetLimit > 0) {
+        initialVal = matchedNano.budgetLimit;
+      } else {
+        const txPeriod = getTransactionBudgetPeriod(initialData, creditCards);
+        const normalSum = transactions
+          .filter(t => {
+            if (t.type !== 'expense' || t.isDecreasing || t.id === initialData.id) return false;
+            const tPeriod = getTransactionBudgetPeriod(t, creditCards);
+            if (tPeriod !== txPeriod) return false;
+            const tNano = getMatchingNanoName(t, categories);
+            return tNano === txNano;
+          })
+          .reduce((sum, t) => sum + t.amount, 0);
+        initialVal = Number((initialData.amount + normalSum).toFixed(2));
+      }
+    }
+    if (initialData.isDecreasing && initialVal !== undefined) {
+      return initialVal.toString();
+    }
+    return initialData.amount ? initialData.amount.toString() : '';
+  };
+
+  const [amount, setAmount] = useState(getInitialAmountValue());
   const [date, setDate] = useState(initialData?.date || getLocalDateString());
   const [paid, setPaid] = useState(initialData?.paid ?? true);
   const [description, setDescription] = useState(initialData?.description || '');
@@ -61,7 +91,34 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
 
   useEffect(() => {
     if (initialData) {
-      setAmount(initialData.amount ? initialData.amount.toString() : '');
+      let initialVal = initialData.initialAmount;
+      if (initialData.isDecreasing && (initialVal === undefined || initialVal === null)) {
+        // Tenta buscar o teto da nano-categoria
+        const txNano = getMatchingNanoName(initialData, categories);
+        const sub = categories.find(c => c.id === initialData.categoryId);
+        const matchedNano = sub?.nanoCategories?.find(n => normalizeKey(n.name) === txNano);
+        if (matchedNano?.budgetLimit && matchedNano.budgetLimit > 0) {
+          initialVal = matchedNano.budgetLimit;
+        } else {
+          // Reconstruir com base nas compras normais existentes
+          const txPeriod = getTransactionBudgetPeriod(initialData, creditCards);
+          const normalSum = transactions
+            .filter(t => {
+              if (t.type !== 'expense' || t.isDecreasing || t.id === initialData.id) return false;
+              const tPeriod = getTransactionBudgetPeriod(t, creditCards);
+              if (tPeriod !== txPeriod) return false;
+              const tNano = getMatchingNanoName(t, categories);
+              return tNano === txNano;
+            })
+            .reduce((sum, t) => sum + t.amount, 0);
+          initialVal = Number((initialData.amount + normalSum).toFixed(2));
+        }
+      }
+
+      const displayAmount = initialData.isDecreasing && initialVal !== undefined
+        ? initialVal.toString()
+        : (initialData.amount ? initialData.amount.toString() : '');
+      setAmount(displayAmount);
       setDate(initialData.date || getLocalDateString());
       setPaid(initialData.paid ?? true);
       setDescription(initialData.description || '');
@@ -76,7 +133,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       setIsRepeat(Boolean(initialData.installmentTotal));
       setRepeatCount(initialData.installmentTotal || 2);
     }
-  }, [initialData, defaultCatId, initialAccId]);
+  }, [initialData, defaultCatId, initialAccId, categories, creditCards, transactions]);
 
   const toggleDetails = () => {
     const nextState = !showMoreDetails;
@@ -104,6 +161,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
         paid,
         ignoreInTotals,
         isDecreasing,
+        initialAmount: isDecreasing ? numAmount : undefined,
         isFavorite,
         tags: tags.length > 0 ? tags : undefined,
         notes: notes.trim() || undefined,
@@ -188,29 +246,63 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
 
           {/* Opção Despesa Decrescente (Meta/Previsão do Mês para Nano Categoria) */}
           {description.trim().length > 0 && (
-            <div className="flex items-center justify-between px-3 py-2 bg-slate-900/60 border border-slate-800 rounded-2xl transition-all">
-              <div className="flex flex-col">
-                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                  <span className="text-rose-400">📉</span>
-                  Despesa Decrescente
-                </span>
-                <span className="text-[10px] text-slate-400">
-                  Subtrai o saldo automaticamente conforme novos lançamentos de "{description.trim()}" no mês
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsDecreasing(!isDecreasing)}
-                className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer shrink-0 ml-3 ${
-                  isDecreasing ? 'bg-rose-500' : 'bg-slate-800'
-                }`}
-              >
-                <span
-                  className={`block w-3.5 h-3.5 rounded-full bg-white transition-transform ${
-                    isDecreasing ? 'translate-x-4' : 'translate-x-0.5'
+            <div className="flex flex-col gap-2 p-3 bg-slate-900/60 border border-slate-800 rounded-2xl transition-all">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                    <span className="text-rose-400">📉</span>
+                    Despesa Decrescente (Previsão)
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    O valor acima é a reserva inicial. Ele diminui automaticamente conforme novos lançamentos de "{description.trim()}" no mês.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDecreasing(!isDecreasing)}
+                  className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer shrink-0 ml-3 ${
+                    isDecreasing ? 'bg-rose-500' : 'bg-slate-800'
                   }`}
-                />
-              </button>
+                >
+                  <span
+                    className={`block w-3.5 h-3.5 rounded-full bg-white transition-transform ${
+                      isDecreasing ? 'translate-x-4' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {isDecreasing && (
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-[11px]">
+                  <span className="text-slate-400 font-medium">Saldo Restante Atual:</span>
+                  <span className="font-bold text-rose-400 tabular-nums">
+                    {(() => {
+                      const inputNum = parseFloat(amount.replace(',', '.')) || 0;
+                      // Calcular a soma das despesas normais já efetuadas no mês com mesmo nanoName
+                      const txPeriod = date ? date.substring(0, 7) : '';
+                      const tempTx: Partial<Transaction> = {
+                        categoryId,
+                        description: description.trim(),
+                        date,
+                      };
+                      const nanoName = getMatchingNanoName(tempTx as Transaction, categories);
+                      const normalExpensesSum = transactions
+                        .filter(t => {
+                          if (t.type !== 'expense' || t.isDecreasing) return false;
+                          if (initialData && t.id === initialData.id) return false;
+                          const tPeriod = getTransactionBudgetPeriod(t, creditCards);
+                          if (tPeriod !== txPeriod) return false;
+                          const tNano = getMatchingNanoName(t, categories);
+                          return tNano === nanoName;
+                        })
+                        .reduce((sum, t) => sum + t.amount, 0);
+
+                      const calculatedRemaining = Math.max(0, Number((inputNum - normalExpensesSum).toFixed(2)));
+                      return formatCurrency(calculatedRemaining);
+                    })()}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

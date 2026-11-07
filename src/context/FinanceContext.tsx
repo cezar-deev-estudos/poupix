@@ -82,6 +82,10 @@ interface FinanceContextType {
   updateCategory: (id: string, cat: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
   reorderCategories: (orderedCategories: Category[], device?: 'desktop' | 'mobile') => void;
+  collapsedCategories: string[];
+  toggleCollapsedCategory: (categoryId: string) => void;
+  collapseAllCategories: (categoryIds: string[]) => void;
+  expandAllCategories: () => void;
   setCategoryMonthlyBudget: (categoryId: string, year: number, month: number, amount: number) => void;
   applyDefaultBudgetsToMonth: (year: number, month: number) => void;
   replicateBudgetsToYear: (sourceYear: number, sourceMonth: number, targetYear: number) => void;
@@ -132,6 +136,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isPrivacyMode, setIsPrivacyMode] = useState<boolean>(false);
   const [groupByCard, setGroupByCard] = useState<boolean>(false);
   const [readAlertIds, setReadAlertIds] = useState<string[]>([]);
+  const [collapsedCategories, setCollapsedCategories] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
 
   const userStoragePrefix = user ? `mobills_user_${user.id}_` : isDemoMode ? 'mobills_demo_' : 'mobills_';
@@ -221,6 +226,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const cloudOrder = isMobileDevice ? prefs.mobile_category_order : prefs.desktop_category_order;
           if (cloudOrder && cloudOrder.length > 0) {
             setCategories(prev => sortCategoriesByDeviceOrder(prev, cloudOrder));
+          }
+          if (Array.isArray(prefs.collapsed_categories)) {
+            setCollapsedCategories(prefs.collapsed_categories);
           }
         });
 
@@ -609,6 +617,39 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [filteredTransactions, accounts]);
 
+  const toggleCollapsedCategory = useCallback((categoryId: string) => {
+    setCollapsedCategories(prev => {
+      const isCollapsed = prev.includes(categoryId);
+      const next = isCollapsed ? prev.filter(id => id !== categoryId) : [...prev, categoryId];
+
+      if (user?.id) {
+        upsertUserPreferencesToSupabase(user.id, {
+          collapsed_categories: next,
+        });
+      }
+
+      return next;
+    });
+  }, [user]);
+
+  const collapseAllCategories = useCallback((categoryIds: string[]) => {
+    setCollapsedCategories(categoryIds);
+    if (user?.id) {
+      upsertUserPreferencesToSupabase(user.id, {
+        collapsed_categories: categoryIds,
+      });
+    }
+  }, [user]);
+
+  const expandAllCategories = useCallback(() => {
+    setCollapsedCategories([]);
+    if (user?.id) {
+      upsertUserPreferencesToSupabase(user.id, {
+        collapsed_categories: [],
+      });
+    }
+  }, [user]);
+
   const handleReorderCategories = useCallback(async (orderedCategories: Category[], explicitDevice?: 'desktop' | 'mobile') => {
     setCategories(orderedCategories);
 
@@ -761,7 +802,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           notifyDirectMutation();
         },
         updateTransaction: (id, up, mode = 'single') => {
-          transactionManager.updateTransaction(id, up, mode, transactions, setTransactions, setAccounts);
+          transactionManager.updateTransaction(id, up, mode, transactions, setTransactions, setAccounts, creditCards, categories, user?.id);
           notifyDirectMutation();
           if (user?.id) {
             // Persiste imediatamente a transação alterada diretamente no Supabase
@@ -822,6 +863,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         },
         deleteCategory: id => entityManager.deleteCategory(id, setCategories),
         reorderCategories: handleReorderCategories,
+        collapsedCategories,
+        toggleCollapsedCategory,
+        collapseAllCategories,
+        expandAllCategories,
         setCategoryMonthlyBudget: (categoryId, year, month, amount) => {
           const periodKey = `${year}-${String(month + 1).padStart(2, '0')}`;
           setCategories(prev => {

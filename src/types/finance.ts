@@ -99,6 +99,7 @@ export interface Transaction {
   invoiceDate?: string; // Data de vencimento da fatura do cartão
   isFavorite?: boolean; // Transação marcada como favorita
   isDecreasing?: boolean; // Despesa decrescente (reserva mensal que diminui conforme novos lançamentos da mesma nano)
+  initialAmount?: number; // Valor original de partida da reserva decrescente
   linkedDecreasingId?: string; // ID da despesa decrescente vinculada para estorno automático na exclusão
   attachmentUrl?: string; // Comprovante ou imagem anexada
   createdAt: string;

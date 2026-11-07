@@ -120,13 +120,29 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0 ml-2">
-          <span
-            className={`font-semibold text-xs ${
-              isEffectivelyPaid ? 'text-emerald-400' : 'text-rose-400'
-            }`}
-          >
-            {formatCurrency(tx.amount)}
-          </span>
+          {tx.isDecreasing && tx.initialAmount !== undefined ? (
+            <div className="flex flex-col items-end">
+              <span
+                className={`font-semibold text-xs ${
+                  isEffectivelyPaid ? 'text-emerald-400' : 'text-rose-400'
+                }`}
+                title={`Saldo Restante: ${formatCurrency(tx.amount)} de ${formatCurrency(tx.initialAmount)} iniciais`}
+              >
+                {formatCurrency(tx.amount)}
+              </span>
+              <span className="text-[9px] text-slate-500 font-normal">
+                de {formatCurrency(tx.initialAmount)}
+              </span>
+            </div>
+          ) : (
+            <span
+              className={`font-semibold text-xs ${
+                isEffectivelyPaid ? 'text-emerald-400' : 'text-rose-400'
+              }`}
+            >
+              {formatCurrency(tx.amount)}
+            </span>
+          )}
           <button
             type="button"
             onClick={(e) => {
@@ -187,7 +203,19 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
       return false;
     });
 
-    const totalSpent = matched.reduce((sum, t) => sum + t.amount, 0);
+    // Se o grupo possuir despesa decrescente prevista, o valor total do grupo
+    // representa a reserva inicial definida (ou o total consumido caso os gastos reais ultrapassem o teto previsto)
+    const decTx = matched.find(t => t.isDecreasing);
+    let totalSpent = 0;
+    if (decTx) {
+      const baseInitial = decTx.initialAmount !== undefined ? decTx.initialAmount : decTx.amount;
+      const normalExpensesSum = matched
+        .filter(t => !t.isDecreasing)
+        .reduce((sum, t) => sum + t.amount, 0);
+      totalSpent = Math.max(baseInitial, normalExpensesSum);
+    } else {
+      totalSpent = matched.reduce((sum, t) => sum + t.amount, 0);
+    }
     const budget = nano.budgetLimit || 0;
     const percent = budget > 0 ? (totalSpent / budget) * 100 : 0;
     const isOver = budget > 0 && totalSpent > budget;

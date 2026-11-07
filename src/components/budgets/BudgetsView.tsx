@@ -73,6 +73,10 @@ export const BudgetsView: React.FC = () => {
     updateCategory,
     deleteCategory,
     reorderCategories,
+    collapsedCategories,
+    toggleCollapsedCategory,
+    collapseAllCategories,
+    expandAllCategories,
     setCategoryMonthlyBudget,
     updateTransaction,
     accounts,
@@ -113,7 +117,15 @@ export const BudgetsView: React.FC = () => {
       return;
     }
 
-    const currentParents = parentCategories.filter(c => c.type === 'expense');
+    const draggedCat = categories.find(c => c.id === draggedParentId);
+    const targetCat = categories.find(c => c.id === targetParentId);
+    if (!draggedCat || !targetCat) {
+      setDraggedParentId(null);
+      setDragOverParentId(null);
+      return;
+    }
+
+    const currentParents = parentCategories.filter(c => c.type === draggedCat.type);
     const sourceIdx = currentParents.findIndex(c => c.id === draggedParentId);
     const targetIdx = currentParents.findIndex(c => c.id === targetParentId);
 
@@ -194,9 +206,11 @@ export const BudgetsView: React.FC = () => {
     setDragOverSubId(null);
   };
 
-  // Mover categoria pai (cima / baixo) no mobile
+  // Mover categoria pai (cima / baixo)
   const handleMoveParentCategory = (catId: string, direction: 'up' | 'down') => {
-    const currentParents = parentCategories.filter(c => c.type === 'expense');
+    const movingCat = categories.find(c => c.id === catId);
+    if (!movingCat) return;
+    const currentParents = parentCategories.filter(c => c.type === movingCat.type);
     const idx = currentParents.findIndex(c => c.id === catId);
     if (idx === -1) return;
     const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
@@ -1312,8 +1326,32 @@ export const BudgetsView: React.FC = () => {
               </button>
             </div>
 
-            {/* Botão de Adicionar Categoria */}
-            <div className="flex items-center gap-2">
+            {/* Botões de Ações Rápidas de Subcategorias e Nova Categoria */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  const visibleParentsWithSubs = parentCategories
+                    .filter(cat => (filterType === 'all' || cat.type === filterType) && getSubcategories(cat.id).length > 0)
+                    .map(c => c.id);
+                  collapseAllCategories(visibleParentsWithSubs);
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700/60 transition-all cursor-pointer"
+                title="Recolher todas as subcategorias de uma só vez"
+              >
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                <span>Recolher Todas</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => expandAllCategories()}
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700/60 transition-all cursor-pointer"
+                title="Expandir todas as subcategorias de uma só vez"
+              >
+                <ChevronDown className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Expandir Todas</span>
+              </button>
               {archivedCategories.length > 0 && (
                 <button
                   onClick={() => setIsArchivedModalOpen(true)}
@@ -1340,17 +1378,98 @@ export const BudgetsView: React.FC = () => {
               .filter(cat => filterType === 'all' || cat.type === filterType)
               .map(parentCat => {
                 const subs = getSubcategories(parentCat.id);
+                const isCollapsed = collapsedCategories.includes(parentCat.id);
 
                 return (
                   <div
                     key={parentCat.id}
-                    className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 space-y-3 shadow-lg"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (draggedParentId && draggedParentId !== parentCat.id) {
+                        setDragOverParentId(parentCat.id);
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverParentId === parentCat.id) setDragOverParentId(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleDropParentCategory(parentCat.id);
+                    }}
+                    className={`bg-slate-900/60 border rounded-2xl p-4 space-y-3 shadow-lg transition-all ${
+                      dragOverParentId === parentCat.id
+                        ? 'border-emerald-500 ring-2 ring-emerald-500/30 scale-[1.01]'
+                        : draggedParentId === parentCat.id
+                        ? 'border-dashed border-slate-600 opacity-40'
+                        : 'border-slate-800/80 hover:border-slate-700/80'
+                    }`}
                   >
                     {/* Linha da Categoria Pai */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {/* Alça de Arraste da Categoria Pai */}
                         <div
-                          className="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow"
+                          draggable
+                          onDragStart={(e) => {
+                            e.stopPropagation();
+                            setDraggedParentId(parentCat.id);
+                          }}
+                          onDragEnd={() => {
+                            setDraggedParentId(null);
+                            setDragOverParentId(null);
+                          }}
+                          className="p-1 text-slate-600 hover:text-slate-300 hover:bg-slate-800/80 rounded cursor-grab active:cursor-grabbing transition-colors shrink-0"
+                          title="Arraste para reordenar esta categoria principal"
+                        >
+                          <GripVertical className="w-4 h-4" />
+                        </div>
+
+                        {/* Botões Rápidos de Subir/Descer a Categoria Pai */}
+                        <div className="flex flex-col gap-0.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMoveParentCategory(parentCat.id, 'up');
+                            }}
+                            className="p-0.5 text-slate-500 hover:text-emerald-400 transition-colors cursor-pointer"
+                            title="Mover categoria para cima"
+                          >
+                            <ArrowUp className="w-2.5 h-2.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMoveParentCategory(parentCat.id, 'down');
+                            }}
+                            className="p-0.5 text-slate-500 hover:text-emerald-400 transition-colors cursor-pointer"
+                            title="Mover categoria para baixo"
+                          >
+                            <ArrowDown className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+
+                        {/* Botão para Recolher / Expandir Subcategorias */}
+                        {subs.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleCollapsedCategory(parentCat.id)}
+                            className="p-1 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer shrink-0"
+                            title={isCollapsed ? `Expandir subcategorias (${subs.length})` : 'Recolher subcategorias'}
+                          >
+                            {isCollapsed ? (
+                              <ChevronRight className="w-4 h-4 text-slate-400" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-emerald-400" />
+                            )}
+                          </button>
+                        ) : (
+                          <div className="w-4 shrink-0" />
+                        )}
+
+                        <div
+                          className="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow shrink-0"
                           style={{ backgroundColor: parentCat.color }}
                         >
                           <CategoryIcon name={parentCat.icon} size={16} />
@@ -1367,6 +1486,11 @@ export const BudgetsView: React.FC = () => {
                             >
                               {parentCat.type === 'expense' ? 'Despesa' : 'Receita'}
                             </span>
+                            {subs.length > 0 && isCollapsed && (
+                              <span className="text-[11px] text-slate-500 font-normal">
+                                ({subs.length} subcategorias recolhidas)
+                              </span>
+                            )}
                           </div>
                           {parentCat.budgetLimit && parentCat.budgetLimit > 0 && (
                             <span className="text-[11px] text-slate-400 block">
@@ -1396,51 +1520,124 @@ export const BudgetsView: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Lista de Subcategorias Aninhadas */}
-                    {subs.length > 0 && (
+                    {/* Lista de Subcategorias Aninhadas (quando não estiver recolhido) */}
+                    {subs.length > 0 && !isCollapsed && (
                       <div className="pl-6 border-l-2 border-slate-800 space-y-1.5">
-                        {subs.map(sub => (
-                          <div
-                            key={sub.id}
-                            className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800/60 rounded-xl"
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <div
-                                className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[10px]"
-                                style={{ backgroundColor: sub.color }}
-                              >
-                                <CategoryIcon name={sub.icon} size={12} />
+                        {subs.map((sub, sIdx) => {
+                          const isSubDragging = draggedSubId === sub.id;
+                          const isSubOverDrag = dragOverSubId === sub.id;
+
+                          return (
+                            <div
+                              key={sub.id}
+                              data-sub-card-id={sub.id}
+                              data-sub-parent-id={parentCat.id}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (draggedSubId && draggedSubId !== sub.id) {
+                                  setDragOverSubId(sub.id);
+                                }
+                              }}
+                              onDragLeave={() => {
+                                if (dragOverSubId === sub.id) setDragOverSubId(null);
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleDropSubCategory(parentCat.id, sub.id);
+                              }}
+                              className={`flex items-center justify-between p-2.5 bg-slate-950/60 border rounded-xl transition-all ${
+                                isSubOverDrag
+                                  ? 'border-emerald-500 ring-2 ring-emerald-500/30 bg-emerald-950/20'
+                                  : isSubDragging
+                                  ? 'border-dashed border-slate-600 opacity-40'
+                                  : 'border-slate-800/60 hover:border-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                {/* Alça de Arraste / Mover da Subcategoria */}
+                                <div
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.stopPropagation();
+                                    setDraggedSubId(sub.id);
+                                  }}
+                                  onDragEnd={() => {
+                                    setDraggedSubId(null);
+                                    setDragOverSubId(null);
+                                  }}
+                                  className="p-1 text-slate-600 hover:text-slate-300 hover:bg-slate-800/80 rounded cursor-grab active:cursor-grabbing transition-colors"
+                                  title="Arraste para reordenar esta subcategoria"
+                                >
+                                  <GripVertical className="w-3.5 h-3.5" />
+                                </div>
+
+                                {/* Botões rápidos de subir/descer (facilitador para mobile e desktop) */}
+                                <div className="flex flex-col gap-0.5">
+                                  <button
+                                    type="button"
+                                    disabled={sIdx === 0}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMoveSubCategory(parentCat.id, sub.id, 'up');
+                                    }}
+                                    className="p-0.5 text-slate-500 hover:text-emerald-400 disabled:opacity-20 disabled:hover:text-slate-500 transition-colors cursor-pointer"
+                                    title="Mover para cima"
+                                  >
+                                    <ArrowUp className="w-2.5 h-2.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={sIdx === subs.length - 1}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMoveSubCategory(parentCat.id, sub.id, 'down');
+                                    }}
+                                    className="p-0.5 text-slate-500 hover:text-emerald-400 disabled:opacity-20 disabled:hover:text-slate-500 transition-colors cursor-pointer"
+                                    title="Mover para baixo"
+                                  >
+                                    <ArrowDown className="w-2.5 h-2.5" />
+                                  </button>
+                                </div>
+
+                                <div
+                                  className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[10px]"
+                                  style={{ backgroundColor: sub.color }}
+                                >
+                                  <CategoryIcon name={sub.icon} size={12} />
+                                </div>
+                                <span className="font-semibold text-slate-200 text-xs">{sub.name}</span>
+                                {sub.budgetLimit && sub.budgetLimit > 0 && (
+                                  <span className="text-[10px] text-slate-400 font-normal">
+                                    • Teto: {formatCurrency(sub.budgetLimit)}
+                                  </span>
+                                )}
                               </div>
-                              <span className="font-semibold text-slate-200 text-xs">{sub.name}</span>
-                              {sub.budgetLimit && sub.budgetLimit > 0 && (
-                                <span className="text-[10px] text-slate-400 font-normal">
-                                  • Teto: {formatCurrency(sub.budgetLimit)}
-                                </span>
-                              )}
-                            </div>
 
-                            <div className="flex items-center gap-1.5">
-                              {/* Botão de Nano-Categorias (Exatamente na área destacada no print) */}
-                              <button
-                                type="button"
-                                onClick={() => setManagingNanoSubcategory(sub)}
-                                className="flex items-center gap-1 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-lg text-xs font-medium transition-colors cursor-pointer"
-                                title="Gerenciar Nano-Categorias desta subcategoria"
-                              >
-                                <Plus className="w-3 h-3 text-emerald-400" />
-                                <span>Nano{sub.nanoCategories?.length ? ` (${sub.nanoCategories.length})` : ''}</span>
-                              </button>
+                              <div className="flex items-center gap-1.5">
+                                {/* Botão de Nano-Categorias */}
+                                <button
+                                  type="button"
+                                  onClick={() => setManagingNanoSubcategory(sub)}
+                                  className="flex items-center gap-1 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                                  title="Gerenciar Nano-Categorias desta subcategoria"
+                                >
+                                  <Plus className="w-3 h-3 text-emerald-400" />
+                                  <span>Nano{sub.nanoCategories?.length ? ` (${sub.nanoCategories.length})` : ''}</span>
+                                </button>
 
-                              <button
-                                onClick={() => handleOpenEdit(sub)}
-                                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                                title="Opções da Subcategoria"
-                              >
-                                <MoreVertical className="w-3.5 h-3.5" />
-                              </button>
+                                <button
+                                  onClick={() => handleOpenEdit(sub)}
+                                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                  title="Opções da Subcategoria"
+                                >
+                                  <MoreVertical className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>

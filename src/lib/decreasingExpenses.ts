@@ -73,7 +73,7 @@ export function getMatchingNanoName(
 
 /**
  * Abate uma nova despesa de uma despesa decrescente prevista correspondente,
- * OU se a nova despesa for uma decrescente, rebate com as despesas já existentes no período.
+ * OU se a nova despesa for uma decrescente, calcula seu saldo atual a partir do valor inicial (initialAmount).
  */
 export function applyDecreasingDeduction(
   newTx: Transaction,
@@ -105,10 +105,21 @@ export function applyDecreasingDeduction(
     if (decIndex !== -1) {
       const updated = [...existingTxs];
       const targetDec = updated[decIndex];
+      let baseInitial = targetDec.initialAmount;
+      if (baseInitial === undefined || baseInitial === null) {
+        const sub = categories.find(c => c.id === targetDec.categoryId);
+        const matchedNano = sub?.nanoCategories?.find(n => normalizeKey(n.name) === txNanoName);
+        if (matchedNano?.budgetLimit && matchedNano.budgetLimit > 0) {
+          baseInitial = matchedNano.budgetLimit;
+        } else {
+          baseInitial = targetDec.amount;
+        }
+      }
       const newAmount = Math.max(0, targetDec.amount - newTx.amount);
 
       updated[decIndex] = {
         ...targetDec,
+        initialAmount: baseInitial,
         amount: Number(newAmount.toFixed(2)),
       };
 
@@ -119,8 +130,13 @@ export function applyDecreasingDeduction(
     }
   }
 
-  // CASO 2: A nova transação é a própria despesa decrescente prevista (criada após as despesas normais)
+  // CASO 2: A nova transação é a própria despesa decrescente prevista
   if (newTx.isDecreasing) {
+    // Garante que o initialAmount fique registrado com o valor original digitado
+    if (newTx.initialAmount === undefined) {
+      newTx.initialAmount = newTx.amount;
+    }
+
     // Somar todas as despesas normais já existentes no mesmo mês com o mesmo nanoTag
     const matchingExpensesSum = existingTxs
       .filter(t => {
@@ -132,9 +148,8 @@ export function applyDecreasingDeduction(
       })
       .reduce((sum, t) => sum + t.amount, 0);
 
-    if (matchingExpensesSum > 0) {
-      newTx.amount = Math.max(0, Number((newTx.amount - matchingExpensesSum).toFixed(2)));
-    }
+    const baseAmount = newTx.initialAmount !== undefined ? newTx.initialAmount : newTx.amount;
+    newTx.amount = Math.max(0, Number((baseAmount - matchingExpensesSum).toFixed(2)));
   }
 
   return { updatedTxs: existingTxs };
@@ -142,8 +157,8 @@ export function applyDecreasingDeduction(
 
 /**
  * Reconcilia retroativamente todas as despesas decrescentes existentes no conjunto de transações.
- * Isso garante que transações antigas já salvas no Supabase ou importadas sejam recalculadas
- * dinamicamente com base nas despesas com o mesmo NanoTag no mesmo mês de competência.
+ * Sempre calcula o saldo atual a partir do valor inicial (initialAmount):
+ * saldoAtual = Math.max(0, initialAmount - somaGastosNormais)
  */
 export function reconcileAllDecreasingExpenses(
   transactions: Transaction[],
@@ -153,7 +168,7 @@ export function reconcileAllDecreasingExpenses(
   const decExpenses = transactions.filter(t => t.type === 'expense' && Boolean(t.isDecreasing));
   if (decExpenses.length === 0) return transactions;
 
-  // Mapa de despesa decrescente ID -> total abatido
+  // Mapa de despesa decrescente ID -> total abatido de despesas normais
   const deductionsMap = new Map<string, number>();
 
   transactions.forEach(tx => {
@@ -178,16 +193,31 @@ export function reconcileAllDecreasingExpenses(
     }
   });
 
-  if (deductionsMap.size === 0) return transactions;
-
   return transactions.map(tx => {
-    if (tx.type === 'expense' && tx.isDecreasing && deductionsMap.has(tx.id)) {
-      const totalDeducted = deductionsMap.get(tx.id)!;
-      // Se a transação já estiver abatida ou for calculada a partir do valor base,
-      // aqui garantimos que o valor exibido não ultrapasse o saldo restante
-      const remaining = Math.max(0, Number((tx.amount - totalDeducted).toFixed(2)));
+    if (tx.type === 'expense' && tx.isDecreasing) {
+      const totalDeducted = deductionsMap.get(tx.id) || 0;
+      
+      // Determinação do valor inicial de partida (baseInitial):
+      // 1. Se initialAmount foi definido no banco/transação, usa-o diretamente.
+      // 2. Se for indefinido/nulo, busca se existe um teto definido na nano-categoria associada (ex: teto de R$ 90,00).
+      // 3. Fallback: reconstrói somando o valor armazenado com o que já foi deduzido (tx.amount + totalDeducted).
+      let baseInitial = tx.initialAmount;
+      if (baseInitial === undefined || baseInitial === null) {
+        const txNano = getMatchingNanoName(tx, categories);
+        const sub = categories.find(c => c.id === tx.categoryId);
+        const matchedNano = sub?.nanoCategories?.find(n => normalizeKey(n.name) === txNano);
+        if (matchedNano?.budgetLimit && matchedNano.budgetLimit > 0) {
+          baseInitial = matchedNano.budgetLimit;
+        } else {
+          baseInitial = Number((tx.amount + totalDeducted).toFixed(2));
+        }
+      }
+
+      const remaining = Math.max(0, Number((baseInitial - totalDeducted).toFixed(2)));
+
       return {
         ...tx,
+        initialAmount: baseInitial,
         amount: remaining,
       };
     }
