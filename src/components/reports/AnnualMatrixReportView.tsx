@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useFinance } from '@/context/FinanceContext';
-import { Category } from '@/types/finance';
+import { Category, AnnualBudgetBaseline } from '@/types/finance';
 import { formatCurrency } from '@/lib/utils';
 import { reconcileAllDecreasingExpenses, getMatchingNanoName, normalizeKey } from '@/lib/decreasingExpenses';
 import { getTransactionInvoicePeriod, isSameId } from '@/lib/invoiceHelpers';
+import { fetchBaselinesByYear, saveBudgetBaseline, updateBudgetBaseline, deleteBudgetBaseline } from '@/lib/supabase/baselineService';
+import { BaselineManageModal } from './BaselineManageModal';
 import {
   Table,
   ChevronDown,
@@ -19,6 +21,9 @@ import {
   HelpCircle,
   Layers3,
   ChevronLeft,
+  Camera,
+  Lock,
+  Eye,
 } from 'lucide-react';
 
 const MONTH_SHORT_NAMES = [
@@ -31,11 +36,46 @@ interface AnnualMatrixReportViewProps {
 }
 
 export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () => {
-  const { transactions, categories, creditCards, selectedYear: currentYear } = useFinance();
+  const { transactions, categories, creditCards, selectedYear: currentYear, userId } = useFinance();
   const [reportYear, setReportYear] = useState<number>(currentYear || new Date().getFullYear());
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [expandedSubcategories, setExpandedSubcategories] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income'>('all');
+
+  // Estado das Baselines / Snapshots Congelados (armazenados no Supabase)
+  const [baselines, setBaselines] = useState<AnnualBudgetBaseline[]>([]);
+  const [selectedBaselineId, setSelectedBaselineId] = useState<string | null>(null);
+  const [isBaselineModalOpen, setIsBaselineModalOpen] = useState(false);
+  const [baselineModalTab, setBaselineModalTab] = useState<'save' | 'manage'>('save');
+  const [isLoadingBaselines, setIsLoadingBaselines] = useState(false);
+
+  // Carregar snapshots do ano atual selecionado direto do Supabase
+  const loadYearBaselines = useCallback(async () => {
+    if (!userId) return;
+    setIsLoadingBaselines(true);
+    try {
+      const data = await fetchBaselinesByYear(userId, reportYear);
+      setBaselines(data);
+      // Se a baseline selecionada anteriormente não pertencer a este ano, desmarca
+      setSelectedBaselineId(prev => {
+        if (!prev) return null;
+        return data.some(b => b.id === prev) ? prev : null;
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingBaselines(false);
+    }
+  }, [userId, reportYear]);
+
+  useEffect(() => {
+    loadYearBaselines();
+  }, [loadYearBaselines]);
+
+  const activeBaseline = useMemo(() => {
+    if (!selectedBaselineId) return null;
+    return baselines.find(b => b.id === selectedBaselineId) || null;
+  }, [baselines, selectedBaselineId]);
 
   // Categorias ativas
   const activeCategories = useMemo(() => categories.filter(c => !c.isArchived), [categories]);
@@ -307,9 +347,299 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     document.body.removeChild(link);
   };
 
-  const totalAnnualIncome = matrixData.monthlyIncomeTotals.reduce((a, b) => a + b, 0);
-  const totalAnnualExpense = matrixData.monthlyExpenseTotals.reduce((a, b) => a + b, 0);
-  const totalAnnualCashFlow = totalAnnualIncome - totalAnnualExpense;
+  // Totais Anuais para Cards de Resumo e Snapshot
+  const currentAnnualIncome = matrixData.monthlyIncomeTotals.reduce((a, b) => a + b, 0);
+  const currentAnnualExpense = matrixData.monthlyExpenseTotals.reduce((a, b) => a + b, 0);
+  const currentAnnualCashFlow = currentAnnualIncome - currentAnnualExpense;
+
+  const totalAnnualIncome = activeBaseline
+    ? activeBaseline.summaryTotals.totalIncome
+    : currentAnnualIncome;
+
+  const totalAnnualExpense = activeBaseline
+    ? activeBaseline.summaryTotals.totalExpense
+    : currentAnnualExpense;
+
+  const totalAnnualCashFlow = activeBaseline
+    ? activeBaseline.summaryTotals.netBalance
+    : currentAnnualCashFlow;
+
+  // Dados a exibir na tabela: se houver baseline selecionada, usa o snapshot dela; senão, usa matrixData dinâmica
+  const displayIncomeTotals = activeBaseline
+    ? activeBaseline.matrixSnapshot.monthlyIncomeTotals
+    : matrixData.monthlyIncomeTotals;
+
+  const displayExpenseTotals = activeBaseline
+    ? activeBaseline.matrixSnapshot.monthlyExpenseTotals
+    : matrixData.monthlyExpenseTotals;
+
+  const displayNetTotals = activeBaseline
+    ? activeBaseline.matrixSnapshot.monthlyNetTotals
+    : matrixData.monthlyCashFlow;
+
+  const displayAccumulatedTotals = useMemo(() => {
+    if (activeBaseline) {
+      let acc = 0;
+      return displayNetTotals.map(v => {
+        acc += v;
+        return acc;
+      });
+    }
+    return matrixData.monthlyAccumulated;
+  }, [activeBaseline, displayNetTotals, matrixData.monthlyAccumulated]);
+
+  // Lista de Categorias de Receita
+  const displayIncomeCategories = useMemo(() => {
+    if (activeBaseline) {
+      return activeBaseline.matrixSnapshot.incomeCategories;
+    }
+    return [...parentIncomeCategories]
+      .sort((a, b) => getParentCategoryAnnualTotal(b) - getParentCategoryAnnualTotal(a))
+      .map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        type: cat.type,
+        color: cat.color,
+        icon: cat.icon,
+        monthlyValues: MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(cat, m)),
+        total: getParentCategoryAnnualTotal(cat),
+        subcategories: activeCategories
+          .filter(c => isSameId(c.parentId, cat.id))
+          .sort((a, b) => getSubcategoryAnnualTotal(b) - getSubcategoryAnnualTotal(a))
+          .map(sub => ({
+            id: sub.id,
+            name: sub.name,
+            color: sub.color,
+            icon: sub.icon,
+            monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[sub.id]?.[m] || 0),
+            total: getSubcategoryAnnualTotal(sub),
+            nanos: getVisibleNanosForYear(sub).map(nano => {
+              const nanoKey = normalizeKey(nano.name);
+              return {
+                name: nano.name,
+                monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
+                total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
+              };
+            }),
+          })),
+      }));
+  }, [activeBaseline, parentIncomeCategories, activeCategories, matrixData, reportYear]);
+
+  // Lista de Categorias de Despesa
+  const displayExpenseCategories = useMemo(() => {
+    if (activeBaseline) {
+      return activeBaseline.matrixSnapshot.expenseCategories;
+    }
+    return [...parentExpenseCategories].map(cat => ({
+      id: cat.id,
+      name: cat.name,
+      type: cat.type,
+      color: cat.color,
+      icon: cat.icon,
+      monthlyValues: MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(cat, m)),
+      total: getParentCategoryAnnualTotal(cat),
+      subcategories: activeCategories
+        .filter(c => isSameId(c.parentId, cat.id))
+        .map(sub => ({
+          id: sub.id,
+          name: sub.name,
+          color: sub.color,
+          icon: sub.icon,
+          monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[sub.id]?.[m] || 0),
+          total: getSubcategoryAnnualTotal(sub),
+          nanos: getVisibleNanosForYear(sub).map(nano => {
+            const nanoKey = normalizeKey(nano.name);
+            return {
+              name: nano.name,
+              monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
+              total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
+            };
+          }),
+        })),
+    }));
+  }, [activeBaseline, parentExpenseCategories, activeCategories, matrixData, reportYear]);
+
+  // Função para salvar snapshot da tela atual na nuvem
+  const handleSaveSnapshot = async (type: 'original' | 'revision', notes?: string) => {
+    if (!userId) return;
+
+    // Constrói árvore estruturada com categorias, subcategorias e nanos
+    const buildCategoryTree = (type: 'income' | 'expense') => {
+      const parents = activeCategories.filter(c => !c.parentId && c.type === type);
+      return parents.map(p => {
+        const pMonthly = MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(p, m));
+        const pTotal = getParentCategoryAnnualTotal(p);
+        const subs = activeCategories.filter(c => isSameId(c.parentId, p.id));
+        
+        const subItems = subs.map(s => {
+          const sMonthly = MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[s.id]?.[m] || 0);
+          const sTotal = getSubcategoryAnnualTotal(s);
+          const visibleNanos = getVisibleNanosForYear(s);
+          
+          const nanoItems = visibleNanos.map(nano => {
+            const nanoKey = normalizeKey(nano.name);
+            const nMonthly = MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[s.id]?.[nanoKey]?.[m] || 0);
+            const nTotal = getNanoCategoryAnnualTotal(s.id, nanoKey);
+            return {
+              name: nano.name,
+              monthlyValues: nMonthly,
+              total: nTotal,
+            };
+          });
+
+          return {
+            id: s.id,
+            name: s.name,
+            color: s.color,
+            icon: s.icon,
+            monthlyValues: sMonthly,
+            total: sTotal,
+            nanos: nanoItems,
+          };
+        });
+
+        return {
+          id: p.id,
+          name: p.name,
+          type: p.type,
+          color: p.color,
+          icon: p.icon,
+          monthlyValues: pMonthly,
+          total: pTotal,
+          subcategories: subItems,
+        };
+      });
+    };
+
+    const snapshotPayload = {
+      incomeCategories: buildCategoryTree('income'),
+      expenseCategories: buildCategoryTree('expense'),
+      monthlyIncomeTotals: [...matrixData.monthlyIncomeTotals],
+      monthlyExpenseTotals: [...matrixData.monthlyExpenseTotals],
+      monthlyNetTotals: [...matrixData.monthlyCashFlow],
+    };
+
+    const existingRevisions = baselines.filter(b => b.type === 'revision');
+    const revisionNumber = type === 'revision' ? (existingRevisions.length >= 2 ? 2 : existingRevisions.length + 1) : null;
+    const title = type === 'original'
+      ? `Plano Original ${reportYear}`
+      : `Revisão 0${revisionNumber || 1} - ${new Date().toLocaleDateString('pt-BR')}`;
+
+    // Se já existe uma base original e estamos salvando como original, sobrescreve a existente
+    const existingOriginal = baselines.find(b => b.type === 'original');
+    if (type === 'original' && existingOriginal) {
+      await updateBudgetBaseline(existingOriginal.id, {
+        title,
+        notes,
+        matrixSnapshot: snapshotPayload,
+        summaryTotals: {
+          totalIncome: currentAnnualIncome,
+          totalExpense: currentAnnualExpense,
+          netBalance: currentAnnualCashFlow,
+        },
+      });
+    } else {
+      await saveBudgetBaseline(userId, {
+        userId,
+        year: reportYear,
+        type,
+        revisionNumber,
+        title,
+        notes,
+        matrixSnapshot: snapshotPayload,
+        summaryTotals: {
+          totalIncome: currentAnnualIncome,
+          totalExpense: currentAnnualExpense,
+          netBalance: currentAnnualCashFlow,
+        },
+      });
+    }
+
+    await loadYearBaselines();
+  };
+
+  // Atualizar snapshot existente com os dados atuais da tela
+  const handleOverwriteSnapshot = async (id: string) => {
+    if (!userId) return;
+    const target = baselines.find(b => b.id === id);
+    if (!target) return;
+
+    // Reconstrói a árvore atual
+    const buildCategoryTree = (type: 'income' | 'expense') => {
+      const parents = activeCategories.filter(c => !c.parentId && c.type === type);
+      return parents.map(p => {
+        const pMonthly = MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(p, m));
+        const pTotal = getParentCategoryAnnualTotal(p);
+        const subs = activeCategories.filter(c => isSameId(c.parentId, p.id));
+        
+        const subItems = subs.map(s => {
+          const sMonthly = MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[s.id]?.[m] || 0);
+          const sTotal = getSubcategoryAnnualTotal(s);
+          const visibleNanos = getVisibleNanosForYear(s);
+          
+          const nanoItems = visibleNanos.map(nano => {
+            const nanoKey = normalizeKey(nano.name);
+            const nMonthly = MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[s.id]?.[nanoKey]?.[m] || 0);
+            const nTotal = getNanoCategoryAnnualTotal(s.id, nanoKey);
+            return {
+              name: nano.name,
+              monthlyValues: nMonthly,
+              total: nTotal,
+            };
+          });
+
+          return {
+            id: s.id,
+            name: s.name,
+            color: s.color,
+            icon: s.icon,
+            monthlyValues: sMonthly,
+            total: sTotal,
+            nanos: nanoItems,
+          };
+        });
+
+        return {
+          id: p.id,
+          name: p.name,
+          type: p.type,
+          color: p.color,
+          icon: p.icon,
+          monthlyValues: pMonthly,
+          total: pTotal,
+          subcategories: subItems,
+        };
+      });
+    };
+
+    const snapshotPayload = {
+      incomeCategories: buildCategoryTree('income'),
+      expenseCategories: buildCategoryTree('expense'),
+      monthlyIncomeTotals: [...matrixData.monthlyIncomeTotals],
+      monthlyExpenseTotals: [...matrixData.monthlyExpenseTotals],
+      monthlyNetTotals: [...matrixData.monthlyCashFlow],
+    };
+
+    await updateBudgetBaseline(id, {
+      matrixSnapshot: snapshotPayload,
+      summaryTotals: {
+        totalIncome: currentAnnualIncome,
+        totalExpense: currentAnnualExpense,
+        netBalance: currentAnnualCashFlow,
+      },
+    });
+
+    await loadYearBaselines();
+  };
+
+  // Excluir snapshot do Supabase
+  const handleDeleteBaseline = async (id: string) => {
+    await deleteBudgetBaseline(id);
+    if (selectedBaselineId === id) {
+      setSelectedBaselineId(null);
+    }
+    await loadYearBaselines();
+  };
 
   return (
     <div className="space-y-4 animate-fadeIn">
@@ -420,8 +750,91 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
             <Download className="w-3.5 h-3.5" />
             <span>Exportar CSV</span>
           </button>
+
+          {/* Botão 1: Congelar Plano Atual */}
+          <button
+            type="button"
+            onClick={() => {
+              setBaselineModalTab('save');
+              setIsBaselineModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shadow transition-all cursor-pointer bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/40"
+            title="Tirar uma foto congelada do planejamento atual deste ano"
+          >
+            <Camera className="w-3.5 h-3.5 text-teal-400" />
+            <span>Congelar</span>
+          </button>
+
+          {/* Botão 2: Visualizar Versões Salvas */}
+          <button
+            type="button"
+            onClick={() => {
+              setBaselineModalTab('manage');
+              setIsBaselineModalOpen(true);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shadow transition-all cursor-pointer ${
+              activeBaseline
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/60 hover:bg-amber-500/30 ring-1 ring-amber-500/40'
+                : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
+            }`}
+            title="Visualizar versões congeladas e revisões salvas"
+          >
+            {activeBaseline ? (
+              <Lock className="w-3.5 h-3.5 text-amber-400" />
+            ) : (
+              <Eye className="w-3.5 h-3.5 text-slate-400" />
+            )}
+            <span>
+              {activeBaseline
+                ? (activeBaseline.type === 'original' ? 'Base Original' : `Rev 0${activeBaseline.revisionNumber || 1}`)
+                : `Visualizar (${baselines.length})`}
+            </span>
+          </button>
         </div>
       </div>
+
+      {/* Banner Informativo quando uma versão congelada estiver ativa */}
+      {activeBaseline && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs shadow-lg animate-fadeIn">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-white text-sm">
+                  {activeBaseline.title}
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/30 text-amber-300 border border-amber-500/50 uppercase">
+                  Somente Leitura (Foto Congelada)
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-300/80 mt-0.5">
+                {activeBaseline.notes || 'Snapshot histórico congelado para comparação anual.'} • Gravado em{' '}
+                {new Date(activeBaseline.createdAt).toLocaleDateString('pt-BR')} às{' '}
+                {new Date(activeBaseline.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setSelectedBaselineId(null)}
+              className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl font-semibold transition-colors cursor-pointer"
+            >
+              Voltar ao Tempo Real
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsBaselineModalOpen(true)}
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl font-bold transition-colors cursor-pointer"
+            >
+              Trocar Versão
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Cards de Resumo Anual no Topo da Planilha */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
@@ -484,7 +897,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                         <span>RECEITAS</span>
                       </div>
                     </td>
-                    {matrixData.monthlyIncomeTotals.map((tot, idx) => (
+                    {displayIncomeTotals.map((tot, idx) => (
                       <td key={idx} className="p-2.5 text-right tabular-nums font-semibold">
                         {tot > 0 ? formatCurrency(tot) : '-'}
                       </td>
@@ -494,14 +907,10 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                     </td>
                   </tr>
 
-                  {/* Categorias de Receita (Ordenadas do maior para o menor valor) */}
-                  {[...parentIncomeCategories]
-                    .sort((a, b) => getParentCategoryAnnualTotal(b) - getParentCategoryAnnualTotal(a))
-                    .map(cat => {
-                      const annualTot = getParentCategoryAnnualTotal(cat);
-                      const subs = activeCategories
-                        .filter(c => isSameId(c.parentId, cat.id))
-                        .sort((a, b) => getSubcategoryAnnualTotal(b) - getSubcategoryAnnualTotal(a));
+                  {/* Categorias de Receita */}
+                  {displayIncomeCategories.map(cat => {
+                    const annualTot = cat.total;
+                    const subs = cat.subcategories;
                     const isExpanded = Boolean(expandedCategories[cat.id]);
 
                     return (
@@ -526,7 +935,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                             </div>
                           </td>
                           {MONTH_SHORT_NAMES.map((_, m) => {
-                            const val = getParentCategoryMonthTotal(cat, m);
+                            const val = cat.monthlyValues[m] || 0;
                             return (
                               <td key={m} className="p-2 text-right tabular-nums text-slate-300">
                                 {val > 0 ? formatCurrency(val) : <span className="text-slate-600">-</span>}
@@ -540,8 +949,8 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
 
                         {/* Subcategorias de Receita */}
                         {isExpanded && subs.map(sub => {
-                          const subAnnual = getSubcategoryAnnualTotal(sub);
-                          const hasNanos = Boolean(sub.nanoCategories && sub.nanoCategories.length > 0);
+                          const subAnnual = sub.total;
+                          const hasNanos = sub.nanos && sub.nanos.length > 0;
                           const isSubExpanded = Boolean(expandedSubcategories[sub.id]);
 
                           return (
@@ -569,7 +978,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                   </div>
                                 </td>
                                 {MONTH_SHORT_NAMES.map((_, m) => {
-                                  const val = matrixData.catMonthTotals[sub.id]?.[m] || 0;
+                                  const val = sub.monthlyValues[m] || 0;
                                   return (
                                     <td key={m} className="p-2 text-right tabular-nums text-slate-400">
                                       {val > 0 ? formatCurrency(val) : <span className="text-slate-700">-</span>}
@@ -582,16 +991,15 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                               </tr>
 
                               {/* Linhas das Nano-Categorias de Receita */}
-                              {isSubExpanded && getVisibleNanosForYear(sub).map(nano => {
-                                const nanoKey = normalizeKey(nano.name);
-                                const nanoAnnual = getNanoCategoryAnnualTotal(sub.id, nanoKey);
+                              {isSubExpanded && sub.nanos.map(nano => {
+                                const nanoAnnual = nano.total;
                                 return (
-                                  <tr key={nano.id || nanoKey} className="bg-slate-950/70 hover:bg-slate-800/30 text-[11px] text-slate-500">
+                                  <tr key={nano.name} className="bg-slate-950/70 hover:bg-slate-800/30 text-[11px] text-slate-500">
                                     <td className="p-1.5 pl-14 sticky left-0 z-10 bg-slate-950/95 border-r border-slate-800 italic shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
                                       <span className="truncate">↳ {nano.name}</span>
                                     </td>
                                     {MONTH_SHORT_NAMES.map((_, m) => {
-                                      const val = matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0;
+                                      const val = nano.monthlyValues[m] || 0;
                                       return (
                                         <td key={m} className="p-1.5 text-right tabular-nums">
                                           {val > 0 ? formatCurrency(val) : <span className="text-slate-800">-</span>}
@@ -623,7 +1031,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                         <span>DESPESAS / CONTAS</span>
                       </div>
                     </td>
-                    {matrixData.monthlyExpenseTotals.map((tot, idx) => (
+                    {displayExpenseTotals.map((tot, idx) => (
                       <td key={idx} className="p-2.5 text-right tabular-nums font-semibold">
                         {tot > 0 ? formatCurrency(tot) : '-'}
                       </td>
@@ -634,9 +1042,9 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                   </tr>
 
                   {/* Categorias de Despesas */}
-                  {parentExpenseCategories.map(cat => {
-                    const annualTot = getParentCategoryAnnualTotal(cat);
-                    const subs = activeCategories.filter(c => isSameId(c.parentId, cat.id));
+                  {displayExpenseCategories.map(cat => {
+                    const annualTot = cat.total;
+                    const subs = cat.subcategories;
                     const isExpanded = Boolean(expandedCategories[cat.id]);
 
                     return (
@@ -661,7 +1069,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                             </div>
                           </td>
                           {MONTH_SHORT_NAMES.map((_, m) => {
-                            const val = getParentCategoryMonthTotal(cat, m);
+                            const val = cat.monthlyValues[m] || 0;
                             return (
                               <td key={m} className="p-2 text-right tabular-nums text-slate-300">
                                 {val > 0 ? formatCurrency(val) : <span className="text-slate-600">-</span>}
@@ -675,8 +1083,8 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
 
                         {/* Subcategorias de Despesa */}
                         {isExpanded && subs.map(sub => {
-                          const subAnnual = getSubcategoryAnnualTotal(sub);
-                          const hasNanos = Boolean(sub.nanoCategories && sub.nanoCategories.length > 0);
+                          const subAnnual = sub.total;
+                          const hasNanos = sub.nanos && sub.nanos.length > 0;
                           const isSubExpanded = Boolean(expandedSubcategories[sub.id]);
 
                           return (
@@ -704,7 +1112,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                   </div>
                                 </td>
                                 {MONTH_SHORT_NAMES.map((_, m) => {
-                                  const val = matrixData.catMonthTotals[sub.id]?.[m] || 0;
+                                  const val = sub.monthlyValues[m] || 0;
                                   return (
                                     <td key={m} className="p-2 text-right tabular-nums text-slate-400">
                                       {val > 0 ? formatCurrency(val) : <span className="text-slate-700">-</span>}
@@ -717,16 +1125,15 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                               </tr>
 
                               {/* Linhas das Nano-Categorias de Despesa */}
-                              {isSubExpanded && getVisibleNanosForYear(sub).map(nano => {
-                                const nanoKey = normalizeKey(nano.name);
-                                const nanoAnnual = getNanoCategoryAnnualTotal(sub.id, nanoKey);
+                              {isSubExpanded && sub.nanos.map(nano => {
+                                const nanoAnnual = nano.total;
                                 return (
-                                  <tr key={nano.id || nanoKey} className="bg-slate-950/70 hover:bg-slate-800/30 text-[11px] text-slate-500">
+                                  <tr key={nano.name} className="bg-slate-950/70 hover:bg-slate-800/30 text-[11px] text-slate-500">
                                     <td className="p-1.5 pl-14 sticky left-0 z-10 bg-slate-950/95 border-r border-slate-800 italic shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
                                       <span className="truncate">↳ {nano.name}</span>
                                     </td>
                                     {MONTH_SHORT_NAMES.map((_, m) => {
-                                      const val = matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0;
+                                      const val = nano.monthlyValues[m] || 0;
                                       return (
                                         <td key={m} className="p-1.5 text-right tabular-nums">
                                           {val > 0 ? formatCurrency(val) : <span className="text-slate-800">-</span>}
@@ -759,7 +1166,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                         <span>FLUXO DE CAIXA (LÍQUIDO)</span>
                       </div>
                     </td>
-                    {matrixData.monthlyCashFlow.map((cf, idx) => (
+                    {displayNetTotals.map((cf, idx) => (
                       <td
                         key={idx}
                         className={`p-2.5 text-right tabular-nums font-bold ${
@@ -786,7 +1193,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                         <span>FLUXO ACUMULADO</span>
                       </div>
                     </td>
-                    {matrixData.monthlyAccumulated.map((acc, idx) => (
+                    {displayAccumulatedTotals.map((acc, idx) => (
                       <td
                         key={idx}
                         className={`p-2.5 text-right tabular-nums font-bold ${
@@ -798,10 +1205,10 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                     ))}
                     <td
                       className={`p-2.5 text-right tabular-nums font-black border-l border-slate-800 ${
-                        matrixData.monthlyAccumulated[11] >= 0 ? 'text-teal-300 bg-teal-950/60' : 'text-rose-400 bg-rose-950/60'
+                        displayAccumulatedTotals[11] >= 0 ? 'text-teal-300 bg-teal-950/60' : 'text-rose-400 bg-rose-950/60'
                       }`}
                     >
-                      {formatCurrency(matrixData.monthlyAccumulated[11])}
+                      {formatCurrency(displayAccumulatedTotals[11] || 0)}
                     </td>
                   </tr>
                 </>
@@ -810,6 +1217,20 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
           </table>
         </div>
       </div>
+
+      {/* Modal de Gerenciamento e Congelamento de Baselines */}
+      <BaselineManageModal
+        isOpen={isBaselineModalOpen}
+        onClose={() => setIsBaselineModalOpen(false)}
+        year={reportYear}
+        baselines={baselines}
+        activeBaselineId={selectedBaselineId}
+        initialTab={baselineModalTab}
+        onSelectBaseline={id => setSelectedBaselineId(id)}
+        onSaveSnapshot={handleSaveSnapshot}
+        onOverwriteSnapshot={handleOverwriteSnapshot}
+        onDeleteBaseline={handleDeleteBaseline}
+      />
     </div>
   );
 };

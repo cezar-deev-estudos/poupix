@@ -112,6 +112,7 @@ interface FinanceContextType {
   filteredTransactions: Transaction[];
   resetToDefaults: () => void;
   refreshFromCloud: () => Promise<void>;
+  userId?: string;
 }
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
@@ -1206,6 +1207,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         summary,
         filteredTransactions,
         refreshFromCloud,
+        userId: user?.id,
         resetToDefaults: () => {
           setAccounts(INITIAL_ACCOUNTS);
           setCreditCards(INITIAL_CREDIT_CARDS);

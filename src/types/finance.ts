@@ -273,3 +273,58 @@ export interface SavedTransactionFilter {
   endDate?: string;
   createdAt: string;
 }
+
+// ---- BASELINES E SNAPSHOTS DO ORÇAMENTO ANUAL ----
+
+export interface AnnualMatrixNanoItem {
+  name: string;
+  monthlyValues: number[];
+  total: number;
+}
+
+export interface AnnualMatrixSubcategoryItem {
+  id: string;
+  name: string;
+  color: string;
+  icon?: string;
+  monthlyValues: number[];
+  total: number;
+  nanos: AnnualMatrixNanoItem[];
+}
+
+export interface AnnualMatrixCategoryItem {
+  id: string;
+  name: string;
+  type: 'expense' | 'income';
+  color: string;
+  icon?: string;
+  monthlyValues: number[];
+  total: number;
+  subcategories: AnnualMatrixSubcategoryItem[];
+}
+
+export interface AnnualMatrixSnapshotData {
+  incomeCategories: AnnualMatrixCategoryItem[];
+  expenseCategories: AnnualMatrixCategoryItem[];
+  monthlyIncomeTotals: number[];
+  monthlyExpenseTotals: number[];
+  monthlyNetTotals: number[];
+}
+
+export interface AnnualBudgetBaseline {
+  id: string;
+  userId: string;
+  year: number;
+  type: 'original' | 'revision';
+  revisionNumber?: number | null;
+  title: string;
+  notes?: string | null;
+  matrixSnapshot: AnnualMatrixSnapshotData;
+  summaryTotals: {
+    totalIncome: number;
+    totalExpense: number;
+    netBalance: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
