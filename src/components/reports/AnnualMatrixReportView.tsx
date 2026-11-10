@@ -437,10 +437,23 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     baseVal: number | undefined,
     type: 'income' | 'expense' | 'net'
   ) => {
+    // Formatação do valor principal
+    const formatValue = (val: number) => {
+      if (type === 'net') {
+        // Fluxo de caixa líquido ou acumulado pode ser positivo, negativo ou zero
+        if (Math.abs(val) > 0.001) {
+          return formatCurrency(val);
+        }
+        return 'R$ 0,00';
+      }
+      return val > 0 ? formatCurrency(val) : '-';
+    };
+
     if (!isCompareMode || baseVal === undefined) {
+      const formatted = formatValue(currentVal);
       return (
         <span className="text-right tabular-nums">
-          {currentVal > 0 ? formatCurrency(currentVal) : <span className="text-slate-600">-</span>}
+          {formatted === '-' ? <span className="text-slate-600">-</span> : formatted}
         </span>
       );
     }
@@ -474,10 +487,16 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
       }
     }
 
+    const mainValText = formatValue(currentVal);
+
     return (
       <div className="flex flex-col items-end leading-tight py-0.5">
-        <span className="tabular-nums font-semibold text-slate-200">
-          {currentVal > 0 ? formatCurrency(currentVal) : '-'}
+        <span className={`tabular-nums font-semibold ${
+          type === 'net'
+            ? (currentVal >= 0 ? 'text-emerald-400' : 'text-rose-400')
+            : 'text-slate-200'
+        }`}>
+          {mainValText}
         </span>
         <span className={`text-[9px] tabular-nums flex items-center gap-0.5 ${diffColor}`}>
           {isZero ? (
