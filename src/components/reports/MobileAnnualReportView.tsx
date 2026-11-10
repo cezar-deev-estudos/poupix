@@ -39,12 +39,13 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [expandedSubcategories, setExpandedSubcategories] = useState<Record<string, boolean>>({});
   const [expandedMonthDetails, setExpandedMonthDetails] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income' | 'compare'>('all');
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<number | 'all'>('all'); // 'all' ou 0..11
 
   // Estado das Baselines / Snapshots Congelados (Supabase)
   const [baselines, setBaselines] = useState<AnnualBudgetBaseline[]>([]);
   const [selectedBaselineId, setSelectedBaselineId] = useState<string | null>(null);
+  const [compareBaselineId, setCompareBaselineId] = useState<string | null>(null);
   const [isBaselineModalOpen, setIsBaselineModalOpen] = useState(false);
   const [baselineModalTab, setBaselineModalTab] = useState<'save' | 'manage'>('save');
 
@@ -71,6 +72,54 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
     if (!selectedBaselineId) return null;
     return baselines.find(b => b.id === selectedBaselineId) || null;
   }, [baselines, selectedBaselineId]);
+
+  const isCompareMode = activeTab === 'compare';
+
+  // Baseline selecionada para comparação de desvios
+  const effectiveCompareBaseline = useMemo(() => {
+    if (compareBaselineId) {
+      const found = baselines.find(b => b.id === compareBaselineId);
+      if (found) return found;
+    }
+    const original = baselines.find(b => b.type === 'original');
+    return original || baselines[0] || null;
+  }, [baselines, compareBaselineId]);
+
+  // Mapa de lookup da baseline para cálculo de desvios instantâneo
+  const compareLookup = useMemo(() => {
+    if (!effectiveCompareBaseline) return null;
+    const snap = effectiveCompareBaseline.matrixSnapshot;
+
+    const catMap: Record<string, { monthly: number[]; total: number }> = {};
+    const subMap: Record<string, { monthly: number[]; total: number }> = {};
+    const nanoMap: Record<string, { monthly: number[]; total: number }> = {};
+
+    const processCategories = (catList: typeof snap.incomeCategories) => {
+      catList.forEach(c => {
+        catMap[c.id] = { monthly: c.monthlyValues, total: c.total };
+        c.subcategories.forEach(s => {
+          subMap[s.id] = { monthly: s.monthlyValues, total: s.total };
+          s.nanos.forEach(n => {
+            const key = `${s.id}_${normalizeKey(n.name)}`;
+            nanoMap[key] = { monthly: n.monthlyValues, total: n.total };
+          });
+        });
+      });
+    };
+
+    processCategories(snap.incomeCategories);
+    processCategories(snap.expenseCategories);
+
+    return {
+      catMap,
+      subMap,
+      nanoMap,
+      incomeTotals: snap.monthlyIncomeTotals,
+      expenseTotals: snap.monthlyExpenseTotals,
+      netTotals: snap.monthlyNetTotals,
+      summary: effectiveCompareBaseline.summaryTotals,
+    };
+  }, [effectiveCompareBaseline]);
 
   // Categorias ativas
   const activeCategories = useMemo(() => categories.filter(c => !c.isArchived), [categories]);
@@ -522,6 +571,64 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
     return monthlyValues[selectedMonthFilter] || 0;
   };
 
+  // Helper para renderizar badge de desvio/variação comparativa no mobile
+  const renderMobileDiffBadge = (
+    currentVal: number,
+    baseMonthlyValues: number[] | undefined,
+    baseTotal: number | undefined,
+    type: 'income' | 'expense' | 'net'
+  ) => {
+    if (!isCompareMode) return null;
+
+    let baseVal: number | undefined;
+    if (selectedMonthFilter === 'all') {
+      baseVal = baseTotal;
+    } else if (baseMonthlyValues) {
+      baseVal = baseMonthlyValues[selectedMonthFilter];
+    }
+
+    if (baseVal === undefined) return null;
+
+    const diff = currentVal - baseVal;
+    const isZero = Math.abs(diff) < 0.01;
+
+    let diffColor = 'text-slate-500';
+    let indicator = '';
+
+    if (!isZero) {
+      if (type === 'expense') {
+        if (diff > 0) {
+          diffColor = 'text-rose-400 font-bold';
+          indicator = '▲';
+        } else {
+          diffColor = 'text-emerald-400 font-bold';
+          indicator = '▼';
+        }
+      } else {
+        if (diff > 0) {
+          diffColor = 'text-emerald-400 font-bold';
+          indicator = '▲';
+        } else {
+          diffColor = 'text-rose-400 font-bold';
+          indicator = '▼';
+        }
+      }
+    }
+
+    return (
+      <span className={`text-[10px] tabular-nums flex items-center gap-0.5 justify-end ${diffColor}`}>
+        {isZero ? (
+          <span className="text-slate-500 text-[9px]">meta ok</span>
+        ) : (
+          <>
+            <span>{diff > 0 ? `+${formatCurrency(diff)}` : formatCurrency(diff)}</span>
+            <span className="text-[8px]">{indicator}</span>
+          </>
+        )}
+      </span>
+    );
+  };
+
   // Renderizador do detalhe mês a mês de uma linha
   const renderMonthDetailsGrid = (monthlyValues: number[], totalAnnual: number) => {
     return (
@@ -611,6 +718,42 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
           </div>
         </div>
 
+        {/* Banner de Modo Comparativo no Mobile */}
+        {isCompareMode && (
+          <div className="p-2.5 rounded-xl bg-gradient-to-r from-amber-950/60 to-slate-900 border border-amber-500/50 text-amber-200 text-xs space-y-2 animate-fadeIn">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 font-bold text-white">
+                <span>⚖️ Comparativo de Desvios</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('all')}
+                className="px-2 py-0.5 bg-slate-800 text-slate-300 rounded text-[10px] font-semibold"
+              >
+                Sair
+              </button>
+            </div>
+            {baselines.length > 0 ? (
+              <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1">
+                <span className="text-[10px] text-slate-400">Meta:</span>
+                <select
+                  value={effectiveCompareBaseline?.id || ''}
+                  onChange={(e) => setCompareBaselineId(e.target.value)}
+                  className="bg-transparent text-amber-300 font-bold text-xs focus:outline-none cursor-pointer w-full"
+                >
+                  {baselines.map(b => (
+                    <option key={b.id} value={b.id} className="bg-slate-900 text-white">
+                      {b.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <p className="text-[10px] text-amber-400">Nenhuma foto congelada salva para comparar.</p>
+            )}
+          </div>
+        )}
+
         {/* Banner de Versão Congelada Ativa no Mobile */}
         {activeBaseline && (
           <div className="p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs flex items-center justify-between gap-2 animate-fadeIn">
@@ -631,13 +774,13 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
           </div>
         )}
 
-        {/* 2. Filtros de Aba (Completo / Receitas / Despesas) + Expandir / Recolher */}
+        {/* 2. Filtros de Aba (Completo / Receitas / Despesas / Comparativo) + Expandir / Recolher */}
         <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-800/80">
-          <div className="flex items-center bg-slate-950 border border-slate-800 p-0.5 rounded-xl text-[11px]">
+          <div className="flex items-center bg-slate-950 border border-slate-800 p-0.5 rounded-xl text-[10px]">
             <button
               type="button"
               onClick={() => setActiveTab('all')}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+              className={`px-2 py-1 rounded-lg font-medium transition-all cursor-pointer ${
                 activeTab === 'all' ? 'bg-slate-800 text-white font-semibold' : 'text-slate-400'
               }`}
             >
@@ -646,7 +789,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
             <button
               type="button"
               onClick={() => setActiveTab('income')}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+              className={`px-2 py-1 rounded-lg font-medium transition-all cursor-pointer ${
                 activeTab === 'income' ? 'bg-emerald-500/20 text-emerald-300 font-semibold' : 'text-slate-400'
               }`}
             >
@@ -655,11 +798,23 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
             <button
               type="button"
               onClick={() => setActiveTab('expense')}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+              className={`px-2 py-1 rounded-lg font-medium transition-all cursor-pointer ${
                 activeTab === 'expense' ? 'bg-rose-500/20 text-rose-300 font-semibold' : 'text-slate-400'
               }`}
             >
               Despesas
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('compare');
+                if (selectedBaselineId) setSelectedBaselineId(null);
+              }}
+              className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                activeTab === 'compare' ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50' : 'text-slate-400'
+              }`}
+            >
+              <span>⚖️ Comparar</span>
             </button>
           </div>
 
@@ -729,23 +884,41 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
           <span className="text-xs font-bold text-emerald-400 tabular-nums truncate">
             {formatCurrency(totalAnnualIncome)}
           </span>
+          {isCompareMode && compareLookup && (
+            <span className={`text-[9px] block font-semibold truncate ${totalAnnualIncome >= compareLookup.summary.totalIncome ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {totalAnnualIncome >= compareLookup.summary.totalIncome ? '+' : ''}
+              {formatCurrency(totalAnnualIncome - compareLookup.summary.totalIncome)}
+            </span>
+          )}
         </div>
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
           <span className="text-slate-400 text-[10px] block truncate">Despesas {reportYear}</span>
           <span className="text-xs font-bold text-rose-400 tabular-nums truncate">
             {formatCurrency(totalAnnualExpense)}
           </span>
+          {isCompareMode && compareLookup && (
+            <span className={`text-[9px] block font-semibold truncate ${totalAnnualExpense <= compareLookup.summary.totalExpense ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {totalAnnualExpense > compareLookup.summary.totalExpense ? '+' : ''}
+              {formatCurrency(totalAnnualExpense - compareLookup.summary.totalExpense)}
+            </span>
+          )}
         </div>
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
           <span className="text-slate-400 text-[10px] block truncate">Saldo do Ano</span>
           <span className={`text-xs font-bold tabular-nums truncate ${totalAnnualCashFlow >= 0 ? 'text-teal-400' : 'text-rose-400'}`}>
             {formatCurrency(totalAnnualCashFlow)}
           </span>
+          {isCompareMode && compareLookup && (
+            <span className={`text-[9px] block font-semibold truncate ${totalAnnualCashFlow >= compareLookup.summary.netBalance ? 'text-teal-400' : 'text-rose-400'}`}>
+              {totalAnnualCashFlow >= compareLookup.summary.netBalance ? '+' : ''}
+              {formatCurrency(totalAnnualCashFlow - compareLookup.summary.netBalance)}
+            </span>
+          )}
         </div>
       </div>
 
       {/* 3. Seção Vertical: RECEITAS */}
-      {(activeTab === 'all' || activeTab === 'income') && (
+      {(activeTab === 'all' || activeTab === 'income' || activeTab === 'compare') && (
         <div className="space-y-2">
           {/* Header da Seção de Receitas */}
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300">
@@ -753,13 +926,23 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
               <TrendingUp className="w-4 h-4 text-emerald-400" />
               <span>RECEITAS</span>
             </div>
-            <span className="text-xs font-black tabular-nums text-emerald-400">
-              {formatCurrency(
+            <div className="text-right">
+              <span className="text-xs font-black tabular-nums text-emerald-400 block">
+                {formatCurrency(
+                  selectedMonthFilter === 'all'
+                    ? totalAnnualIncome
+                    : displayIncomeTotals[selectedMonthFilter] || 0
+                )}
+              </span>
+              {renderMobileDiffBadge(
                 selectedMonthFilter === 'all'
                   ? totalAnnualIncome
-                  : displayIncomeTotals[selectedMonthFilter] || 0
+                  : displayIncomeTotals[selectedMonthFilter] || 0,
+                compareLookup?.incomeTotals,
+                compareLookup?.summary.totalIncome,
+                'income'
               )}
-            </span>
+            </div>
           </div>
 
           {/* Lista Vertical de Categorias de Receita */}
@@ -769,6 +952,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
               const isExpanded = Boolean(expandedCategories[cat.id]);
               const subs = cat.subcategories;
               const isDetailOpen = Boolean(expandedMonthDetails[`cat-${cat.id}`]);
+              const baseCat = compareLookup?.catMap[cat.id];
 
               return (
                 <div
@@ -796,9 +980,12 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-xs font-bold text-emerald-400 tabular-nums">
-                        {catVal > 0 ? formatCurrency(catVal) : '-'}
-                      </span>
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-emerald-400 tabular-nums block">
+                          {catVal > 0 ? formatCurrency(catVal) : '-'}
+                        </span>
+                        {renderMobileDiffBadge(catVal, baseCat?.monthly, baseCat?.total, 'income')}
+                      </div>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -824,6 +1011,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                         const hasNanos = sub.nanos && sub.nanos.length > 0;
                         const isSubExpanded = Boolean(expandedSubcategories[sub.id]);
                         const isSubDetailOpen = Boolean(expandedMonthDetails[`sub-${sub.id}`]);
+                        const baseSub = compareLookup?.subMap[sub.id];
 
                         return (
                           <div key={sub.id} className="border border-slate-800/40 rounded-lg p-2 bg-slate-900/40">
@@ -847,9 +1035,12 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                               </div>
 
                               <div className="flex items-center gap-1.5 shrink-0">
-                                <span className="text-[11px] font-semibold text-slate-200 tabular-nums">
-                                  {subVal > 0 ? formatCurrency(subVal) : '-'}
-                                </span>
+                                <div className="text-right">
+                                  <span className="text-[11px] font-semibold text-slate-200 tabular-nums block">
+                                    {subVal > 0 ? formatCurrency(subVal) : '-'}
+                                  </span>
+                                  {renderMobileDiffBadge(subVal, baseSub?.monthly, baseSub?.total, 'income')}
+                                </div>
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -872,15 +1063,20 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                                 {sub.nanos.map(nano => {
                                   const nanoVal = getValueToDisplay(nano.monthlyValues, nano.total);
                                   const isNanoDetailOpen = Boolean(expandedMonthDetails[`nano-${sub.id}-${nano.name}`]);
+                                  const nanoKey = normalizeKey(nano.name);
+                                  const baseNano = compareLookup?.nanoMap[`${sub.id}_${nanoKey}`];
 
                                   return (
                                     <div key={nano.name} className="py-0.5">
                                       <div className="flex items-center justify-between gap-1 text-[10px]">
                                         <span className="text-slate-400 italic truncate">↳ {nano.name}</span>
                                         <div className="flex items-center gap-1">
-                                          <span className="tabular-nums text-slate-300">
-                                            {nanoVal > 0 ? formatCurrency(nanoVal) : '-'}
-                                          </span>
+                                          <div className="text-right">
+                                            <span className="tabular-nums text-slate-300 block">
+                                              {nanoVal > 0 ? formatCurrency(nanoVal) : '-'}
+                                            </span>
+                                            {renderMobileDiffBadge(nanoVal, baseNano?.monthly, baseNano?.total, 'income')}
+                                          </div>
                                           <button
                                             type="button"
                                             onClick={() => toggleMonthDetails(`nano-${sub.id}-${nano.name}`)}
@@ -909,7 +1105,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
       )}
 
       {/* 4. Seção Vertical: DESPESAS */}
-      {(activeTab === 'all' || activeTab === 'expense') && (
+      {(activeTab === 'all' || activeTab === 'expense' || activeTab === 'compare') && (
         <div className="space-y-2">
           {/* Header da Seção de Despesas */}
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300">
@@ -917,13 +1113,23 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
               <TrendingDown className="w-4 h-4 text-rose-400" />
               <span>DESPESAS / CONTAS</span>
             </div>
-            <span className="text-xs font-black tabular-nums text-rose-400">
-              {formatCurrency(
+            <div className="text-right">
+              <span className="text-xs font-black tabular-nums text-rose-400 block">
+                {formatCurrency(
+                  selectedMonthFilter === 'all'
+                    ? totalAnnualExpense
+                    : displayExpenseTotals[selectedMonthFilter] || 0
+                )}
+              </span>
+              {renderMobileDiffBadge(
                 selectedMonthFilter === 'all'
                   ? totalAnnualExpense
-                  : displayExpenseTotals[selectedMonthFilter] || 0
+                  : displayExpenseTotals[selectedMonthFilter] || 0,
+                compareLookup?.expenseTotals,
+                compareLookup?.summary.totalExpense,
+                'expense'
               )}
-            </span>
+            </div>
           </div>
 
           {/* Lista Vertical de Categorias de Despesa */}
@@ -933,6 +1139,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
               const isExpanded = Boolean(expandedCategories[cat.id]);
               const subs = cat.subcategories;
               const isDetailOpen = Boolean(expandedMonthDetails[`cat-${cat.id}`]);
+              const baseCat = compareLookup?.catMap[cat.id];
 
               return (
                 <div
@@ -960,9 +1167,12 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-xs font-bold text-rose-400 tabular-nums">
-                        {catVal > 0 ? formatCurrency(catVal) : '-'}
-                      </span>
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-rose-400 tabular-nums block">
+                          {catVal > 0 ? formatCurrency(catVal) : '-'}
+                        </span>
+                        {renderMobileDiffBadge(catVal, baseCat?.monthly, baseCat?.total, 'expense')}
+                      </div>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -988,6 +1198,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                         const hasNanos = sub.nanos && sub.nanos.length > 0;
                         const isSubExpanded = Boolean(expandedSubcategories[sub.id]);
                         const isSubDetailOpen = Boolean(expandedMonthDetails[`sub-${sub.id}`]);
+                        const baseSub = compareLookup?.subMap[sub.id];
 
                         return (
                           <div key={sub.id} className="border border-slate-800/40 rounded-lg p-2 bg-slate-900/40">
@@ -1011,9 +1222,12 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                               </div>
 
                               <div className="flex items-center gap-1.5 shrink-0">
-                                <span className="text-[11px] font-semibold text-slate-200 tabular-nums">
-                                  {subVal > 0 ? formatCurrency(subVal) : '-'}
-                                </span>
+                                <div className="text-right">
+                                  <span className="text-[11px] font-semibold text-slate-200 tabular-nums block">
+                                    {subVal > 0 ? formatCurrency(subVal) : '-'}
+                                  </span>
+                                  {renderMobileDiffBadge(subVal, baseSub?.monthly, baseSub?.total, 'expense')}
+                                </div>
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1036,15 +1250,20 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                                 {sub.nanos.map(nano => {
                                   const nanoVal = getValueToDisplay(nano.monthlyValues, nano.total);
                                   const isNanoDetailOpen = Boolean(expandedMonthDetails[`nano-${sub.id}-${nano.name}`]);
+                                  const nanoKey = normalizeKey(nano.name);
+                                  const baseNano = compareLookup?.nanoMap[`${sub.id}_${nanoKey}`];
 
                                   return (
                                     <div key={nano.name} className="py-0.5">
                                       <div className="flex items-center justify-between gap-1 text-[10px]">
                                         <span className="text-slate-400 italic truncate">↳ {nano.name}</span>
                                         <div className="flex items-center gap-1">
-                                          <span className="tabular-nums text-slate-300">
-                                            {nanoVal > 0 ? formatCurrency(nanoVal) : '-'}
-                                          </span>
+                                          <div className="text-right">
+                                            <span className="tabular-nums text-slate-300 block">
+                                              {nanoVal > 0 ? formatCurrency(nanoVal) : '-'}
+                                            </span>
+                                            {renderMobileDiffBadge(nanoVal, baseNano?.monthly, baseNano?.total, 'expense')}
+                                          </div>
                                           <button
                                             type="button"
                                             onClick={() => toggleMonthDetails(`nano-${sub.id}-${nano.name}`)}
@@ -1073,7 +1292,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
       )}
 
       {/* 5. Seção de FLUXO DE CAIXA E RESULTADO ANUAL */}
-      {activeTab === 'all' && (
+      {(activeTab === 'all' || activeTab === 'compare') && (
         <div className="space-y-2 pt-2 border-t border-slate-800">
           {/* Fluxo de Caixa Líquido */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
@@ -1086,21 +1305,31 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                 </span>
               </div>
             </div>
-            <span
-              className={`text-xs font-black tabular-nums ${
-                (selectedMonthFilter === 'all'
-                  ? totalAnnualCashFlow
-                  : displayNetTotals[selectedMonthFilter] || 0) >= 0
-                  ? 'text-emerald-400'
-                  : 'text-rose-400'
-              }`}
-            >
-              {formatCurrency(
+            <div className="text-right">
+              <span
+                className={`text-xs font-black tabular-nums block ${
+                  (selectedMonthFilter === 'all'
+                    ? totalAnnualCashFlow
+                    : displayNetTotals[selectedMonthFilter] || 0) >= 0
+                    ? 'text-emerald-400'
+                    : 'text-rose-400'
+                }`}
+              >
+                {formatCurrency(
+                  selectedMonthFilter === 'all'
+                    ? totalAnnualCashFlow
+                    : displayNetTotals[selectedMonthFilter] || 0
+                )}
+              </span>
+              {renderMobileDiffBadge(
                 selectedMonthFilter === 'all'
                   ? totalAnnualCashFlow
-                  : displayNetTotals[selectedMonthFilter] || 0
+                  : displayNetTotals[selectedMonthFilter] || 0,
+                compareLookup?.netTotals,
+                compareLookup?.summary.netBalance,
+                'net'
               )}
-            </span>
+            </div>
           </div>
 
           {/* Saldo Acumulado */}
@@ -1114,21 +1343,38 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                 </span>
               </div>
             </div>
-            <span
-              className={`text-xs font-black tabular-nums ${
-                (selectedMonthFilter === 'all'
-                  ? displayAccumulatedTotals[11] || 0
-                  : displayAccumulatedTotals[selectedMonthFilter] || 0) >= 0
-                  ? 'text-teal-300'
-                  : 'text-rose-400'
-              }`}
-            >
-              {formatCurrency(
-                selectedMonthFilter === 'all'
-                  ? displayAccumulatedTotals[11] || 0
-                  : displayAccumulatedTotals[selectedMonthFilter] || 0
-              )}
-            </span>
+            <div className="text-right">
+              <span
+                className={`text-xs font-black tabular-nums block ${
+                  (selectedMonthFilter === 'all'
+                    ? displayAccumulatedTotals[11] || 0
+                    : displayAccumulatedTotals[selectedMonthFilter] || 0) >= 0
+                    ? 'text-teal-300'
+                    : 'text-rose-400'
+                }`}
+              >
+                {formatCurrency(
+                  selectedMonthFilter === 'all'
+                    ? displayAccumulatedTotals[11] || 0
+                    : displayAccumulatedTotals[selectedMonthFilter] || 0
+                )}
+              </span>
+              {(() => {
+                let baseAcc: number | undefined;
+                if (compareLookup?.netTotals) {
+                  if (selectedMonthFilter === 'all') {
+                    baseAcc = compareLookup.netTotals.reduce((a, b) => a + b, 0);
+                  } else {
+                    baseAcc = compareLookup.netTotals.slice(0, selectedMonthFilter + 1).reduce((a, b) => a + b, 0);
+                  }
+                }
+                const curAcc = selectedMonthFilter === 'all'
+                  ? (displayAccumulatedTotals[11] || 0)
+                  : (displayAccumulatedTotals[selectedMonthFilter] || 0);
+
+                return renderMobileDiffBadge(curAcc, undefined, baseAcc, 'net');
+              })()}
+            </div>
           </div>
         </div>
       )}

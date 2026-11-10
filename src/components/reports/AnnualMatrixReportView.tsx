@@ -40,11 +40,12 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
   const [reportYear, setReportYear] = useState<number>(currentYear || new Date().getFullYear());
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [expandedSubcategories, setExpandedSubcategories] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income' | 'compare'>('all');
 
   // Estado das Baselines / Snapshots Congelados (armazenados no Supabase)
   const [baselines, setBaselines] = useState<AnnualBudgetBaseline[]>([]);
   const [selectedBaselineId, setSelectedBaselineId] = useState<string | null>(null);
+  const [compareBaselineId, setCompareBaselineId] = useState<string | null>(null);
   const [isBaselineModalOpen, setIsBaselineModalOpen] = useState(false);
   const [baselineModalTab, setBaselineModalTab] = useState<'save' | 'manage'>('save');
   const [isLoadingBaselines, setIsLoadingBaselines] = useState(false);
@@ -72,10 +73,62 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     loadYearBaselines();
   }, [loadYearBaselines]);
 
+  // Baseline atualmente selecionada para visualização de foto congelada
   const activeBaseline = useMemo(() => {
     if (!selectedBaselineId) return null;
     return baselines.find(b => b.id === selectedBaselineId) || null;
   }, [baselines, selectedBaselineId]);
+
+  const isCompareMode = activeTab === 'compare';
+
+  // Baseline ativa para comparação (ou a selecionada explicitamente, ou a Base Original por padrão)
+  const effectiveCompareBaseline = useMemo(() => {
+    if (compareBaselineId) {
+      const found = baselines.find(b => b.id === compareBaselineId);
+      if (found) return found;
+    }
+    const original = baselines.find(b => b.type === 'original');
+    return original || baselines[0] || null;
+  }, [baselines, compareBaselineId]);
+
+  // Mapa de busca rápida por categoria/sub/nano na baseline comparativa
+  const compareLookup = useMemo(() => {
+    if (!effectiveCompareBaseline) return null;
+    const snap = effectiveCompareBaseline.matrixSnapshot;
+    
+    // catId -> { monthly: number[], total: number }
+    const catMap: Record<string, { monthly: number[]; total: number }> = {};
+    // subId -> { monthly: number[], total: number }
+    const subMap: Record<string, { monthly: number[]; total: number }> = {};
+    // subId_nanoKey -> { monthly: number[], total: number }
+    const nanoMap: Record<string, { monthly: number[]; total: number }> = {};
+
+    const processCategories = (catList: typeof snap.incomeCategories) => {
+      catList.forEach(c => {
+        catMap[c.id] = { monthly: c.monthlyValues, total: c.total };
+        c.subcategories.forEach(s => {
+          subMap[s.id] = { monthly: s.monthlyValues, total: s.total };
+          s.nanos.forEach(n => {
+            const key = `${s.id}_${normalizeKey(n.name)}`;
+            nanoMap[key] = { monthly: n.monthlyValues, total: n.total };
+          });
+        });
+      });
+    };
+
+    processCategories(snap.incomeCategories);
+    processCategories(snap.expenseCategories);
+
+    return {
+      catMap,
+      subMap,
+      nanoMap,
+      incomeTotals: snap.monthlyIncomeTotals,
+      expenseTotals: snap.monthlyExpenseTotals,
+      netTotals: snap.monthlyNetTotals,
+      summary: effectiveCompareBaseline.summaryTotals,
+    };
+  }, [effectiveCompareBaseline]);
 
   // Categorias ativas
   const activeCategories = useMemo(() => categories.filter(c => !c.isArchived), [categories]);
@@ -364,7 +417,67 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     ? activeBaseline.summaryTotals.netBalance
     : currentAnnualCashFlow;
 
-  // Dados a exibir na tabela: se houver baseline selecionada, usa o snapshot dela; senão, usa matrixData dinâmica
+  // Helper para renderizar célula comparativa de desvio
+  const renderCellWithDiff = (
+    currentVal: number,
+    baseVal: number | undefined,
+    type: 'income' | 'expense' | 'net'
+  ) => {
+    if (!isCompareMode || baseVal === undefined) {
+      return (
+        <span className="text-right tabular-nums">
+          {currentVal > 0 ? formatCurrency(currentVal) : <span className="text-slate-600">-</span>}
+        </span>
+      );
+    }
+
+    const diff = currentVal - baseVal;
+    const isZero = Math.abs(diff) < 0.01;
+
+    let diffColor = 'text-slate-500';
+    let indicator = '';
+
+    if (!isZero) {
+      if (type === 'expense') {
+        // Gastou a mais que o plano = ruim (vermelho)
+        // Gastou a menos que o plano = economia (verde)
+        if (diff > 0) {
+          diffColor = 'text-rose-400 font-bold';
+          indicator = '▲';
+        } else {
+          diffColor = 'text-emerald-400 font-bold';
+          indicator = '▼';
+        }
+      } else {
+        // Receitas ou Resultado Líquido: maior = bom (verde), menor = ruim (vermelho)
+        if (diff > 0) {
+          diffColor = 'text-emerald-400 font-bold';
+          indicator = '▲';
+        } else {
+          diffColor = 'text-rose-400 font-bold';
+          indicator = '▼';
+        }
+      }
+    }
+
+    return (
+      <div className="flex flex-col items-end leading-tight py-0.5">
+        <span className="tabular-nums font-semibold text-slate-200">
+          {currentVal > 0 ? formatCurrency(currentVal) : '-'}
+        </span>
+        <span className={`text-[9px] tabular-nums flex items-center gap-0.5 ${diffColor}`}>
+          {isZero ? (
+            <span className="text-slate-500">meta ok</span>
+          ) : (
+            <>
+              <span>{diff > 0 ? `+${formatCurrency(diff)}` : formatCurrency(diff)}</span>
+              <span className="text-[8px]">{indicator}</span>
+            </>
+          )}
+        </span>
+      </div>
+    );
+  };
   const displayIncomeTotals = activeBaseline
     ? activeBaseline.matrixSnapshot.monthlyIncomeTotals
     : matrixData.monthlyIncomeTotals;
@@ -720,6 +833,25 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
             >
               Despesas
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('compare');
+                // Se estava em modo foto congelada estática, remove para comparar Tempo Real com a Base
+                if (selectedBaselineId) setSelectedBaselineId(null);
+              }}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'compare'
+                  ? 'bg-gradient-to-r from-amber-500/30 to-amber-600/30 text-amber-300 border border-amber-500/60 font-bold shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Comparar valores realizados em tempo real contra a meta congelada da Base/Revisão"
+            >
+              <span>⚖️ Comparativo</span>
+              {baselines.length > 0 && (
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              )}
+            </button>
           </div>
 
           {/* Botões de Expandir / Recolher */}
@@ -793,6 +925,61 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
         </div>
       </div>
 
+      {/* Banner Informativo no Modo Comparativo */}
+      {isCompareMode && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/40 text-amber-200 text-xs shadow-lg animate-fadeIn">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
+              <span className="text-base">⚖️</span>
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-white text-sm">
+                  Modo Comparativo de Desvios
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  Tempo Real vs. Meta Congelada
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                Valores em verde indicam economia em despesas ou superávit em receitas. Valores em vermelho indicam estouro orçamentário.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            {baselines.length > 0 ? (
+              <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1">
+                <span className="text-[11px] text-slate-400 font-medium">Comparar com:</span>
+                <select
+                  value={effectiveCompareBaseline?.id || ''}
+                  onChange={(e) => setCompareBaselineId(e.target.value)}
+                  className="bg-transparent text-amber-300 font-bold text-xs focus:outline-none cursor-pointer"
+                >
+                  {baselines.map(b => (
+                    <option key={b.id} value={b.id} className="bg-slate-900 text-white">
+                      {b.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <span className="text-[11px] text-amber-400 font-semibold px-2 py-1 bg-amber-500/10 rounded-lg border border-amber-500/30">
+                Nenhuma foto congelada salva para comparar
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('all')}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-semibold transition-colors cursor-pointer"
+            >
+              Sair
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Banner Informativo quando uma versão congelada estiver ativa */}
       {activeBaseline && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs shadow-lg animate-fadeIn">
@@ -842,6 +1029,12 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
           <div>
             <span className="text-slate-400 text-[11px] block">Receitas Totais {reportYear}</span>
             <span className="text-base font-bold text-emerald-400">{formatCurrency(totalAnnualIncome)}</span>
+            {isCompareMode && compareLookup && (
+              <span className={`text-[10px] block font-semibold ${totalAnnualIncome >= compareLookup.summary.totalIncome ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {totalAnnualIncome >= compareLookup.summary.totalIncome ? '+' : ''}
+                {formatCurrency(totalAnnualIncome - compareLookup.summary.totalIncome)} vs. meta
+              </span>
+            )}
           </div>
           <TrendingUp className="w-6 h-6 text-emerald-400/40" />
         </div>
@@ -850,6 +1043,12 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
           <div>
             <span className="text-slate-400 text-[11px] block">Despesas Totais {reportYear}</span>
             <span className="text-base font-bold text-rose-400">{formatCurrency(totalAnnualExpense)}</span>
+            {isCompareMode && compareLookup && (
+              <span className={`text-[10px] block font-semibold ${totalAnnualExpense <= compareLookup.summary.totalExpense ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {totalAnnualExpense > compareLookup.summary.totalExpense ? '+' : ''}
+                {formatCurrency(totalAnnualExpense - compareLookup.summary.totalExpense)} vs. meta
+              </span>
+            )}
           </div>
           <TrendingDown className="w-6 h-6 text-rose-400/40" />
         </div>
@@ -860,6 +1059,12 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
             <span className={`text-base font-bold ${totalAnnualCashFlow >= 0 ? 'text-teal-400' : 'text-rose-400'}`}>
               {formatCurrency(totalAnnualCashFlow)}
             </span>
+            {isCompareMode && compareLookup && (
+              <span className={`text-[10px] block font-semibold ${totalAnnualCashFlow >= compareLookup.summary.netBalance ? 'text-teal-400' : 'text-rose-400'}`}>
+                {totalAnnualCashFlow >= compareLookup.summary.netBalance ? '+' : ''}
+                {formatCurrency(totalAnnualCashFlow - compareLookup.summary.netBalance)} vs. meta
+              </span>
+            )}
           </div>
           <Layers3 className="w-6 h-6 text-teal-400/40" />
         </div>
@@ -888,7 +1093,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
 
             <tbody className="divide-y divide-slate-800/40 text-slate-200">
               {/* ================= SEÇÃO: RECEITAS ================= */}
-              {(activeTab === 'all' || activeTab === 'income') && (
+              {(activeTab === 'all' || activeTab === 'income' || activeTab === 'compare') && (
                 <>
                   <tr className="bg-emerald-950/40 text-emerald-300 font-bold border-t border-b border-emerald-500/30">
                     <td className="p-2.5 pl-3 sticky left-0 z-10 bg-emerald-950/90 border-r border-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
@@ -899,11 +1104,11 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                     </td>
                     {displayIncomeTotals.map((tot, idx) => (
                       <td key={idx} className="p-2.5 text-right tabular-nums font-semibold">
-                        {tot > 0 ? formatCurrency(tot) : '-'}
+                        {renderCellWithDiff(tot, compareLookup?.incomeTotals[idx], 'income')}
                       </td>
                     ))}
                     <td className="p-2.5 text-right tabular-nums font-black text-emerald-400 bg-emerald-950/60 border-l border-slate-800">
-                      {formatCurrency(totalAnnualIncome)}
+                      {renderCellWithDiff(totalAnnualIncome, compareLookup?.summary.totalIncome, 'income')}
                     </td>
                   </tr>
 
@@ -912,6 +1117,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                     const annualTot = cat.total;
                     const subs = cat.subcategories;
                     const isExpanded = Boolean(expandedCategories[cat.id]);
+                    const baseCat = compareLookup?.catMap[cat.id];
 
                     return (
                       <React.Fragment key={cat.id}>
@@ -922,7 +1128,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                 <button
                                   type="button"
                                   onClick={() => toggleExpand(cat.id)}
-                                  className="p-0.5 text-slate-400 hover:text-white transition-colors"
+                                  className="p-0.5 text-slate-400 hover:text-white transition-colors cursor-pointer"
                                 >
                                   {isExpanded ? (
                                     <ChevronDown className="w-3.5 h-3.5 text-emerald-400" />
@@ -938,12 +1144,12 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                             const val = cat.monthlyValues[m] || 0;
                             return (
                               <td key={m} className="p-2 text-right tabular-nums text-slate-300">
-                                {val > 0 ? formatCurrency(val) : <span className="text-slate-600">-</span>}
+                                {renderCellWithDiff(val, baseCat?.monthly[m], 'income')}
                               </td>
                             );
                           })}
                           <td className="p-2 text-right tabular-nums font-bold text-white bg-slate-900/50 border-l border-slate-800">
-                            {annualTot > 0 ? formatCurrency(annualTot) : '-'}
+                            {renderCellWithDiff(annualTot, baseCat?.total, 'income')}
                           </td>
                         </tr>
 
@@ -952,6 +1158,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                           const subAnnual = sub.total;
                           const hasNanos = sub.nanos && sub.nanos.length > 0;
                           const isSubExpanded = Boolean(expandedSubcategories[sub.id]);
+                          const baseSub = compareLookup?.subMap[sub.id];
 
                           return (
                             <React.Fragment key={sub.id}>
@@ -962,7 +1169,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                       <button
                                         type="button"
                                         onClick={() => toggleExpandSubcategory(sub.id)}
-                                        className="p-0.5 text-slate-400 hover:text-white transition-colors"
+                                        className="p-0.5 text-slate-400 hover:text-white transition-colors cursor-pointer"
                                         title={isSubExpanded ? "Recolher divisões" : "Expandir divisões"}
                                       >
                                         {isSubExpanded ? (
@@ -981,18 +1188,21 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                   const val = sub.monthlyValues[m] || 0;
                                   return (
                                     <td key={m} className="p-2 text-right tabular-nums text-slate-400">
-                                      {val > 0 ? formatCurrency(val) : <span className="text-slate-700">-</span>}
+                                      {renderCellWithDiff(val, baseSub?.monthly[m], 'income')}
                                     </td>
                                   );
                                 })}
                                 <td className="p-2 text-right tabular-nums text-slate-300 font-medium bg-slate-950/60 border-l border-slate-800">
-                                  {subAnnual > 0 ? formatCurrency(subAnnual) : '-'}
+                                  {renderCellWithDiff(subAnnual, baseSub?.total, 'income')}
                                 </td>
                               </tr>
 
                               {/* Linhas das Nano-Categorias de Receita */}
                               {isSubExpanded && sub.nanos.map(nano => {
                                 const nanoAnnual = nano.total;
+                                const nanoKey = normalizeKey(nano.name);
+                                const baseNano = compareLookup?.nanoMap[`${sub.id}_${nanoKey}`];
+
                                 return (
                                   <tr key={nano.name} className="bg-slate-950/70 hover:bg-slate-800/30 text-[11px] text-slate-500">
                                     <td className="p-1.5 pl-14 sticky left-0 z-10 bg-slate-950/95 border-r border-slate-800 italic shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
@@ -1002,12 +1212,12 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                       const val = nano.monthlyValues[m] || 0;
                                       return (
                                         <td key={m} className="p-1.5 text-right tabular-nums">
-                                          {val > 0 ? formatCurrency(val) : <span className="text-slate-800">-</span>}
+                                          {renderCellWithDiff(val, baseNano?.monthly[m], 'income')}
                                         </td>
                                       );
                                     })}
                                     <td className="p-1.5 text-right tabular-nums font-normal text-slate-400 bg-slate-950/80 border-l border-slate-800">
-                                      {nanoAnnual > 0 ? formatCurrency(nanoAnnual) : '-'}
+                                      {renderCellWithDiff(nanoAnnual, baseNano?.total, 'income')}
                                     </td>
                                   </tr>
                                 );
@@ -1022,7 +1232,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
               )}
 
               {/* ================= SEÇÃO: DESPESAS ================= */}
-              {(activeTab === 'all' || activeTab === 'expense') && (
+              {(activeTab === 'all' || activeTab === 'expense' || activeTab === 'compare') && (
                 <>
                   <tr className="bg-rose-950/40 text-rose-300 font-bold border-t border-b border-rose-500/30">
                     <td className="p-2.5 pl-3 sticky left-0 z-10 bg-rose-950/90 border-r border-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
@@ -1033,11 +1243,11 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                     </td>
                     {displayExpenseTotals.map((tot, idx) => (
                       <td key={idx} className="p-2.5 text-right tabular-nums font-semibold">
-                        {tot > 0 ? formatCurrency(tot) : '-'}
+                        {renderCellWithDiff(tot, compareLookup?.expenseTotals[idx], 'expense')}
                       </td>
                     ))}
                     <td className="p-2.5 text-right tabular-nums font-black text-rose-400 bg-rose-950/60 border-l border-slate-800">
-                      {formatCurrency(totalAnnualExpense)}
+                      {renderCellWithDiff(totalAnnualExpense, compareLookup?.summary.totalExpense, 'expense')}
                     </td>
                   </tr>
 
@@ -1046,6 +1256,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                     const annualTot = cat.total;
                     const subs = cat.subcategories;
                     const isExpanded = Boolean(expandedCategories[cat.id]);
+                    const baseCat = compareLookup?.catMap[cat.id];
 
                     return (
                       <React.Fragment key={cat.id}>
@@ -1056,7 +1267,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                 <button
                                   type="button"
                                   onClick={() => toggleExpand(cat.id)}
-                                  className="p-0.5 text-slate-400 hover:text-white transition-colors"
+                                  className="p-0.5 text-slate-400 hover:text-white transition-colors cursor-pointer"
                                 >
                                   {isExpanded ? (
                                     <ChevronDown className="w-3.5 h-3.5 text-teal-400" />
@@ -1072,12 +1283,12 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                             const val = cat.monthlyValues[m] || 0;
                             return (
                               <td key={m} className="p-2 text-right tabular-nums text-slate-300">
-                                {val > 0 ? formatCurrency(val) : <span className="text-slate-600">-</span>}
+                                {renderCellWithDiff(val, baseCat?.monthly[m], 'expense')}
                               </td>
                             );
                           })}
                           <td className="p-2 text-right tabular-nums font-bold text-white bg-slate-900/50 border-l border-slate-800">
-                            {annualTot > 0 ? formatCurrency(annualTot) : '-'}
+                            {renderCellWithDiff(annualTot, baseCat?.total, 'expense')}
                           </td>
                         </tr>
 
@@ -1086,6 +1297,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                           const subAnnual = sub.total;
                           const hasNanos = sub.nanos && sub.nanos.length > 0;
                           const isSubExpanded = Boolean(expandedSubcategories[sub.id]);
+                          const baseSub = compareLookup?.subMap[sub.id];
 
                           return (
                             <React.Fragment key={sub.id}>
@@ -1096,7 +1308,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                       <button
                                         type="button"
                                         onClick={() => toggleExpandSubcategory(sub.id)}
-                                        className="p-0.5 text-slate-400 hover:text-white transition-colors"
+                                        className="p-0.5 text-slate-400 hover:text-white transition-colors cursor-pointer"
                                         title={isSubExpanded ? "Recolher divisões" : "Expandir divisões"}
                                       >
                                         {isSubExpanded ? (
@@ -1115,18 +1327,21 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                   const val = sub.monthlyValues[m] || 0;
                                   return (
                                     <td key={m} className="p-2 text-right tabular-nums text-slate-400">
-                                      {val > 0 ? formatCurrency(val) : <span className="text-slate-700">-</span>}
+                                      {renderCellWithDiff(val, baseSub?.monthly[m], 'expense')}
                                     </td>
                                   );
                                 })}
                                 <td className="p-2 text-right tabular-nums text-slate-300 font-medium bg-slate-950/60 border-l border-slate-800">
-                                  {subAnnual > 0 ? formatCurrency(subAnnual) : '-'}
+                                  {renderCellWithDiff(subAnnual, baseSub?.total, 'expense')}
                                 </td>
                               </tr>
 
                               {/* Linhas das Nano-Categorias de Despesa */}
                               {isSubExpanded && sub.nanos.map(nano => {
                                 const nanoAnnual = nano.total;
+                                const nanoKey = normalizeKey(nano.name);
+                                const baseNano = compareLookup?.nanoMap[`${sub.id}_${nanoKey}`];
+
                                 return (
                                   <tr key={nano.name} className="bg-slate-950/70 hover:bg-slate-800/30 text-[11px] text-slate-500">
                                     <td className="p-1.5 pl-14 sticky left-0 z-10 bg-slate-950/95 border-r border-slate-800 italic shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
@@ -1136,12 +1351,12 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                       const val = nano.monthlyValues[m] || 0;
                                       return (
                                         <td key={m} className="p-1.5 text-right tabular-nums">
-                                          {val > 0 ? formatCurrency(val) : <span className="text-slate-800">-</span>}
+                                          {renderCellWithDiff(val, baseNano?.monthly[m], 'expense')}
                                         </td>
                                       );
                                     })}
                                     <td className="p-1.5 text-right tabular-nums font-normal text-slate-400 bg-slate-950/80 border-l border-slate-800">
-                                      {nanoAnnual > 0 ? formatCurrency(nanoAnnual) : '-'}
+                                      {renderCellWithDiff(nanoAnnual, baseNano?.total, 'expense')}
                                     </td>
                                   </tr>
                                 );
@@ -1156,7 +1371,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
               )}
 
               {/* ================= SEÇÃO: RESULTADOS E FLUXO ================= */}
-              {activeTab === 'all' && (
+              {(activeTab === 'all' || activeTab === 'compare') && (
                 <>
                   {/* Linha 1: Fluxo de Caixa Líquido do Mês */}
                   <tr className="bg-slate-950/90 font-bold border-t-2 border-slate-700">
@@ -1173,7 +1388,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                           cf >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
-                        {formatCurrency(cf)}
+                        {renderCellWithDiff(cf, compareLookup?.netTotals[idx], 'net')}
                       </td>
                     ))}
                     <td
@@ -1181,7 +1396,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                         totalAnnualCashFlow >= 0 ? 'text-emerald-400 bg-emerald-950/40' : 'text-rose-400 bg-rose-950/40'
                       }`}
                     >
-                      {formatCurrency(totalAnnualCashFlow)}
+                      {renderCellWithDiff(totalAnnualCashFlow, compareLookup?.summary.netBalance, 'net')}
                     </td>
                   </tr>
 
@@ -1193,22 +1408,33 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                         <span>FLUXO ACUMULADO</span>
                       </div>
                     </td>
-                    {displayAccumulatedTotals.map((acc, idx) => (
-                      <td
-                        key={idx}
-                        className={`p-2.5 text-right tabular-nums font-bold ${
-                          acc >= 0 ? 'text-teal-300' : 'text-rose-400'
-                        }`}
-                      >
-                        {formatCurrency(acc)}
-                      </td>
-                    ))}
+                    {displayAccumulatedTotals.map((acc, idx) => {
+                      // Obter acumulado da baseline
+                      let baseAcc: number | undefined = undefined;
+                      if (compareLookup?.netTotals) {
+                        baseAcc = compareLookup.netTotals.slice(0, idx + 1).reduce((a, b) => a + b, 0);
+                      }
+                      return (
+                        <td
+                          key={idx}
+                          className={`p-2.5 text-right tabular-nums font-bold ${
+                            acc >= 0 ? 'text-teal-300' : 'text-rose-400'
+                          }`}
+                        >
+                          {renderCellWithDiff(acc, baseAcc, 'net')}
+                        </td>
+                      );
+                    })}
                     <td
                       className={`p-2.5 text-right tabular-nums font-black border-l border-slate-800 ${
                         displayAccumulatedTotals[11] >= 0 ? 'text-teal-300 bg-teal-950/60' : 'text-rose-400 bg-rose-950/60'
                       }`}
                     >
-                      {formatCurrency(displayAccumulatedTotals[11] || 0)}
+                      {renderCellWithDiff(
+                        displayAccumulatedTotals[11] || 0,
+                        compareLookup?.netTotals ? compareLookup.netTotals.reduce((a, b) => a + b, 0) : undefined,
+                        'net'
+                      )}
                     </td>
                   </tr>
                 </>
