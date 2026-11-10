@@ -41,10 +41,62 @@ import {
   DashboardCardId,
   mergeDashboardLayout,
 } from '@/types/settings';
+import { loadUserPreferencesFromSupabase, upsertUserPreferencesToSupabase } from '@/lib/supabase/syncService';
 import { Plus, ArrowRight, CloudDownload, Bell, Check, Loader2, Eye, EyeOff } from 'lucide-react';
 
 function DashboardContent() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  const { unreadAlertsCount, refreshFromCloud, isPrivacyMode, togglePrivacyMode, userId } = useFinance();
+
+  // Inicialização inteligente da aba ativa com cache local para abertura instantânea sem recarregar no dashboard
+  const [activeTab, setActiveTabState] = useState<ActiveTab>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = (sessionStorage.getItem('poupix_last_active_tab') || localStorage.getItem('poupix_last_active_tab')) as ActiveTab | null;
+      if (cached && [
+        'dashboard', 'transactions', 'cards', 'accounts', 'budgets', 'goals',
+        'tags', 'projections', 'openfinance', 'reports', 'users', 'settings',
+        'monthly-balance', 'pending-alerts'
+      ].includes(cached)) {
+        return cached;
+      }
+    }
+    return 'dashboard';
+  });
+
+  // Função centralizada para definir a aba ativa com persistência no Supabase e em cache
+  const setActiveTab = (tab: ActiveTab) => {
+    setActiveTabState(tab);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('poupix_last_active_tab', tab);
+      localStorage.setItem('poupix_last_active_tab', tab);
+    }
+    if (userId) {
+      upsertUserPreferencesToSupabase(userId, {
+        last_active_tab: tab,
+      }).catch(err => console.error('Erro ao sincronizar aba ativa no Supabase:', err));
+    }
+  };
+
+  // Carregar aba salva no Supabase assim que o userId estiver disponível
+  useEffect(() => {
+    if (!userId) return;
+    loadUserPreferencesFromSupabase(userId).then(prefs => {
+      if (prefs?.last_active_tab) {
+        const savedTab = prefs.last_active_tab as ActiveTab;
+        if ([
+          'dashboard', 'transactions', 'cards', 'accounts', 'budgets', 'goals',
+          'tags', 'projections', 'openfinance', 'reports', 'users', 'settings',
+          'monthly-balance', 'pending-alerts'
+        ].includes(savedTab)) {
+          setActiveTabState(savedTab);
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('poupix_last_active_tab', savedTab);
+            localStorage.setItem('poupix_last_active_tab', savedTab);
+          }
+        }
+      }
+    }).catch(err => console.error(err));
+  }, [userId]);
+
   const [selectedTxFilter, setSelectedTxFilter] = useState<'all' | 'income' | 'expense' | 'transfer'>('all');
   const [selectedTxStatusFilter, setSelectedTxStatusFilter] = useState<'all' | 'pending' | 'paid'>('all');
   const [selectedDetailCardId, setSelectedDetailCardId] = useState<string | null>(null);
@@ -58,8 +110,6 @@ function DashboardContent() {
   const [isDownloadingCloud, setIsDownloadingCloud] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-
-  const { unreadAlertsCount, refreshFromCloud, isPrivacyMode, togglePrivacyMode } = useFinance();
 
   const [dashboardLayout, setDashboardLayout] = useState<DashboardLayoutPreferences>(DEFAULT_DASHBOARD_LAYOUT);
 
@@ -75,7 +125,7 @@ function DashboardContent() {
   }, [activeTab]);
 
   // Pilha de histórico de abas navegadas
-  const [tabHistory, setTabHistory] = useState<ActiveTab[]>(['dashboard']);
+  const [tabHistory, setTabHistory] = useState<ActiveTab[]>(() => [activeTab]);
 
   // Mantém refs dos estados para o listener global de popstate sem recriá-lo
   const activeTabRef = useRef(activeTab);
@@ -100,17 +150,18 @@ function DashboardContent() {
   // Garante que o histórico do navegador tenha pelo menos uma entrada nossa para interceptar o popstate
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Inicia com um estado Poupix se ainda não houver
       if (!window.history.state?.poupix) {
-        window.history.replaceState({ poupix: true, tab: 'dashboard' }, '');
+        window.history.replaceState({ poupix: true, tab: activeTabRef.current }, '');
       }
     }
   }, []);
 
   // Interceptador global do botão "Voltar" nativo do celular (popstate)
-  // REGRA: Sempre retorna para a tela principal (dashboard) ou fecha modais, e NUNCA sai do aplicativo.
+  // REGRA DE OURO (solicitada pelo usuário):
+  // 1. Fecha modais ou drawers caso estejam abertos.
+  // 2. Se a tela de relatórios ou qualquer outra tela estiver aberta, ELA PERMANECE ABERTA.
+  //    NÃO fechar a tela ao voltar ou ao alternar entre apps do celular. Só fecha se o usuário explicitamente fechar ou trocar de aba.
   useEffect(() => {
-    // Garante que haja um histórico para interceptar
     if (typeof window !== 'undefined') {
       window.history.pushState({ poupix: true, tab: activeTabRef.current }, '');
     }
@@ -133,20 +184,9 @@ function DashboardContent() {
         return;
       }
 
-      // 2. Se estiver em qualquer tela que não seja o dashboard, volta diretamente para o dashboard
-      const currentTab = activeTabRef.current;
-      if (currentTab !== 'dashboard') {
-        setTabHistory(['dashboard']);
-        setActiveTab('dashboard');
-
-        // Reinsere barreira no histórico para proteger o app
-        window.history.pushState({ poupix: true, tab: 'dashboard' }, '');
-        return;
-      }
-
-      // 3. Se JÁ ESTÁ NA TELA PRINCIPAL (dashboard):
-      // NUNCA sai do app: apenas recoloca o estado no histórico e mantém o app aberto
-      window.history.pushState({ poupix: true, tab: 'dashboard' }, '');
+      // 2. A tela ativa NÃO fecha ao voltar e NÃO volta para o dashboard sozinha:
+      // Mantém a tela atual aberta de forma fixa e permanente
+      window.history.pushState({ poupix: true, tab: activeTabRef.current }, '');
     };
 
     window.addEventListener('popstate', handlePopState);

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFinance } from '@/context/FinanceContext';
+import { loadUserPreferencesFromSupabase, upsertUserPreferencesToSupabase } from '@/lib/supabase/syncService';
 import { Transaction } from '@/types/finance';
 import { TransactionFlowType } from '../transactions/modal/TransactionModal';
 import { DesktopMonthlyBalanceView } from '../dashboard/DesktopMonthlyBalanceView';
@@ -34,8 +35,48 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   onOpenNewTransaction,
   onBack,
 }) => {
-  const { summary, filteredTransactions, selectedMonth, selectedYear, categories, accounts, exportDatabaseBackup } = useFinance();
-  const [activeTab, setActiveTab] = useState<'balance' | 'matrix' | 'statement'>('matrix');
+  const { summary, filteredTransactions, selectedMonth, selectedYear, categories, accounts, exportDatabaseBackup, userId } = useFinance();
+  
+  // Inicialização inteligente com fallback para sessionStorage para evitar qualquer piscada
+  const [activeTab, setActiveTabState] = useState<'balance' | 'matrix' | 'statement'>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = sessionStorage.getItem('poupix_active_report_subtab') as 'balance' | 'matrix' | 'statement' | null;
+      if (cached && ['balance', 'matrix', 'statement'].includes(cached)) {
+        return cached;
+      }
+    }
+    return 'matrix';
+  });
+
+  // Atualizar e persistir no Supabase e no cache de sessão
+  const handleSelectTab = (tab: 'balance' | 'matrix' | 'statement') => {
+    setActiveTabState(tab);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('poupix_active_report_subtab', tab);
+    }
+    if (userId) {
+      upsertUserPreferencesToSupabase(userId, {
+        last_active_report_subtab: tab,
+      }).catch(err => console.error('Falha ao persistir sub-aba no Supabase:', err));
+    }
+  };
+
+  // Carregar preferência salva no Supabase na montagem
+  useEffect(() => {
+    if (!userId) return;
+    loadUserPreferencesFromSupabase(userId).then(prefs => {
+      if (prefs?.last_active_report_subtab) {
+        const saved = prefs.last_active_report_subtab as 'balance' | 'matrix' | 'statement';
+        if (['balance', 'matrix', 'statement'].includes(saved)) {
+          setActiveTabState(saved);
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('poupix_active_report_subtab', saved);
+          }
+        }
+      }
+    }).catch(err => console.error(err));
+  }, [userId]);
+
   const [reportType, setReportType] = useState<'monthly' | 'categories' | 'accounts'>('monthly');
 
   const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -103,7 +144,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <div className="flex flex-wrap items-center bg-slate-950/80 border border-slate-800 p-1 rounded-2xl text-xs self-start sm:self-auto gap-1">
           <button
             type="button"
-            onClick={() => setActiveTab('matrix')}
+            onClick={() => handleSelectTab('matrix')}
             className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
               activeTab === 'matrix'
                 ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-md shadow-emerald-500/20 font-bold'
@@ -116,7 +157,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('balance')}
+            onClick={() => handleSelectTab('balance')}
             className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
               activeTab === 'balance'
                 ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-md shadow-emerald-500/20 font-bold'
@@ -128,7 +169,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('statement')}
+            onClick={() => handleSelectTab('statement')}
             className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl font-semibold transition-all cursor-pointer ${
               activeTab === 'statement'
                 ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-md shadow-emerald-500/20 font-bold'

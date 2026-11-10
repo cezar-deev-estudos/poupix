@@ -588,6 +588,8 @@ export interface UserPreferencesRecord {
   desktop_category_order?: string[];
   mobile_category_order?: string[];
   collapsed_categories?: string[];
+  last_active_tab?: string;
+  last_active_report_subtab?: string;
 }
 
 export const loadUserPreferencesFromSupabase = async (
