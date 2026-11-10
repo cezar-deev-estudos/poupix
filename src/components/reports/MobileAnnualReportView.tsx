@@ -34,13 +34,18 @@ interface MobileAnnualReportViewProps {
 }
 
 export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () => {
-  const { transactions, categories, creditCards, selectedYear: currentYear, userId } = useFinance();
+  const { transactions, categories, creditCards, selectedMonth, selectedYear: currentYear, userId } = useFinance();
   const [reportYear, setReportYear] = useState<number>(currentYear || new Date().getFullYear());
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [expandedSubcategories, setExpandedSubcategories] = useState<Record<string, boolean>>({});
   const [expandedMonthDetails, setExpandedMonthDetails] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income' | 'compare'>('all');
-  const [selectedMonthFilter, setSelectedMonthFilter] = useState<number | 'all'>('all'); // 'all' ou 0..11
+  // Padronização: Inicia no mês atual selecionado no sistema
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<number | 'all'>(() => {
+    return typeof selectedMonth === 'number' && selectedMonth >= 0 && selectedMonth <= 11
+      ? selectedMonth
+      : new Date().getMonth();
+  });
 
   // Estado das Baselines / Snapshots Congelados (Supabase)
   const [baselines, setBaselines] = useState<AnnualBudgetBaseline[]>([]);

@@ -36,7 +36,7 @@ interface AnnualMatrixReportViewProps {
 }
 
 export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () => {
-  const { transactions, categories, creditCards, selectedYear: currentYear, userId } = useFinance();
+  const { transactions, categories, creditCards, selectedMonth, selectedYear: currentYear, userId } = useFinance();
   const [reportYear, setReportYear] = useState<number>(currentYear || new Date().getFullYear());
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [expandedSubcategories, setExpandedSubcategories] = useState<Record<string, boolean>>({});
@@ -78,6 +78,20 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     if (!selectedBaselineId) return null;
     return baselines.find(b => b.id === selectedBaselineId) || null;
   }, [baselines, selectedBaselineId]);
+
+  // Identificação do Mês Atual para destaque na matriz horizontal
+  const isCurrentYear = reportYear === (currentYear || new Date().getFullYear());
+  const currentMonthIndex = typeof selectedMonth === 'number' && selectedMonth >= 0 && selectedMonth <= 11
+    ? selectedMonth
+    : new Date().getMonth();
+
+  // Helper para estilizar a coluna do Mês Atual de forma consistente
+  const getCurrentMonthColClass = (mIdx: number, extraClasses = '') => {
+    if (!isCurrentYear || mIdx !== currentMonthIndex) {
+      return extraClasses;
+    }
+    return `${extraClasses} bg-teal-500/10 border-x-2 border-teal-500/60 relative`;
+  };
 
   const isCompareMode = activeTab === 'compare';
 
@@ -1080,11 +1094,26 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                 <th className="p-3 sticky left-0 z-20 bg-slate-950 font-bold uppercase tracking-wider text-[11px] w-64 min-w-[240px] border-r border-slate-800/80 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
                   {reportYear} / Categorias
                 </th>
-                {MONTH_SHORT_NAMES.map(m => (
-                  <th key={m} className="p-2.5 text-right font-bold text-[11px] min-w-[80px]">
-                    {m}
-                  </th>
-                ))}
+                {MONTH_SHORT_NAMES.map((m, mIdx) => {
+                  const isCurrent = isCurrentYear && mIdx === currentMonthIndex;
+                  return (
+                    <th
+                      key={m}
+                      className={`p-2.5 text-right font-bold text-[11px] min-w-[80px] transition-colors ${
+                        isCurrent
+                          ? 'bg-teal-500/20 text-teal-300 border-x-2 border-teal-500/80 ring-1 ring-teal-500/50'
+                          : ''
+                      }`}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        <span>{m}</span>
+                        {isCurrent && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" title="Mês Atual" />
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
                 <th className="p-2.5 text-right font-bold text-[11px] min-w-[105px] bg-slate-900/90 text-teal-300 border-l border-slate-800">
                   TOTAL
                 </th>
@@ -1103,7 +1132,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                       </div>
                     </td>
                     {displayIncomeTotals.map((tot, idx) => (
-                      <td key={idx} className="p-2.5 text-right tabular-nums font-semibold">
+                      <td key={idx} className={getCurrentMonthColClass(idx, 'p-2.5 text-right tabular-nums font-semibold')}>
                         {renderCellWithDiff(tot, compareLookup?.incomeTotals[idx], 'income')}
                       </td>
                     ))}
@@ -1143,7 +1172,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                           {MONTH_SHORT_NAMES.map((_, m) => {
                             const val = cat.monthlyValues[m] || 0;
                             return (
-                              <td key={m} className="p-2 text-right tabular-nums text-slate-300">
+                              <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums text-slate-300')}>
                                 {renderCellWithDiff(val, baseCat?.monthly[m], 'income')}
                               </td>
                             );
@@ -1187,7 +1216,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                 {MONTH_SHORT_NAMES.map((_, m) => {
                                   const val = sub.monthlyValues[m] || 0;
                                   return (
-                                    <td key={m} className="p-2 text-right tabular-nums text-slate-400">
+                                    <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums text-slate-400')}>
                                       {renderCellWithDiff(val, baseSub?.monthly[m], 'income')}
                                     </td>
                                   );
@@ -1211,7 +1240,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                     {MONTH_SHORT_NAMES.map((_, m) => {
                                       const val = nano.monthlyValues[m] || 0;
                                       return (
-                                        <td key={m} className="p-1.5 text-right tabular-nums">
+                                        <td key={m} className={getCurrentMonthColClass(m, 'p-1.5 text-right tabular-nums')}>
                                           {renderCellWithDiff(val, baseNano?.monthly[m], 'income')}
                                         </td>
                                       );
@@ -1242,7 +1271,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                       </div>
                     </td>
                     {displayExpenseTotals.map((tot, idx) => (
-                      <td key={idx} className="p-2.5 text-right tabular-nums font-semibold">
+                      <td key={idx} className={getCurrentMonthColClass(idx, 'p-2.5 text-right tabular-nums font-semibold')}>
                         {renderCellWithDiff(tot, compareLookup?.expenseTotals[idx], 'expense')}
                       </td>
                     ))}
@@ -1282,7 +1311,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                           {MONTH_SHORT_NAMES.map((_, m) => {
                             const val = cat.monthlyValues[m] || 0;
                             return (
-                              <td key={m} className="p-2 text-right tabular-nums text-slate-300">
+                              <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums text-slate-300')}>
                                 {renderCellWithDiff(val, baseCat?.monthly[m], 'expense')}
                               </td>
                             );
@@ -1326,7 +1355,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                 {MONTH_SHORT_NAMES.map((_, m) => {
                                   const val = sub.monthlyValues[m] || 0;
                                   return (
-                                    <td key={m} className="p-2 text-right tabular-nums text-slate-400">
+                                    <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums text-slate-400')}>
                                       {renderCellWithDiff(val, baseSub?.monthly[m], 'expense')}
                                     </td>
                                   );
@@ -1350,7 +1379,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                     {MONTH_SHORT_NAMES.map((_, m) => {
                                       const val = nano.monthlyValues[m] || 0;
                                       return (
-                                        <td key={m} className="p-1.5 text-right tabular-nums">
+                                        <td key={m} className={getCurrentMonthColClass(m, 'p-1.5 text-right tabular-nums')}>
                                           {renderCellWithDiff(val, baseNano?.monthly[m], 'expense')}
                                         </td>
                                       );
@@ -1384,9 +1413,10 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                     {displayNetTotals.map((cf, idx) => (
                       <td
                         key={idx}
-                        className={`p-2.5 text-right tabular-nums font-bold ${
-                          cf >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                        }`}
+                        className={getCurrentMonthColClass(
+                          idx,
+                          `p-2.5 text-right tabular-nums font-bold ${cf >= 0 ? 'text-emerald-400' : 'text-rose-400'}`
+                        )}
                       >
                         {renderCellWithDiff(cf, compareLookup?.netTotals[idx], 'net')}
                       </td>
@@ -1417,9 +1447,10 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                       return (
                         <td
                           key={idx}
-                          className={`p-2.5 text-right tabular-nums font-bold ${
-                            acc >= 0 ? 'text-teal-300' : 'text-rose-400'
-                          }`}
+                          className={getCurrentMonthColClass(
+                            idx,
+                            `p-2.5 text-right tabular-nums font-bold ${acc >= 0 ? 'text-teal-300' : 'text-rose-400'}`
+                          )}
                         >
                           {renderCellWithDiff(acc, baseAcc, 'net')}
                         </td>
