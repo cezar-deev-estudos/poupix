@@ -127,6 +127,7 @@ export function exportTransactionsToExcel({
         'Descrição': tx.description || 'Lançamento',
         'Categoria': categoryName,
         'Subcategoria': subcategoryName,
+        'CF': tx.isFixedCost ? 'Sim' : 'Não',
         'Despesa Decrescente': tx.isDecreasing ? 'Sim' : 'Não',
         'Nano categoria': isNanoUsed ? 'Sim' : 'Não',
         'Conta / Cartão': accountOrCard,
@@ -174,8 +175,8 @@ export function exportTransactionsToExcel({
       dateCell.z = 'dd/mm/yyyy';
     }
 
-    // Coluna J (Valor (R$), índice 9)
-    const valueCellAddress = XLSX.utils.encode_cell({ r: R, c: 9 });
+    // Coluna K (Valor (R$), índice 10)
+    const valueCellAddress = XLSX.utils.encode_cell({ r: R, c: 10 });
     const valueCell = worksheet[valueCellAddress];
     if (valueCell && typeof valueCell.v === 'number') {
       valueCell.z = '"R$" #,##0.00;[Red]-"R$" #,##0.00';
@@ -190,15 +191,16 @@ export function exportTransactionsToExcel({
     { wch: 32 }, // Descrição (D)
     { wch: 22 }, // Categoria (E)
     { wch: 22 }, // Subcategoria (F)
-    { wch: 20 }, // Despesa Decrescente (G)
-    { wch: 16 }, // Nano categoria (H)
-    { wch: 24 }, // Conta / Cartão (I)
-    { wch: 16 }, // Valor (R$) (J)
-    { wch: 8 },  // Fixa (K)
-    { wch: 10 }, // Parcelas (L)
-    { wch: 20 }, // Tags (M)
-    { wch: 25 }, // Observação (N)
-    { wch: 38 }, // ID (O)
+    { wch: 8 },  // CF (G)
+    { wch: 20 }, // Despesa Decrescente (H)
+    { wch: 16 }, // Nano categoria (I)
+    { wch: 24 }, // Conta / Cartão (J)
+    { wch: 16 }, // Valor (R$) (K)
+    { wch: 8 },  // Fixa (L)
+    { wch: 10 }, // Parcelas (M)
+    { wch: 20 }, // Tags (N)
+    { wch: 25 }, // Observação (O)
+    { wch: 38 }, // ID (P)
   ];
 
   // 5. Criar pasta de trabalho (Workbook)

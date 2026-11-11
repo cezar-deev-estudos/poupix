@@ -43,6 +43,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
   const [categoryId, setCategoryId] = useState(initialData !== undefined && initialData !== null ? (initialData.categoryId ?? '') : defaultCatId);
   const [creditCardId, setCreditCardId] = useState(initialSelectedCardId);
   const [ignoreInTotals, setIgnoreInTotals] = useState(initialData?.ignoreInTotals ?? false);
+  const [isFixedCost, setIsFixedCost] = useState(initialData?.isFixedCost ?? false);
 
   const selectedCategory = categories.find(c => c.id === categoryId);
   const currentNanoCategories = selectedCategory?.nanoCategories || [];
@@ -66,6 +67,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
       setCategoryId(initialData.categoryId ?? '');
       setCreditCardId(initialData.creditCardId || initialSelectedCardId);
       setIgnoreInTotals(Boolean(initialData.ignoreInTotals));
+      setIsFixedCost(Boolean(initialData.isFixedCost));
       setTags(initialData.tags || []);
       setNotes(initialData.notes || '');
       setIsRecurring(Boolean(initialData.isRecurring));
@@ -151,6 +153,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
         creditCardId: selectedCard?.id,
         paid: false,
         ignoreInTotals,
+        isFixedCost,
         isFavorite,
         invoiceDate: invoiceDate || invoiceOptions[0]?.value,
         tags: tags.length > 0 ? tags : undefined,
@@ -191,8 +194,22 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
             autoOpenKeypadOnMobile={!initialData}
           />
 
-          {/* Seletor Rápido de Data */}
-          <QuickDateSelector value={date} onChange={setDate} variant="cyan" />
+          {/* Seletor Rápido de Data + Toggle Custo Fixo (CF) */}
+          <div className="flex items-center justify-between gap-2">
+            <QuickDateSelector value={date} onChange={setDate} variant="cyan" />
+            <button
+              type="button"
+              onClick={() => setIsFixedCost(!isFixedCost)}
+              className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer border shrink-0 ${
+                isFixedCost
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm shadow-amber-500/20 ring-1 ring-amber-500/30'
+                  : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 border-slate-800'
+              }`}
+              title={isFixedCost ? 'Custo Fixo (Essencial) Ativado' : 'Marcar como Custo Fixo (CF)'}
+            >
+              CF {isFixedCost ? '✓' : ''}
+            </button>
+          </div>
 
           {/* Descrição com Autocomplete Inteligente (Preenche Categoria e Cartão) */}
           <DescriptionInputAutocomplete

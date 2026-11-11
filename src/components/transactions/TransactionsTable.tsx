@@ -665,6 +665,20 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
           )}
         </td>
 
+        {/* Custo Fixo (CF) */}
+        <td className="py-3 px-2 text-center whitespace-nowrap">
+          {tx.isFixedCost ? (
+            <span
+              className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm shadow-amber-500/10"
+              title="Custo Fixo (Gasto essencial para reserva de emergência)"
+            >
+              CF
+            </span>
+          ) : (
+            <span className="text-slate-600">-</span>
+          )}
+        </td>
+
         {/* Valor */}
         <td
           className={`py-3 px-4 text-right font-bold whitespace-nowrap ${
@@ -1343,6 +1357,13 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                     </div>
                   </>
                 )}
+              </th>
+
+              {/* Coluna: CF (Custo Fixo) */}
+              <th className="py-3 px-2 text-center w-14">
+                <span className="font-semibold uppercase text-slate-300" title="Custo Fixo (Essencial para Reserva de Emergência)">
+                  CF
+                </span>
               </th>
 
               {/* Coluna: Valor */}

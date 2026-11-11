@@ -77,6 +77,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   const [accountId, setAccountId] = useState(initialData?.accountId || initialAccId);
   const [ignoreInTotals, setIgnoreInTotals] = useState(initialData?.ignoreInTotals ?? false);
   const [isDecreasing, setIsDecreasing] = useState(initialData?.isDecreasing ?? false);
+  const [isFixedCost, setIsFixedCost] = useState(initialData?.isFixedCost ?? false);
 
   const selectedCategory = categories.find(c => c.id === categoryId);
   const currentNanoCategories = selectedCategory?.nanoCategories || [];
@@ -129,6 +130,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       setCategoryId(initialData.categoryId ?? '');
       setAccountId(initialData.accountId || initialAccId);
       setIgnoreInTotals(Boolean(initialData.ignoreInTotals));
+      setIsFixedCost(Boolean(initialData.isFixedCost));
       setIsDecreasing(Boolean(initialData.isDecreasing));
       setTags(initialData.tags || []);
       setNotes(initialData.notes || '');
@@ -169,6 +171,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
         accountId: effectiveAccountId,
         paid,
         ignoreInTotals,
+        isFixedCost,
         isDecreasing,
         initialAmount: isDecreasing ? numAmount : undefined,
         isFavorite,
@@ -235,8 +238,22 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
             }
           />
 
-          {/* Seletor Rápido de Data */}
-          <QuickDateSelector value={date} onChange={setDate} variant="rose" />
+          {/* Seletor Rápido de Data + Toggle Custo Fixo (CF) */}
+          <div className="flex items-center justify-between gap-2">
+            <QuickDateSelector value={date} onChange={setDate} variant="rose" />
+            <button
+              type="button"
+              onClick={() => setIsFixedCost(!isFixedCost)}
+              className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer border shrink-0 ${
+                isFixedCost
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm shadow-amber-500/20 ring-1 ring-amber-500/30'
+                  : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 border-slate-800'
+              }`}
+              title={isFixedCost ? 'Custo Fixo (Essencial) Ativado' : 'Marcar como Custo Fixo (CF)'}
+            >
+              CF {isFixedCost ? '✓' : ''}
+            </button>
+          </div>
 
           {/* Descrição com Autocomplete Inteligente (Preenche Categoria e Cor) */}
           <DescriptionInputAutocomplete

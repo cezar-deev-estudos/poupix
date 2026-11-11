@@ -170,6 +170,7 @@ export interface Database {
           ignore_in_totals: boolean
           invoice_date: string | null
           is_favorite: boolean
+          is_fixed_cost?: boolean
           tags: string[]
           notes: string | null
           created_at: string
@@ -194,6 +195,7 @@ export interface Database {
           ignore_in_totals?: boolean
           invoice_date?: string | null
           is_favorite?: boolean
+          is_fixed_cost?: boolean
           tags?: string[]
           notes?: string | null
           created_at?: string
@@ -218,6 +220,7 @@ export interface Database {
           ignore_in_totals?: boolean
           invoice_date?: string | null
           is_favorite?: boolean
+          is_fixed_cost?: boolean
           tags?: string[]
           notes?: string | null
           created_at?: string

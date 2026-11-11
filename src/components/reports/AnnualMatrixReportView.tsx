@@ -80,11 +80,12 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     return baselines.find(b => b.id === selectedBaselineId) || null;
   }, [baselines, selectedBaselineId]);
 
-  // Identificação do Mês Atual para destaque na matriz horizontal
-  const isCurrentYear = reportYear === (currentYear || new Date().getFullYear());
-  const currentMonthIndex = typeof selectedMonth === 'number' && selectedMonth >= 0 && selectedMonth <= 11
-    ? selectedMonth
-    : new Date().getMonth();
+  // Identificação do Mês Atual para destaque na matriz horizontal baseado estritamente na data real do sistema
+  const realToday = new Date();
+  const realCurrentYear = realToday.getFullYear();
+  const realCurrentMonthIndex = realToday.getMonth();
+  const isCurrentYear = reportYear === realCurrentYear;
+  const currentMonthIndex = realCurrentMonthIndex;
 
   // Helper para estilizar a coluna do Mês Atual de forma consistente
   const getCurrentMonthColClass = (mIdx: number, extraClasses = '') => {
