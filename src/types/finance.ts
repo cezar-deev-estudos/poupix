@@ -100,7 +100,7 @@ export interface Transaction {
   ignoreInTotals?: boolean; // Ignorar transação em cálculos e relatórios
   invoiceDate?: string; // Data de vencimento da fatura do cartão
   isFavorite?: boolean; // Transação marcada como favorita
-  isFixedCost?: boolean; // CF - Custo Fixo / Gasto essencial para reserva de emergência
+  isFixedCost?: boolean; // DF - Despesa Fixa / Gasto essencial para reserva de emergência
   isDecreasing?: boolean; // Despesa decrescente (reserva mensal que diminui conforme novos lançamentos da mesma nano)
   initialAmount?: number; // Valor original de partida da reserva decrescente
   linkedDecreasingId?: string; // ID da despesa decrescente vinculada para estorno automático na exclusão

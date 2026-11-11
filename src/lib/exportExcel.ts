@@ -127,7 +127,7 @@ export function exportTransactionsToExcel({
         'Descrição': tx.description || 'Lançamento',
         'Categoria': categoryName,
         'Subcategoria': subcategoryName,
-        'CF': tx.isFixedCost ? 'Sim' : 'Não',
+        'DF': tx.isFixedCost ? 'Sim' : 'Não',
         'Despesa Decrescente': tx.isDecreasing ? 'Sim' : 'Não',
         'Nano categoria': isNanoUsed ? 'Sim' : 'Não',
         'Conta / Cartão': accountOrCard,
@@ -191,7 +191,7 @@ export function exportTransactionsToExcel({
     { wch: 32 }, // Descrição (D)
     { wch: 22 }, // Categoria (E)
     { wch: 22 }, // Subcategoria (F)
-    { wch: 8 },  // CF (G)
+    { wch: 8 },  // DF (G)
     { wch: 20 }, // Despesa Decrescente (H)
     { wch: 16 }, // Nano categoria (I)
     { wch: 24 }, // Conta / Cartão (J)

@@ -54,7 +54,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   } | null>(null);
 
   // Estados de Ordenação por Coluna (Padrão: data crescente, menor data do mês primeiro)
-  type SortField = 'date' | 'status' | 'type' | 'description' | 'category' | 'subcategory' | 'account' | 'amount';
+  type SortField = 'date' | 'status' | 'type' | 'description' | 'category' | 'subcategory' | 'account' | 'cf' | 'amount';
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
@@ -65,6 +65,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
   const [filterSubcategoryId, setFilterSubcategoryId] = useState<string>('all');
   const [filterAccountId, setFilterAccountId] = useState<string>('all');
+  const [filterCf, setFilterCf] = useState<'all' | 'cf' | 'no_cf'>('all');
 
   // Controle de Dropdown de Filtro Aberto no Cabeçalho
   const [activeFilterDropdown, setActiveFilterDropdown] = useState<string | null>(null);
@@ -117,7 +118,8 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     filterDescription.trim() !== '' || 
     filterCategoryId !== 'all' || 
     filterSubcategoryId !== 'all' || 
-    filterAccountId !== 'all';
+    filterAccountId !== 'all' ||
+    filterCf !== 'all';
 
   const clearAllColumnFilters = () => {
     setFilterStatus('all');
@@ -126,6 +128,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     setFilterCategoryId('all');
     setFilterSubcategoryId('all');
     setFilterAccountId('all');
+    setFilterCf('all');
     setCurrentPage(1);
   };
 
@@ -191,9 +194,13 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
         }
       }
 
+      // Filtro de Custo Fixo (CF)
+      if (filterCf === 'cf' && !tx.isFixedCost) return false;
+      if (filterCf === 'no_cf' && tx.isFixedCost) return false;
+
       return true;
     });
-  }, [transactions, filterStatus, filterType, filterDescription, filterCategoryId, filterSubcategoryId, filterAccountId, categories, accounts, creditCards]);
+  }, [transactions, filterStatus, filterType, filterDescription, filterCategoryId, filterSubcategoryId, filterAccountId, filterCf, categories, accounts, creditCards]);
 
   // 2. Ordenação das transações filtradas
   const sortedTransactions = useMemo(() => {
@@ -237,6 +244,12 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
           const accA = getTxAccountOrCardName(a);
           const accB = getTxAccountOrCardName(b);
           comparison = accA.localeCompare(accB, 'pt-BR');
+          break;
+        }
+        case 'cf': {
+          const cfA = a.isFixedCost ? 1 : 0;
+          const cfB = b.isFixedCost ? 1 : 0;
+          comparison = cfA - cfB;
           break;
         }
         case 'amount': {
@@ -665,14 +678,14 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
           )}
         </td>
 
-        {/* Custo Fixo (CF) */}
+        {/* Despesa Fixa (DF) */}
         <td className="py-3 px-2 text-center whitespace-nowrap">
           {tx.isFixedCost ? (
             <span
-              className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm shadow-amber-500/10"
-              title="Custo Fixo (Gasto essencial para reserva de emergência)"
+              className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm shadow-amber-500/10"
+              title="Despesa Fixa (Gasto essencial para reserva de emergência)"
             >
-              CF
+              DF
             </span>
           ) : (
             <span className="text-slate-600">-</span>
@@ -1359,11 +1372,66 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                 )}
               </th>
 
-              {/* Coluna: CF (Custo Fixo) */}
-              <th className="py-3 px-2 text-center w-14">
-                <span className="font-semibold uppercase text-slate-300" title="Custo Fixo (Essencial para Reserva de Emergência)">
-                  CF
-                </span>
+              {/* Coluna: DF (Despesa Fixa) */}
+              <th className="py-3 px-2 text-center w-20 relative">
+                <div className="flex items-center justify-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSort('cf')}
+                    className="hover:text-white transition-colors inline-flex items-center gap-1 cursor-pointer font-semibold uppercase"
+                    title="Ordenar por Despesa Fixa (DF primeiro / sem DF primeiro)"
+                  >
+                    <span>DF</span>
+                    {sortField === 'cf' ? (
+                      sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-indigo-400" /> : <ArrowDown className="w-3.5 h-3.5 text-indigo-400" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 text-slate-600 hover:text-slate-400 opacity-60" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveFilterDropdown(activeFilterDropdown === 'cf' ? null : 'cf')}
+                    className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${
+                      filterCf !== 'all' ? 'text-amber-400 bg-amber-500/15' : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                    title="Filtrar por Despesa Fixa (DF)"
+                  >
+                    <Filter className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {activeFilterDropdown === 'cf' && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setActiveFilterDropdown(null)} />
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-[#1e2330] border border-slate-700 rounded-2xl shadow-2xl z-40 py-1.5 text-xs normal-case animate-fadeIn text-left">
+                      <button
+                        type="button"
+                        onClick={() => { setFilterCf('all'); setActiveFilterDropdown(null); setCurrentPage(1); }}
+                        className={`w-full text-left px-3 py-1.5 hover:bg-slate-700/60 transition-colors ${filterCf === 'all' ? 'text-indigo-400 font-bold bg-slate-800/80' : 'text-slate-300'}`}
+                      >
+                        Todos os itens
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setFilterCf('cf'); setActiveFilterDropdown(null); setCurrentPage(1); }}
+                        className={`w-full text-left px-3 py-1.5 hover:bg-slate-700/60 transition-colors flex items-center gap-2 ${filterCf === 'cf' ? 'text-amber-400 font-bold bg-slate-800/80' : 'text-slate-300'}`}
+                      >
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          DF
+                        </span>
+                        Apenas Despesas Fixas
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setFilterCf('no_cf'); setActiveFilterDropdown(null); setCurrentPage(1); }}
+                        className={`w-full text-left px-3 py-1.5 hover:bg-slate-700/60 transition-colors ${filterCf === 'no_cf' ? 'text-indigo-400 font-bold bg-slate-800/80' : 'text-slate-300'}`}
+                      >
+                        Sem Despesa Fixa
+                      </button>
+                    </div>
+                  </>
+                )}
               </th>
 
               {/* Coluna: Valor */}

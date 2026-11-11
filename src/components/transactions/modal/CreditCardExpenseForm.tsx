@@ -194,7 +194,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
             autoOpenKeypadOnMobile={!initialData}
           />
 
-          {/* Seletor Rápido de Data + Toggle Custo Fixo (CF) */}
+          {/* Seletor Rápido de Data + Toggle Despesa Fixa (DF) */}
           <div className="flex items-center justify-between gap-2">
             <QuickDateSelector value={date} onChange={setDate} variant="cyan" />
             <button
@@ -205,9 +205,9 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm shadow-amber-500/20 ring-1 ring-amber-500/30'
                   : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 border-slate-800'
               }`}
-              title={isFixedCost ? 'Custo Fixo (Essencial) Ativado' : 'Marcar como Custo Fixo (CF)'}
+              title={isFixedCost ? 'Despesa Fixa (Essencial) Ativada' : 'Marcar como Despesa Fixa (DF)'}
             >
-              CF {isFixedCost ? '✓' : ''}
+              DF {isFixedCost ? '✓' : ''}
             </button>
           </div>
 
