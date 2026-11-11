@@ -22,6 +22,7 @@ import {
   Eye,
   Layers3,
   CalendarDays,
+  PiggyBank,
 } from 'lucide-react';
 
 const MONTH_SHORT_NAMES = [
@@ -39,7 +40,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [expandedSubcategories, setExpandedSubcategories] = useState<Record<string, boolean>>({});
   const [expandedMonthDetails, setExpandedMonthDetails] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income' | 'compare'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income' | 'investment' | 'compare'>('all');
   // Padronização: Inicia no mês atual selecionado no sistema
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<number | 'all'>(() => {
     return typeof selectedMonth === 'number' && selectedMonth >= 0 && selectedMonth <= 11
@@ -114,6 +115,9 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
 
     processCategories(snap.incomeCategories);
     processCategories(snap.expenseCategories);
+    if (snap.investmentCategories) {
+      processCategories(snap.investmentCategories);
+    }
 
     return {
       catMap,
@@ -121,6 +125,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
       nanoMap,
       incomeTotals: snap.monthlyIncomeTotals,
       expenseTotals: snap.monthlyExpenseTotals,
+      investmentTotals: snap.monthlyInvestmentTotals,
       netTotals: snap.monthlyNetTotals,
       summary: effectiveCompareBaseline.summaryTotals,
     };
@@ -130,6 +135,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
   const activeCategories = useMemo(() => categories.filter(c => !c.isArchived), [categories]);
   const parentIncomeCategories = useMemo(() => activeCategories.filter(c => !c.parentId && c.type === 'income'), [activeCategories]);
   const parentExpenseCategories = useMemo(() => activeCategories.filter(c => !c.parentId && c.type === 'expense'), [activeCategories]);
+  const parentInvestmentCategories = useMemo(() => activeCategories.filter(c => !c.parentId && c.type === 'investment'), [activeCategories]);
 
   const toggleExpand = (catId: string) => {
     setExpandedCategories(prev => ({ ...prev, [catId]: !prev[catId] }));
@@ -167,6 +173,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
   const matrixData = useMemo(() => {
     const monthlyIncomeTotals: number[] = Array(12).fill(0);
     const monthlyExpenseTotals: number[] = Array(12).fill(0);
+    const monthlyInvestmentTotals: number[] = Array(12).fill(0);
     const catMonthTotals: Record<string, number[]> = {};
     const nanoMonthTotals: Record<string, Record<string, number[]>> = {};
 
@@ -203,13 +210,18 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
 
       if (txYear !== reportYear || txMonth < 0 || txMonth > 11) return;
 
+      const matchedCat = activeCategories.find(c => isSameId(c.id, tx.categoryId));
+      const isInvestmentCat = matchedCat?.type === 'investment' ||
+        (matchedCat?.parentId && activeCategories.find(p => isSameId(p.id, matchedCat.parentId))?.type === 'investment');
+
       if (tx.type === 'income') {
         monthlyIncomeTotals[txMonth] += tx.amount;
+      } else if (isInvestmentCat) {
+        monthlyInvestmentTotals[txMonth] += tx.amount;
       } else if (tx.type === 'expense') {
         monthlyExpenseTotals[txMonth] += tx.amount;
       }
 
-      const matchedCat = activeCategories.find(c => isSameId(c.id, tx.categoryId));
       const targetCatId = matchedCat?.id || tx.categoryId;
       if (catMonthTotals[targetCatId]) {
         catMonthTotals[targetCatId][txMonth] += tx.amount;
@@ -231,12 +243,14 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
       }
     });
 
+    const monthlyOperatingBalance: number[] = Array(12).fill(0);
     const monthlyCashFlow: number[] = Array(12).fill(0);
     const monthlyAccumulated: number[] = Array(12).fill(0);
     let runningAccumulated = 0;
 
     for (let m = 0; m < 12; m++) {
-      monthlyCashFlow[m] = monthlyIncomeTotals[m] - monthlyExpenseTotals[m];
+      monthlyOperatingBalance[m] = monthlyIncomeTotals[m] - monthlyExpenseTotals[m];
+      monthlyCashFlow[m] = monthlyOperatingBalance[m] - monthlyInvestmentTotals[m];
       runningAccumulated += monthlyCashFlow[m];
       monthlyAccumulated[m] = runningAccumulated;
     }
@@ -244,6 +258,8 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
     return {
       monthlyIncomeTotals,
       monthlyExpenseTotals,
+      monthlyInvestmentTotals,
+      monthlyOperatingBalance,
       catMonthTotals,
       nanoMonthTotals,
       monthlyCashFlow,
@@ -298,7 +314,8 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
 
   const currentAnnualIncome = matrixData.monthlyIncomeTotals.reduce((a, b) => a + b, 0);
   const currentAnnualExpense = matrixData.monthlyExpenseTotals.reduce((a, b) => a + b, 0);
-  const currentAnnualCashFlow = currentAnnualIncome - currentAnnualExpense;
+  const currentAnnualInvestment = matrixData.monthlyInvestmentTotals.reduce((a, b) => a + b, 0);
+  const currentAnnualCashFlow = currentAnnualIncome - currentAnnualExpense - currentAnnualInvestment;
 
   const totalAnnualIncome = activeBaseline
     ? activeBaseline.summaryTotals.totalIncome
@@ -307,6 +324,10 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
   const totalAnnualExpense = activeBaseline
     ? activeBaseline.summaryTotals.totalExpense
     : currentAnnualExpense;
+
+  const totalAnnualInvestment = activeBaseline
+    ? (activeBaseline.summaryTotals.totalInvestment || 0)
+    : currentAnnualInvestment;
 
   const totalAnnualCashFlow = activeBaseline
     ? activeBaseline.summaryTotals.netBalance
@@ -319,6 +340,18 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
   const displayExpenseTotals = activeBaseline
     ? activeBaseline.matrixSnapshot.monthlyExpenseTotals
     : matrixData.monthlyExpenseTotals;
+
+  const displayInvestmentTotals = activeBaseline
+    ? (activeBaseline.matrixSnapshot.monthlyInvestmentTotals || Array(12).fill(0))
+    : matrixData.monthlyInvestmentTotals;
+
+  const displayOperatingTotals = useMemo(() => {
+    return MONTH_SHORT_NAMES.map((_, m) => {
+      const inc = displayIncomeTotals[m] || 0;
+      const exp = displayExpenseTotals[m] || 0;
+      return inc - exp;
+    });
+  }, [displayIncomeTotals, displayExpenseTotals]);
 
   const displayNetTotals = activeBaseline
     ? activeBaseline.matrixSnapshot.monthlyNetTotals
@@ -404,6 +437,39 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
         })),
     }));
   }, [activeBaseline, parentExpenseCategories, activeCategories, matrixData, reportYear]);
+
+  const displayInvestmentCategories = useMemo(() => {
+    if (activeBaseline && activeBaseline.matrixSnapshot.investmentCategories) {
+      return activeBaseline.matrixSnapshot.investmentCategories;
+    }
+    return [...parentInvestmentCategories].map(cat => ({
+      id: cat.id,
+      name: cat.name,
+      type: cat.type,
+      color: cat.color,
+      icon: cat.icon,
+      monthlyValues: MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(cat, m)),
+      total: getParentCategoryAnnualTotal(cat),
+      subcategories: activeCategories
+        .filter(c => isSameId(c.parentId, cat.id))
+        .map(sub => ({
+          id: sub.id,
+          name: sub.name,
+          color: sub.color,
+          icon: sub.icon,
+          monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[sub.id]?.[m] || 0),
+          total: getSubcategoryAnnualTotal(sub),
+          nanos: getVisibleNanosForYear(sub).map(nano => {
+            const nanoKey = normalizeKey(nano.name);
+            return {
+              name: nano.name,
+              monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
+              total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
+            };
+          }),
+        })),
+    }));
+  }, [activeBaseline, parentInvestmentCategories, activeCategories, matrixData, reportYear]);
 
   // Snapshot Actions
   const handleSaveSnapshot = async (type: 'original' | 'revision', notes?: string) => {
@@ -811,6 +877,15 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab('investment')}
+              className={`px-2 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                activeTab === 'investment' ? 'bg-amber-500/20 text-amber-300 font-semibold' : 'text-slate-400'
+              }`}
+            >
+              Investir
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setActiveTab('compare');
                 if (selectedBaselineId) setSelectedBaselineId(null);
@@ -883,7 +958,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
       </div>
 
       {/* 2. Cards de Resumo Anual Mobile */}
-      <div className="grid grid-cols-3 gap-2 text-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
           <span className="text-slate-400 text-[10px] block truncate">Receitas {reportYear}</span>
           <span className="text-xs font-bold text-emerald-400 tabular-nums truncate">
@@ -909,7 +984,19 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
           )}
         </div>
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
-          <span className="text-slate-400 text-[10px] block truncate">Saldo do Ano</span>
+          <span className="text-slate-400 text-[10px] block truncate">Investimentos {reportYear}</span>
+          <span className="text-xs font-bold text-amber-400 tabular-nums truncate">
+            {formatCurrency(totalAnnualInvestment)}
+          </span>
+          {isCompareMode && compareLookup && (
+            <span className={`text-[9px] block font-semibold truncate ${(totalAnnualInvestment) >= (compareLookup.summary.totalInvestment || 0) ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {(totalAnnualInvestment) >= (compareLookup.summary.totalInvestment || 0) ? '+' : ''}
+              {formatCurrency(totalAnnualInvestment - (compareLookup.summary.totalInvestment || 0))}
+            </span>
+          )}
+        </div>
+        <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+          <span className="text-slate-400 text-[10px] block truncate">Saldo Livre</span>
           <span className={`text-xs font-bold tabular-nums truncate ${totalAnnualCashFlow >= 0 ? 'text-teal-400' : 'text-rose-400'}`}>
             {formatCurrency(totalAnnualCashFlow)}
           </span>
@@ -1296,15 +1383,235 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
         </div>
       )}
 
+      {/* 4.5 Seção Vertical: INVESTIMENTOS */}
+      {(activeTab === 'all' || activeTab === 'investment' || activeTab === 'compare') && (
+        <div className="space-y-2">
+          {/* Header da Seção de Investimentos */}
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-300">
+            <div className="flex items-center gap-1.5 font-bold text-xs">
+              <PiggyBank className="w-4 h-4 text-amber-400" />
+              <span>INVESTIMENTOS</span>
+            </div>
+            <div className="text-right">
+              <span className="text-xs font-black tabular-nums text-amber-400 block">
+                {formatCurrency(
+                  selectedMonthFilter === 'all'
+                    ? totalAnnualInvestment
+                    : displayInvestmentTotals[selectedMonthFilter] || 0
+                )}
+              </span>
+              {renderMobileDiffBadge(
+                selectedMonthFilter === 'all'
+                  ? totalAnnualInvestment
+                  : displayInvestmentTotals[selectedMonthFilter] || 0,
+                compareLookup?.investmentTotals,
+                compareLookup?.summary.totalInvestment,
+                'expense'
+              )}
+            </div>
+          </div>
+
+          {/* Lista Vertical de Categorias de Investimento */}
+          <div className="space-y-1.5">
+            {displayInvestmentCategories.map(cat => {
+              const catVal = getValueToDisplay(cat.monthlyValues, cat.total);
+              const isExpanded = Boolean(expandedCategories[cat.id]);
+              const subs = cat.subcategories;
+              const isDetailOpen = Boolean(expandedMonthDetails[`cat-${cat.id}`]);
+              const baseCat = compareLookup?.catMap[cat.id];
+
+              return (
+                <div
+                  key={cat.id}
+                  className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-2.5 transition-all"
+                >
+                  <div
+                    onClick={() => toggleExpand(cat.id)}
+                    className="flex items-center justify-between gap-2 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {subs.length > 0 ? (
+                        <span className="p-0.5 text-slate-400">
+                          {isExpanded ? (
+                            <ChevronDown className="w-3.5 h-3.5 text-amber-400" />
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                          )}
+                        </span>
+                      ) : (
+                        <span className="w-3.5 inline-block" />
+                      )}
+                      <div className="min-w-0">
+                        <span className="font-semibold text-white text-xs block truncate">
+                          {cat.name}
+                        </span>
+                        {subs.length > 0 && !isExpanded && (
+                          <span className="text-[10px] text-slate-400">
+                            {subs.length} subcategorias
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-slate-200 tabular-nums block">
+                          {catVal > 0 ? formatCurrency(catVal) : '-'}
+                        </span>
+                        {renderMobileDiffBadge(catVal, baseCat?.monthly, baseCat?.total, 'expense')}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleMonthDetails(`cat-${cat.id}`);
+                        }}
+                        className="p-1 text-slate-400 hover:text-amber-400 rounded-lg bg-slate-800/60 transition-colors"
+                        title="Ver 12 meses desta categoria"
+                      >
+                        <Calendar className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {isDetailOpen && renderMonthDetailsGrid(cat.monthlyValues, cat.total)}
+
+                  {isExpanded && subs.length > 0 && (
+                    <div className="mt-2 pl-4 space-y-1.5 border-l-2 border-amber-500/20 pt-1">
+                      {subs.map(sub => {
+                        const subVal = getValueToDisplay(sub.monthlyValues, sub.total);
+                        const hasNanos = sub.nanos && sub.nanos.length > 0;
+                        const isSubExpanded = Boolean(expandedSubcategories[sub.id]);
+                        const isSubDetailOpen = Boolean(expandedMonthDetails[`sub-${sub.id}`]);
+                        const baseSub = compareLookup?.subMap[sub.id];
+
+                        return (
+                          <div key={sub.id} className="border border-slate-800/40 rounded-lg p-2 bg-slate-900/40">
+                            <div
+                              onClick={() => hasNanos && toggleExpandSubcategory(sub.id)}
+                              className={`flex items-center justify-between gap-2 ${hasNanos ? 'cursor-pointer' : ''}`}
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                {hasNanos ? (
+                                  <span className="p-0.5 text-slate-400">
+                                    {isSubExpanded ? (
+                                      <ChevronDown className="w-3 h-3 text-amber-400" />
+                                    ) : (
+                                      <ChevronRight className="w-3 h-3 text-slate-400" />
+                                    )}
+                                  </span>
+                                ) : (
+                                  <span className="w-3 inline-block text-center text-slate-600 text-xs">•</span>
+                                )}
+                                <span className="text-[11px] font-medium text-slate-300 truncate">{sub.name}</span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <div className="text-right">
+                                  <span className="text-[11px] font-semibold text-slate-200 tabular-nums block">
+                                    {subVal > 0 ? formatCurrency(subVal) : '-'}
+                                  </span>
+                                  {renderMobileDiffBadge(subVal, baseSub?.monthly, baseSub?.total, 'expense')}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleMonthDetails(`sub-${sub.id}`);
+                                  }}
+                                  className="p-1 text-slate-500 hover:text-amber-400 rounded transition-colors"
+                                >
+                                  <Calendar className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {isSubDetailOpen && renderMonthDetailsGrid(sub.monthlyValues, sub.total)}
+
+                            {isSubExpanded && hasNanos && (
+                              <div className="mt-1 pl-4 space-y-1 border-l-2 border-amber-500/20 pt-1">
+                                {sub.nanos.map(nano => {
+                                  const nanoVal = getValueToDisplay(nano.monthlyValues, nano.total);
+                                  const isNanoDetailOpen = Boolean(expandedMonthDetails[`nano-${sub.id}-${nano.name}`]);
+                                  const nanoKey = normalizeKey(nano.name);
+                                  const baseNano = compareLookup?.nanoMap[`${sub.id}_${nanoKey}`];
+
+                                  return (
+                                    <div key={nano.name} className="py-0.5">
+                                      <div className="flex items-center justify-between gap-1 text-[10px]">
+                                        <span className="text-slate-400 italic truncate">↳ {nano.name}</span>
+                                        <div className="flex items-center gap-1">
+                                          <div className="text-right">
+                                            <span className="tabular-nums text-slate-300 block">
+                                              {nanoVal > 0 ? formatCurrency(nanoVal) : '-'}
+                                            </span>
+                                            {renderMobileDiffBadge(nanoVal, baseNano?.monthly, baseNano?.total, 'expense')}
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleMonthDetails(`nano-${sub.id}-${nano.name}`)}
+                                            className="p-0.5 text-slate-600 hover:text-amber-400 rounded"
+                                          >
+                                            <Calendar className="w-2.5 h-2.5" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                      {isNanoDetailOpen && renderMonthDetailsGrid(nano.monthlyValues, nano.total)}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 5. Seção de FLUXO DE CAIXA E RESULTADO ANUAL */}
       {(activeTab === 'all' || activeTab === 'compare') && (
         <div className="space-y-2 pt-2 border-t border-slate-800">
-          {/* Fluxo de Caixa Líquido */}
+          {/* Resultado Operacional */}
+          <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <MinusCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <div>
+                <span className="font-semibold text-slate-300 block text-[11px]">RESULTADO OPERACIONAL</span>
+                <span className="text-[9px] text-slate-500">Custo de Vida (Rec. - Desp.)</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <span
+                className={`font-bold tabular-nums block ${
+                  (selectedMonthFilter === 'all'
+                    ? totalAnnualIncome - totalAnnualExpense
+                    : displayOperatingTotals[selectedMonthFilter] || 0) >= 0
+                    ? 'text-emerald-400'
+                    : 'text-rose-400'
+                }`}
+              >
+                {formatCurrency(
+                  selectedMonthFilter === 'all'
+                    ? totalAnnualIncome - totalAnnualExpense
+                    : displayOperatingTotals[selectedMonthFilter] || 0
+                )}
+              </span>
+            </div>
+          </div>
+
+          {/* Fluxo de Caixa Líquido Final */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <MinusCircle className="w-4 h-4 text-teal-400 shrink-0" />
               <div>
-                <span className="font-bold text-white text-xs block">FLUXO DE CAIXA LÍQUIDO</span>
+                <span className="font-bold text-white text-xs block">FLUXO DE CAIXA (LÍQUIDO FINAL)</span>
                 <span className="text-[10px] text-slate-400">
                   {selectedMonthFilter === 'all' ? `Ano ${reportYear}` : MONTH_SHORT_NAMES[selectedMonthFilter]}
                 </span>

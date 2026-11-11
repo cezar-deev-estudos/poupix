@@ -78,6 +78,20 @@ export interface TransactionManagerActions {
 
 export const transactionManager: TransactionManagerActions = {
   addTransaction: (tx, setTransactions, setAccounts, creditCards = [], categories = [], userId) => {
+    // Blindagem: toda transação que não seja de cartão de crédito deve obrigatoriamente possuir uma conta vinculada
+    if (!tx.creditCardId && !tx.accountId) {
+      setAccounts(accs => {
+        const itauAccount = accs.find(a =>
+          a.name.toLowerCase().includes('itaú') ||
+          a.name.toLowerCase().includes('itau')
+        ) || accs[0];
+        if (itauAccount) {
+          tx.accountId = itauAccount.id;
+        }
+        return accs;
+      });
+    }
+
     // 1. Caso seja Parcelamento / Repetição
     if (tx.installmentTotal && tx.installmentTotal > 1 && !tx.installmentGroupId) {
       const groupId = crypto.randomUUID();

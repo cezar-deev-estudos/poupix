@@ -38,10 +38,12 @@ export interface NanoCategory {
   createdAt?: string;
 }
 
+export type CategoryType = 'expense' | 'income' | 'investment';
+
 export interface Category {
   id: string;
   name: string;
-  type: 'expense' | 'income';
+  type: CategoryType;
   icon: string;
   color: string;
   budgetLimit?: number; // Teto de gastos mensal padrão recorrente
@@ -295,7 +297,7 @@ export interface AnnualMatrixSubcategoryItem {
 export interface AnnualMatrixCategoryItem {
   id: string;
   name: string;
-  type: 'expense' | 'income';
+  type: CategoryType;
   color: string;
   icon?: string;
   monthlyValues: number[];
@@ -306,8 +308,10 @@ export interface AnnualMatrixCategoryItem {
 export interface AnnualMatrixSnapshotData {
   incomeCategories: AnnualMatrixCategoryItem[];
   expenseCategories: AnnualMatrixCategoryItem[];
+  investmentCategories?: AnnualMatrixCategoryItem[];
   monthlyIncomeTotals: number[];
   monthlyExpenseTotals: number[];
+  monthlyInvestmentTotals?: number[];
   monthlyNetTotals: number[];
 }
 
@@ -323,6 +327,7 @@ export interface AnnualBudgetBaseline {
   summaryTotals: {
     totalIncome: number;
     totalExpense: number;
+    totalInvestment?: number;
     netBalance: number;
   };
   createdAt: string;

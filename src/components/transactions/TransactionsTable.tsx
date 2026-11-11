@@ -193,7 +193,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
       return true;
     });
-  }, [transactions, filterStatus, filterType, filterDescription, filterCategoryId, filterAccountId, categories, accounts, creditCards]);
+  }, [transactions, filterStatus, filterType, filterDescription, filterCategoryId, filterSubcategoryId, filterAccountId, categories, accounts, creditCards]);
 
   // 2. Ordenação das transações filtradas
   const sortedTransactions = useMemo(() => {
@@ -1155,7 +1155,11 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                     <div className="absolute left-2 top-full mt-1 w-52 max-h-64 overflow-y-auto bg-[#1e2330] border border-slate-700 rounded-2xl shadow-2xl z-40 py-1.5 text-xs normal-case animate-fadeIn">
                       <button
                         type="button"
-                        onClick={() => { setFilterCategoryId('all'); setActiveFilterDropdown(null); setCurrentPage(1); }}
+                        onClick={() => {
+                          setFilterCategoryId('all');
+                          setActiveFilterDropdown(null);
+                          setCurrentPage(1);
+                        }}
                         className={`w-full text-left px-3 py-1.5 hover:bg-slate-700/60 transition-colors ${filterCategoryId === 'all' ? 'text-indigo-400 font-bold bg-slate-800/80' : 'text-slate-300'}`}
                       >
                         Todas as categorias
@@ -1164,7 +1168,18 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                         <button
                           key={cat.id}
                           type="button"
-                          onClick={() => { setFilterCategoryId(cat.id); setActiveFilterDropdown(null); setCurrentPage(1); }}
+                          onClick={() => {
+                            setFilterCategoryId(cat.id);
+                            // Se a subcategoria atualmente filtrada não pertencer a esta categoria, reseta
+                            if (filterSubcategoryId !== 'all') {
+                              const currentSub = categories.find(c => isSameId(c.id, filterSubcategoryId));
+                              if (!currentSub || !isSameId(currentSub.parentId, cat.id)) {
+                                setFilterSubcategoryId('all');
+                              }
+                            }
+                            setActiveFilterDropdown(null);
+                            setCurrentPage(1);
+                          }}
                           className={`w-full flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700/60 transition-colors ${filterCategoryId === cat.id ? 'text-indigo-400 font-bold bg-slate-800/80' : 'text-slate-300'}`}
                         >
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
@@ -1216,7 +1231,16 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                       >
                         Todas as subcategorias
                       </button>
-                      {categories.filter(c => Boolean(c.parentId)).map(sub => {
+                      {categories
+                        .filter(c => {
+                          if (!c.parentId) return false;
+                          // Se uma categoria pai estiver filtrada, só exibe as subcategorias dela
+                          if (filterCategoryId !== 'all') {
+                            return isSameId(c.parentId, filterCategoryId);
+                          }
+                          return true;
+                        })
+                        .map(sub => {
                         const parent = categories.find(p => p.id === sub.parentId);
                         return (
                           <button
@@ -1229,7 +1253,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: sub.color || parent?.color }} />
                               <span className="truncate">{sub.name}</span>
                             </div>
-                            {parent && (
+                            {parent && filterCategoryId === 'all' && (
                               <span className="text-[10px] text-slate-500 truncate shrink-0">
                                 {parent.name}
                               </span>

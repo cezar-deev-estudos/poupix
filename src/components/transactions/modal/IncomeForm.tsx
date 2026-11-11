@@ -33,7 +33,10 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
 
   const incomeCategories = categories.filter(c => c.type === 'income');
   const defaultCatId = incomeCategories[0]?.id || '';
-  const initialAccId = defaultAccountId || accounts[0]?.id || '';
+  
+  // Encontra prioritariamente a conta Itaú ou a primeira conta bancária válida
+  const itauOrFirstAccount = accounts.find(a => a.name.toLowerCase().includes('itaú') || a.name.toLowerCase().includes('itau')) || accounts[0];
+  const initialAccId = defaultAccountId || itauOrFirstAccount?.id || '';
 
   const [amount, setAmount] = useState(initialData?.amount ? initialData.amount.toString() : '');
   const [date, setDate] = useState(initialData?.date || getLocalDateString());
@@ -91,6 +94,12 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
       return;
     }
 
+    // Blindagem: Garante que a conta bancária é SEMPRE preenchida (priorizando Itaú)
+    const effectiveAccountId = accountId || initialAccId;
+    if (!effectiveAccountId) {
+      return;
+    }
+
     onSave(
       {
         description: description.trim(),
@@ -98,7 +107,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
         date,
         type: 'income',
         categoryId,
-        accountId,
+        accountId: effectiveAccountId,
         paid,
         ignoreInTotals,
         isFavorite,

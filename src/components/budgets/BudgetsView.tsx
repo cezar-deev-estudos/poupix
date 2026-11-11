@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useFinance } from '@/context/FinanceContext';
-import { Category, Transaction, getCategoryBudgetForPeriod } from '@/types/finance';
+import { Category, CategoryType, Transaction, getCategoryBudgetForPeriod } from '@/types/finance';
 import { formatCurrency, getMonthName, formatDateBR } from '@/lib/utils';
 import { getTransactionInvoicePeriod, isSameId } from '@/lib/invoiceHelpers';
 import { CategoryIcon } from '../ui/CategoryIcon';
@@ -84,7 +84,7 @@ export const BudgetsView: React.FC = () => {
   } = useFinance();
 
   const [activeTab, setActiveTab] = useState<'budgets' | 'categories'>('budgets');
-  const [filterType, setFilterType] = useState<'all' | 'expense' | 'income'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'expense' | 'income' | 'investment'>('all');
 
   // Modo de visualização de colunas no Desktop (1 coluna ou 2 colunas)
   const [layoutColumns, setLayoutColumns] = useState<'1col' | '2col'>(() => {
@@ -364,7 +364,7 @@ export const BudgetsView: React.FC = () => {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [name, setName] = useState('');
-  const [type, setType] = useState<'expense' | 'income'>('expense');
+  const [type, setType] = useState<CategoryType>('expense');
   const [parentId, setParentId] = useState<string>('');
   const [budgetLimit, setBudgetLimit] = useState('');
   const [budgetMode, setBudgetMode] = useState<'default' | 'month'>('default');
@@ -445,7 +445,7 @@ export const BudgetsView: React.FC = () => {
   };
 
   // Abrir modal de criação
-  const handleOpenCreate = (suggestedParentId?: string, suggestedType?: 'expense' | 'income') => {
+  const handleOpenCreate = (suggestedParentId?: string, suggestedType?: CategoryType) => {
     setEditingCategory(null);
     setName('');
     setType(suggestedType || 'expense');
@@ -1293,7 +1293,7 @@ export const BudgetsView: React.FC = () => {
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/40 p-4 rounded-2xl border border-slate-800/80">
             {/* Filtro por Tipo */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <button
                 onClick={() => setFilterType('all')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
@@ -1323,6 +1323,16 @@ export const BudgetsView: React.FC = () => {
                 }`}
               >
                 Receitas ({categories.filter(c => c.type === 'income').length})
+              </button>
+              <button
+                onClick={() => setFilterType('investment')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  filterType === 'investment'
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Investimentos ({categories.filter(c => c.type === 'investment').length})
               </button>
             </div>
 
@@ -1481,10 +1491,12 @@ export const BudgetsView: React.FC = () => {
                               className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${
                                 parentCat.type === 'expense'
                                   ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                  : parentCat.type === 'investment'
+                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                                   : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                               }`}
                             >
-                              {parentCat.type === 'expense' ? 'Despesa' : 'Receita'}
+                              {parentCat.type === 'expense' ? 'Despesa' : parentCat.type === 'investment' ? 'Investimento' : 'Receita'}
                             </span>
                             {subs.length > 0 && isCollapsed && (
                               <span className="text-[11px] text-slate-500 font-normal">
@@ -1702,11 +1714,12 @@ export const BudgetsView: React.FC = () => {
                   <select
                     value={type}
                     disabled={Boolean(parentId)}
-                    onChange={e => setType(e.target.value as 'expense' | 'income')}
+                    onChange={e => setType(e.target.value as CategoryType)}
                     className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 disabled:opacity-50"
                   >
                     <option value="expense">Despesa</option>
                     <option value="income">Receita</option>
+                    <option value="investment">Investimento</option>
                   </select>
                 </div>
 

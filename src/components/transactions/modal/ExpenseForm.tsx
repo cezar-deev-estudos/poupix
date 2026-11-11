@@ -34,7 +34,10 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
 
   const expenseCategories = categories.filter(c => c.type === 'expense');
   const defaultCatId = expenseCategories[0]?.id || '';
-  const initialAccId = defaultAccountId || accounts[0]?.id || '';
+  
+  // Encontra prioritariamente a conta Itaú ou a primeira conta bancária válida
+  const itauOrFirstAccount = accounts.find(a => a.name.toLowerCase().includes('itaú') || a.name.toLowerCase().includes('itau')) || accounts[0];
+  const initialAccId = defaultAccountId || itauOrFirstAccount?.id || '';
 
   const getInitialAmountValue = () => {
     if (!initialData) return '';
@@ -150,6 +153,12 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
       return;
     }
 
+    // Blindagem: Garante que a conta bancária é SEMPRE preenchida (priorizando Itaú)
+    const effectiveAccountId = accountId || initialAccId;
+    if (!effectiveAccountId) {
+      return;
+    }
+
     onSave(
       {
         description: description.trim(),
@@ -157,7 +166,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
         date,
         type: 'expense',
         categoryId,
-        accountId,
+        accountId: effectiveAccountId,
         paid,
         ignoreInTotals,
         isDecreasing,

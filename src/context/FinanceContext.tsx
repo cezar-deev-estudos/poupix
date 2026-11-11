@@ -467,8 +467,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             ? cloudCat.nanoCategories
             : (localNanos.length > 0 ? localNanos : metaNanos);
 
+          // Compatibilidade e migração: se o nome for Investimentos ou subcategoria dele, define type como 'investment'
+          let effectiveType = cloudCat.type;
+          const isInvestName = cloudCat.name?.toLowerCase().includes('investimento');
+          if (isInvestName && effectiveType !== 'investment') {
+            effectiveType = 'investment';
+          }
+
           return {
             ...cloudCat,
+            type: effectiveType,
             isArchived: effectiveArchived,
             monthlyBudgets: Object.keys(effectiveMonthlyBudgets).length > 0 ? effectiveMonthlyBudgets : undefined,
             nanoCategories: effectiveNanos.length > 0 ? effectiveNanos : undefined,
@@ -501,7 +509,29 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           });
         }
 
-        return mergedCats;
+        // Auto-migração em cascata de subcategorias vinculadas à categoria pai de investimento
+        const investParentIds = new Set(
+          mergedCats.filter(c => c.type === 'investment' && !c.parentId).map(c => c.id)
+        );
+        const finalCats = mergedCats.map(c => {
+          if (c.parentId && investParentIds.has(c.parentId) && c.type !== 'investment') {
+            return { ...c, type: 'investment' as const };
+          }
+          return c;
+        });
+
+        // Persiste no Supabase caso alguma categoria tenha sido migrada para 'investment'
+        if (user?.id) {
+          const migratedCats = finalCats.filter(fc => {
+            const original = cloudData.categories?.find(cc => cc.id === fc.id);
+            return original && original.type !== fc.type;
+          });
+          if (migratedCats.length > 0) {
+            persistMonthlyBudgetsToCloud(finalCats);
+          }
+        }
+
+        return finalCats;
       });
     }
     if (cloudData.tags !== undefined) setTags(cloudData.tags);
@@ -523,11 +553,32 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       // Repara automaticamente parcelas que tenham ficado presas na mesma data por edições anteriores em lote
       const { repaired, hasChanges } = repairCorruptedInstallmentDates(normalizedCloudTxs);
-      if (hasChanges && user?.id) {
-        // Envia as datas corrigidas para persistência no Supabase
-        const changedTxs = repaired.filter(t => {
+      
+      // Auto-reparo de contas órfãs / vazias: vincula transações sem conta à conta Itaú oficial
+      const itauAccount = (cloudData.accounts || accounts).find(a => 
+        a.name.toLowerCase().includes('itaú') || a.name.toLowerCase().includes('itau')
+      ) || (cloudData.accounts || accounts)[0];
+
+      let hasOrphanAccountFix = false;
+      const auditedTxs = repaired.map(t => {
+        if (!t.creditCardId) {
+          const hasValidAcc = (cloudData.accounts || accounts).some(a => isSameId(a.id, t.accountId));
+          if (!hasValidAcc && itauAccount) {
+            hasOrphanAccountFix = true;
+            return {
+              ...t,
+              accountId: itauAccount.id,
+            };
+          }
+        }
+        return t;
+      });
+
+      if ((hasChanges || hasOrphanAccountFix) && user?.id) {
+        // Envia as transações corrigidas para persistência no Supabase
+        const changedTxs = auditedTxs.filter(t => {
           const original = normalizedCloudTxs.find(o => o.id === t.id);
-          return original && original.date !== t.date;
+          return original && (original.date !== t.date || original.accountId !== t.accountId);
         });
         if (changedTxs.length > 0) {
           upsertTransactionsDirectlyToSupabase(changedTxs, user.id);
@@ -536,7 +587,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       // O Supabase é a Fonte Única da Verdade para todos os dispositivos e telas conectadas.
       // Substitui diretamente o estado local pelas transações oficiais da nuvem.
-      setTransactions(repaired);
+      setTransactions(auditedTxs);
     }
     if (cloudData.goals !== undefined) setGoals(cloudData.goals);
     if (cloudData.openFinanceConnections !== undefined && cloudData.openFinanceConnections.length > 0) {

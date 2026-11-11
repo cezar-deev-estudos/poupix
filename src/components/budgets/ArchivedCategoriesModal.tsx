@@ -70,10 +70,12 @@ export const ArchivedCategoriesModal: React.FC<ArchivedCategoriesModalProps> = (
                           className={`text-[9px] px-1.5 py-0.5 rounded font-semibold shrink-0 ${
                             cat.type === 'expense'
                               ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                              : cat.type === 'investment'
+                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                               : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                           }`}
                         >
-                          {cat.type === 'expense' ? 'Despesa' : 'Receita'}
+                          {cat.type === 'expense' ? 'Despesa' : cat.type === 'investment' ? 'Investimento' : 'Receita'}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
