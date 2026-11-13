@@ -6,6 +6,7 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import { Monitor, Smartphone, Check, AlertCircle, Lock, Fingerprint, KeyRound, Shield } from 'lucide-react';
 import { useAppLock } from '@/context/AppLockContext';
 import { SetupPinModal } from '@/components/security/SetupPinModal';
+import { registerBiometrics, hasBiometricsRegisteredLocally, clearLocalBiometrics } from '@/lib/biometrics';
 
 interface DeviceInfo {
   id: string;
@@ -20,6 +21,31 @@ export const SecuritySettings: React.FC = () => {
   const { settings: lockSettings, isBiometricsSupported, updateLockSettings } = useAppLock();
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+  const [isRegisteringBio, setIsRegisteringBio] = useState(false);
+  const [bioError, setBioError] = useState('');
+
+  const handleToggleBiometrics = async (enabled: boolean) => {
+    setBioError('');
+    if (!enabled) {
+      clearLocalBiometrics();
+      updateLockSettings({ biometricsEnabled: false });
+      return;
+    }
+
+    // Se estiver ativando e o aparelho ainda não tiver chave registrada
+    if (!hasBiometricsRegisteredLocally()) {
+      setIsRegisteringBio(true);
+      const success = await registerBiometrics();
+      setIsRegisteringBio(false);
+      if (success) {
+        updateLockSettings({ biometricsEnabled: true });
+      } else {
+        setBioError('Não foi possível registrar a biometria neste aparelho.');
+      }
+    } else {
+      updateLockSettings({ biometricsEnabled: true });
+    }
+  };
 
   // Estados de Email
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
@@ -195,8 +221,9 @@ export const SecuritySettings: React.FC = () => {
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input
                         type="checkbox"
+                        disabled={isRegisteringBio}
                         checked={lockSettings.biometricsEnabled}
-                        onChange={e => updateLockSettings({ biometricsEnabled: e.target.checked })}
+                        onChange={e => handleToggleBiometrics(e.target.checked)}
                         className="sr-only peer"
                       />
                       <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
@@ -206,8 +233,15 @@ export const SecuritySettings: React.FC = () => {
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Desbloqueie o sistema instantaneamente com o sensor biométrico do seu aparelho.
+                  {isRegisteringBio
+                    ? 'Aguardando toque no sensor biométrico do aparelho...'
+                    : 'Desbloqueie o sistema instantaneamente com o sensor biométrico do seu aparelho.'}
                 </p>
+                {bioError && (
+                  <p className="text-[10px] text-rose-400 flex items-center gap-1 pt-1">
+                    <AlertCircle className="w-3 h-3" /> {bioError}
+                  </p>
+                )}
               </div>
 
               {/* Tempo para Bloquear */}

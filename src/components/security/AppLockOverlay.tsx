@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAppLock } from '@/context/AppLockContext';
 import { Shield, Delete, Fingerprint, Lock, AlertCircle } from 'lucide-react';
-import { triggerHaptic } from '@/lib/biometrics';
+import { triggerHaptic, hasBiometricsRegisteredLocally } from '@/lib/biometrics';
 
 export const AppLockOverlay: React.FC = () => {
   const { isLocked, settings, isBiometricsSupported, unlockWithPin, unlockWithBiometrics } = useAppLock();
@@ -11,11 +11,11 @@ export const AppLockOverlay: React.FC = () => {
   const [isError, setIsError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Tentar biometria automaticamente se estiver habilitada e o app estiver bloqueado
+  // Tentar biometria automaticamente apenas se estiver habilitada e se houver chave registrada localmente
   useEffect(() => {
-    if (isLocked && settings.biometricsEnabled && isBiometricsSupported) {
+    if (isLocked && settings.biometricsEnabled && isBiometricsSupported && hasBiometricsRegisteredLocally()) {
       const timer = setTimeout(() => {
-        unlockWithBiometrics().catch(() => {});
+        unlockWithBiometrics().catch(() => { });
       }, 350);
       return () => clearTimeout(timer);
     }
@@ -88,13 +88,12 @@ export const AppLockOverlay: React.FC = () => {
             return (
               <div
                 key={idx}
-                className={`w-3.5 h-3.5 rounded-full transition-all duration-200 ${
-                  isFilled
+                className={`w-3.5 h-3.5 rounded-full transition-all duration-200 ${isFilled
                     ? isError
                       ? 'bg-rose-500 scale-110 shadow-md shadow-rose-500/40'
                       : 'bg-emerald-400 scale-110 shadow-md shadow-emerald-400/40'
                     : 'bg-slate-800 border border-slate-700'
-                }`}
+                  }`}
               />
             );
           })}
