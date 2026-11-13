@@ -22,6 +22,7 @@ import { TagsView } from '@/components/tags/TagsView';
 import { CashFlowProjectionView } from '@/components/projections/CashFlowProjectionView';
 import { OpenFinanceView } from '@/components/openfinance/OpenFinanceView';
 import { ReportsView } from '@/components/reports/ReportsView';
+import { VaultView } from '@/components/vault/VaultView';
 import { SettingsView } from '@/components/settings/SettingsView';
 import { UsersManagementView } from '@/components/users/UsersManagementView';
 import { TransactionModal, TransactionFlowType } from '@/components/transactions/modal/TransactionModal';
@@ -53,7 +54,7 @@ function DashboardContent() {
       const cached = (sessionStorage.getItem('poupix_last_active_tab') || localStorage.getItem('poupix_last_active_tab')) as ActiveTab | null;
       if (cached && [
         'dashboard', 'transactions', 'cards', 'accounts', 'budgets', 'goals',
-        'tags', 'projections', 'openfinance', 'reports', 'users', 'settings',
+        'tags', 'projections', 'openfinance', 'reports', 'vault', 'users', 'settings',
         'monthly-balance', 'pending-alerts'
       ].includes(cached)) {
         return cached;
@@ -554,6 +555,7 @@ function DashboardContent() {
             }}
           />
         )}
+        {activeTab === 'vault' && <VaultView />}
         {activeTab === 'users' && <UsersManagementView />}
         {activeTab === 'settings' && <SettingsView />}
         {activeTab === 'monthly-balance' && (

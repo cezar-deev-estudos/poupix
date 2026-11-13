@@ -432,6 +432,50 @@ export interface Database {
           created_at?: string
         }
       }
+      password_vault: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          category: 'bank' | 'card' | 'email' | 'service' | 'other'
+          username: string | null
+          password_encrypted: string
+          url: string | null
+          notes: string | null
+          icon: string | null
+          color: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          category?: 'bank' | 'card' | 'email' | 'service' | 'other'
+          username?: string | null
+          password_encrypted: string
+          url?: string | null
+          notes?: string | null
+          icon?: string | null
+          color?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          category?: 'bank' | 'card' | 'email' | 'service' | 'other'
+          username?: string | null
+          password_encrypted?: string
+          url?: string | null
+          notes?: string | null
+          icon?: string | null
+          color?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
   }
 }

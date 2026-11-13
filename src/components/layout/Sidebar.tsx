@@ -22,6 +22,7 @@ import {
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
+  KeyRound,
 } from 'lucide-react';
 import { MonthSelector } from './MonthSelector';
 import { useFinance } from '@/context/FinanceContext';
@@ -29,7 +30,7 @@ import { useAuth } from '@/context/AuthContext';
 import { MobileMoreDrawer } from './MobileMoreDrawer';
 import { MobileSpeedDial } from './MobileSpeedDial';
 
-export type ActiveTab = 'dashboard' | 'transactions' | 'cards' | 'accounts' | 'budgets' | 'goals' | 'tags' | 'projections' | 'openfinance' | 'reports' | 'users' | 'settings' | 'monthly-balance' | 'pending-alerts';
+export type ActiveTab = 'dashboard' | 'transactions' | 'cards' | 'accounts' | 'budgets' | 'goals' | 'tags' | 'projections' | 'openfinance' | 'reports' | 'vault' | 'users' | 'settings' | 'monthly-balance' | 'pending-alerts';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -67,6 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'projections', label: 'Projeção Futura', icon: <RefreshCw className="w-4 h-4" /> },
     { id: 'openfinance', label: 'Open Finance', icon: <ShieldCheck className="w-4 h-4 text-purple-400" /> },
     { id: 'reports', label: 'Relatórios', icon: <ArrowLeftRight className="w-4 h-4 text-teal-400" /> },
+    { id: 'vault', label: 'Cofre de Senhas', icon: <KeyRound className="w-4 h-4 text-emerald-400" /> },
     { id: 'users', label: 'Usuários & Perfis', icon: <Users className="w-4 h-4 text-cyan-400" /> },
   ];
 

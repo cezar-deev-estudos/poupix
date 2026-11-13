@@ -21,6 +21,7 @@ import {
   Moon,
   LogOut,
   Sparkles,
+  KeyRound,
 } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
 import { useFinance } from '@/context/FinanceContext';
@@ -104,6 +105,13 @@ export const MobileMoreDrawer: React.FC<MobileMoreDrawerProps> = ({
       icon: <ArrowLeftRight className="w-5 h-5 text-teal-400" />,
       color: 'bg-teal-500/10 border-teal-500/20',
       desc: 'Exportação completa de dados e relatórios',
+    },
+    {
+      id: 'vault',
+      label: 'Cofre de Senhas',
+      icon: <KeyRound className="w-5 h-5 text-emerald-400" />,
+      color: 'bg-emerald-500/10 border-emerald-500/20',
+      desc: 'Senhas, bancos, cartões e acessos seguros',
     },
     {
       id: 'users',
