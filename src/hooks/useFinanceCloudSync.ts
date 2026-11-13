@@ -50,6 +50,12 @@ export function useFinanceCloudSync({
   // Timestamp até o qual o loadCloudData deve ser bloqueado após um sync ou mutação local
   const blockRemoteFetchUntilRef = useRef<number>(0);
 
+  // --- CIRCUITO DE EMERGÊNCIA (CIRCUIT BREAKER ANTI-LOOP) ---
+  // Rastreia timestamps das últimas sincronizações para evitar rajadas e loops
+  const syncHistoryTimestampsRef = useRef<number[]>([]);
+  const isCircuitBreakerTrippedRef = useRef<boolean>(false);
+  const circuitBreakerCooldownUntilRef = useRef<number>(0);
+
   // Armazena um fingerprint dos últimos dados enviados com sucesso para nunca reenviar dados idênticos
   const lastSyncedFingerprintRef = useRef<string>('');
 
@@ -66,8 +72,8 @@ export function useFinanceCloudSync({
     if (syncTimeoutRef.current !== null) return false;
     // Bloqueia se ainda estamos dentro do cooldown pós-sync ou pós-edição (15 segundos)
     if (Date.now() < blockRemoteFetchUntilRef.current) return false;
-    // Throttle mínimo de 30 segundos entre buscas bem-sucedidas para economizar cota do Supabase
-    if (Date.now() - lastSyncTimestampRef.current < 30000) return false;
+    // Throttle mínimo de 45 segundos entre buscas bem-sucedidas para economizar cota do Supabase
+    if (Date.now() - lastSyncTimestampRef.current < 45000) return false;
     return true;
   }, []);
 
@@ -131,13 +137,18 @@ export function useFinanceCloudSync({
     let channel: any = null;
 
     if (supabase) {
-      // Inscrição no Realtime por tabela de transações com debounce de 3s
+      // Inscrição no Realtime por tabela de transações com debounce de 4s e proteção anti-eco
       channel = supabase
         .channel(`finance-sync-${user.id}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` },
           () => {
+            // Anti-eco: ignora eventos de Realtime se o próprio cliente realizou mutações nos últimos 15s
+            if (Date.now() < blockRemoteFetchUntilRef.current) {
+              return;
+            }
+
             // Se houver alteração local em fila ou sincronização ativa/recente, ignora o Realtime
             if (canFetchRef.current(false)) {
               if (realtimeFetchTimeoutRef.current) clearTimeout(realtimeFetchTimeoutRef.current);
@@ -145,7 +156,7 @@ export function useFinanceCloudSync({
                 if (canFetchRef.current(false)) {
                   loadCloudDataRef.current();
                 }
-              }, 3000);
+              }, 4000);
             }
           }
         )
@@ -196,6 +207,31 @@ export function useFinanceCloudSync({
       return;
     }
 
+    // Verificação do Disjuntor (Circuit Breaker)
+    const now = Date.now();
+    if (isCircuitBreakerTrippedRef.current) {
+      if (now < circuitBreakerCooldownUntilRef.current) {
+        console.warn('[CloudSync Safety] Circuit Breaker ativo. Sincronização automática temporariamente suspensa para proteger sua cota do Supabase.');
+        return;
+      } else {
+        // Cooldown expirou, desarma o disjuntor com cautela
+        isCircuitBreakerTrippedRef.current = false;
+        syncHistoryTimestampsRef.current = [];
+        console.log('[CloudSync Safety] Circuit Breaker resetado.');
+      }
+    }
+
+    // Limpa histórico mais antigo que 60 segundos
+    syncHistoryTimestampsRef.current = syncHistoryTimestampsRef.current.filter(t => now - t < 60000);
+
+    // Se houver mais de 15 disparos em 60s, aciona o disjuntor de emergência por 2 minutos
+    if (syncHistoryTimestampsRef.current.length >= 15) {
+      isCircuitBreakerTrippedRef.current = true;
+      circuitBreakerCooldownUntilRef.current = now + 120000;
+      console.error('[CloudSync Safety] ⚠️ ALERTA: Detectada alta frequência de sincronização (>15/min). Disjuntor de emergência ativado por 2 minutos para evitar estouro de cotas!');
+      return;
+    }
+
     hasPendingLocalChangesRef.current = true;
     if (realtimeFetchTimeoutRef.current) {
       clearTimeout(realtimeFetchTimeoutRef.current);
@@ -205,10 +241,11 @@ export function useFinanceCloudSync({
       clearTimeout(syncTimeoutRef.current);
     }
 
-    // Debounce de 1500ms para acumular edições e não bombardear o banco
+    // Debounce seguro de 1500ms para acumular edições e não bombardear o banco
     syncTimeoutRef.current = setTimeout(async () => {
       syncTimeoutRef.current = null;
       isSyncingToCloud.current = true;
+      syncHistoryTimestampsRef.current.push(Date.now());
       try {
         await syncAllToSupabase({
           currentUser,
@@ -222,8 +259,8 @@ export function useFinanceCloudSync({
         });
         lastSyncTimestampRef.current = Date.now();
         lastSyncedFingerprintRef.current = currentFingerprint;
-        // Cooldown de 10s após envio para impedir qualquer re-fetch de eco imediato
-        blockRemoteFetchUntilRef.current = Date.now() + 10000;
+        // Cooldown de 15s após envio para impedir qualquer re-fetch de eco imediato
+        blockRemoteFetchUntilRef.current = Date.now() + 15000;
         console.log('[CloudSync] Dados sincronizados com a nuvem com sucesso');
       } catch (err) {
         console.error('[CloudSync] Falha no auto-sync:', err);
