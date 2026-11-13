@@ -28,8 +28,17 @@ trigger: always_on
 4. **VERIFICAÇÃO PRÉVIA DE DEPLOY EM PRODUÇÃO (REGRA DE OURO)**:
    - Sempre que o usuário reportar qualquer problema, inconsistência ou comportamento anômalo em ambiente publicado (ex: link Vercel), o assistente DEVE OBRIGATORIAMENTE verificar antes se as últimas correções ou alterações locais já foram commitadas e enviadas para deploy em produção (`git status`, commits pendentes) para esclarecer de imediato se o problema em questão já foi solucionado localmente e aguarda apenas o deploy.
 
-5. **No Native Dialogs**:
+5. **BLINDAGEM ANTI-LOOP INFINITO & PROTEÇÃO DE COTAS (REGRA DE OURO)**:
+   - Todo fluxo de sincronização contínua com Supabase ou bancos na nuvem DEVE possuir três travas obrigatórias:
+     a) **Circuit Breaker (Disjuntor)**: Limitar a taxa máxima de requisições de sincronização por minuto (ex: máx 15 req/min). Se ultrapassar, interromper o envio automático temporariamente para não estourar cotas.
+     b) **Bloqueio de Eco do Realtime**: Ao realizar mutação local, silenciar e descartar eventos recebidos via WebSocket/Realtime (`postgres_changes`) por pelo menos 15 segundos para impedir loops infinitos de ping-pong (enviar ➔ banco avisar ➔ app baixar tudo ➔ reenviar).
+     c) **Throttle de Leitura**: Manter intervalo mínimo prudente (mínimo de 30 a 45 segundos) entre buscas completas automáticas do banco, permitindo bypass apenas em cliques manuais explícitos do usuário ("Baixar da Nuvem").
+
+6. **PROTEÇÃO ANTI-HIBERNAÇÃO DO SUPABASE (KEEP-ALIVE OBRIGATÓRIO)**:
+   - Em todo projeto com Supabase (plano gratuito), é **obrigatório** ter configurado o workflow do GitHub Actions `.github/workflows/supabase-keep-alive.yml` agendado via cron (ex: 3 vezes por semana) para pingar o banco e zerar o contador de inatividade de 7 dias, garantindo que o banco nunca seja pausado.
+
+7. **No Native Dialogs**:
    - Nunca usar `window.alert()`, `window.confirm()` ou `window.prompt()`. Usar modais customizados do app.
 
-6. **Sincronização Obsidian**:
+8. **Sincronização Obsidian**:
    - Manter a base de conhecimento `knowledge_obsidian/poupix/` sempre atualizada.

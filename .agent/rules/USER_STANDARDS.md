@@ -29,6 +29,13 @@ trigger: always_on
      - **TUDO DEVE SER ARMAZENADO EM TABELAS OU COLUNAS REAIS NO SUPABASE**. É terminantemente proibido usar qualquer outra forma improvisada ou depender de `localStorage`.
      - **Geração Obrigatória de SQL para o Usuário**: Quando o assistente não tiver credenciais para executar DDL (criar tabelas ou colunas no Supabase), **DEVE OBRIGATORIAMENTE FORNECER O SCRIPT SQL PRONTO E COMPLETO** (com tabelas, tipos, foreign keys, índices e políticas de RLS) para o usuário rodar no SQL Editor do painel do Supabase. O código do app deve interagir com essas tabelas/colunas.
    - **Verificação Prévia de Deploy (MANDATÓRIO)**: Sempre que o usuário relatar uma dúvida, erro ou comportamento no link em produção (Vercel), o assistente DEVE OBRIGATORIAMENTE checar primeiro se a correção já existe localmente e se o deploy ainda não foi enviado (`git status`), comunicando isso imediatamente.
+   - **Blindagem Anti-Loop Infinito & Proteção de Cotas do Banco (REGRA DE OURO / MANDATÓRIO)**:
+     - Toda arquitetura de sincronização com Supabase/nuvem deve implementar obrigatoriamente:
+       1. **Circuit Breaker**: Limite rígido de disparos por minuto (desarma o auto-sync temporariamente se ultrapassar 15 req/min).
+       2. **Anti-Eco de Realtime**: Descarte e silenciamento de eventos de WebSocket (`postgres_changes`) por pelo menos 15 segundos após gravação local, eliminando o ciclo infinito de ping-pong.
+       3. **Throttle de Leitura**: Mínimo de 30-45s entre leituras automáticas completas do banco.
+   - **Automação Keep-Alive Obrigatória do Supabase (REGRA DE OURO / MANDATÓRIO)**:
+     - Todo projeto que utilize Supabase no plano gratuito DEVE possuir o workflow `.github/workflows/supabase-keep-alive.yml` configurado e ativo no GitHub Actions (cron rodando 3x por semana) para evitar que o banco entre em pausa ou hibernação por 7 dias de inatividade.
 
 2. **No Native Dialogs (MANDATÓRIO)**:
    - É terminantemente proibido o uso de `window.alert`, `window.confirm` ou `window.prompt`.
