@@ -1,0 +1,37 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # Executa toda terça, quinta e domingo às 07:00 UTC (04:00 Brasília)
+    - cron: '0 7 * * 0,2,4'
+  workflow_dispatch: # Permite execução manual a qualquer momento pelo GitHub
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Database
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "❌ Erro: Secrets NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY não configurados."
+            exit 1
+          fi
+
+          echo "🚀 Enviando ping de atividade para o Supabase..."
+          
+          # Realiza uma consulta leve limit 1 na tabela de perfis
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X GET "$SUPABASE_URL/rest/v1/profiles?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+
+          echo "📡 Status HTTP retornado: $RESPONSE"
+
+          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 400 ]; then
+            echo "✅ Sucesso! O banco de dados do Supabase registrou atividade e não será pausado."
+          else
+            echo "⚠️ Aviso: O servidor retornou código $RESPONSE, mas a requisição alcançou a infraestrutura com sucesso."
+          fi
