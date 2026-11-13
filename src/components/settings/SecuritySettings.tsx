@@ -3,7 +3,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { Monitor, Smartphone, Check, AlertCircle } from 'lucide-react';
+import { Monitor, Smartphone, Check, AlertCircle, Lock, Fingerprint, KeyRound, Shield } from 'lucide-react';
+import { useAppLock } from '@/context/AppLockContext';
+import { SetupPinModal } from '@/components/security/SetupPinModal';
 
 interface DeviceInfo {
   id: string;
@@ -15,6 +17,9 @@ interface DeviceInfo {
 
 export const SecuritySettings: React.FC = () => {
   const { user } = useAuth();
+  const { settings: lockSettings, isBiometricsSupported, updateLockSettings } = useAppLock();
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
 
   // Estados de Email
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
@@ -116,6 +121,119 @@ export const SecuritySettings: React.FC = () => {
 
   return (
     <div className="space-y-8">
+      {/* Bloqueio do Aplicativo (PIN e Biometria) */}
+      <div className="space-y-4">
+        <h4 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+          <Shield className="w-4 h-4 text-emerald-400" />
+          Bloqueio do Aplicativo (PIN & Biometria)
+        </h4>
+
+        <div className="bg-[#1f2128] border border-slate-800/80 rounded-3xl p-6 shadow-xl space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h5 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                <Lock className="w-4 h-4 text-emerald-400" />
+                Exigir autenticação para acessar o Poupix PRO
+              </h5>
+              <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">
+                Protege seu sistema com uma tela de bloqueio com PIN numérico e desbloqueio por biometria (Digital / Face ID / Touch ID) no celular ou computador.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!lockSettings.pinHash) {
+                  setIsPinModalOpen(true);
+                } else {
+                  updateLockSettings({ enabled: !lockSettings.enabled });
+                }
+              }}
+              className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer border shrink-0 ${lockSettings.enabled
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
+                : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+                }`}
+            >
+              {lockSettings.enabled ? 'BLOQUEIO ATIVADO ✓' : 'ATIVAR BLOQUEIO'}
+            </button>
+          </div>
+
+          {/* Configurações adicionais se o bloqueio estiver ativo ou PIN configurado */}
+          {lockSettings.pinHash && (
+            <div className="pt-4 border-t border-slate-800/60 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Gerenciar PIN */}
+              <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-white flex items-center gap-1.5">
+                    <KeyRound className="w-4 h-4 text-purple-400" />
+                    PIN Numérico
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-semibold">
+                    Cadastrado
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Senha mestra de segurança para desbloqueio caso a biometria falhe.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsPinModalOpen(true)}
+                  className="text-xs text-purple-400 hover:text-purple-300 font-semibold cursor-pointer pt-1 block"
+                >
+                  Alterar PIN numérico &rarr;
+                </button>
+              </div>
+
+              {/* Biometria */}
+              <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-white flex items-center gap-1.5">
+                    <Fingerprint className="w-4 h-4 text-emerald-400" />
+                    Biometria (Digital / Face ID)
+                  </span>
+                  {isBiometricsSupported ? (
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={lockSettings.biometricsEnabled}
+                        onChange={e => updateLockSettings({ biometricsEnabled: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                  ) : (
+                    <span className="text-[10px] text-slate-500">Não disponível neste hardware</span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Desbloqueie o sistema instantaneamente com o sensor biométrico do seu aparelho.
+                </p>
+              </div>
+
+              {/* Tempo para Bloquear */}
+              <div className="sm:col-span-2 p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-xs font-semibold text-white">Bloqueio Automático</span>
+                  <p className="text-[11px] text-slate-400">
+                    Defina quando o sistema deve exigir o desbloqueio novamente.
+                  </p>
+                </div>
+                <select
+                  value={lockSettings.timeoutMinutes}
+                  onChange={e => updateLockSettings({ timeoutMinutes: Number(e.target.value) })}
+                  className="bg-[#161a23] border border-slate-700 text-xs text-white rounded-xl py-2 px-3 focus:outline-none focus:border-emerald-500"
+                >
+                  <option value={0}>Imediatamente ao sair / minimizar</option>
+                  <option value={1}>Após 1 minuto de inatividade</option>
+                  <option value={5}>Após 5 minutos de inatividade</option>
+                  <option value={15}>Após 15 minutos de inatividade</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Informações da conta */}
       <div className="space-y-4">
         <h4 className="text-sm font-bold text-slate-200">Informações da conta</h4>
@@ -168,11 +286,10 @@ export const SecuritySettings: React.FC = () => {
             <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
               <div
                 onClick={toggleSelectAllDevices}
-                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                  selectedDeviceIds.length > 0 && selectedDeviceIds.length === devices.filter(d => !d.isCurrent).length
-                    ? 'bg-purple-600 border-purple-500 text-white'
-                    : 'border-slate-500 bg-transparent'
-                }`}
+                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedDeviceIds.length > 0 && selectedDeviceIds.length === devices.filter(d => !d.isCurrent).length
+                  ? 'bg-purple-600 border-purple-500 text-white'
+                  : 'border-slate-500 bg-transparent'
+                  }`}
               >
                 {selectedDeviceIds.length > 0 && <Check className="w-3 h-3 stroke-[3]" />}
               </div>
@@ -189,11 +306,10 @@ export const SecuritySettings: React.FC = () => {
                   {!device.isCurrent && (
                     <div
                       onClick={() => toggleSelectDevice(device.id)}
-                      className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-colors ${
-                        isSelected
-                          ? 'bg-purple-600 border-purple-500 text-white'
-                          : 'border-slate-500 bg-transparent'
-                      }`}
+                      className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-colors ${isSelected
+                        ? 'bg-purple-600 border-purple-500 text-white'
+                        : 'border-slate-500 bg-transparent'
+                        }`}
                     >
                       {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
                     </div>
@@ -207,9 +323,8 @@ export const SecuritySettings: React.FC = () => {
                     )}
                     <span className="text-xs font-semibold text-white truncate">{device.name}</span>
                     <span
-                      className={`text-[11px] truncate ${
-                        device.isCurrent ? 'text-purple-400 font-medium' : 'text-slate-500'
-                      }`}
+                      className={`text-[11px] truncate ${device.isCurrent ? 'text-purple-400 font-medium' : 'text-slate-500'
+                        }`}
                     >
                       {device.lastActive}
                     </span>
@@ -252,11 +367,10 @@ export const SecuritySettings: React.FC = () => {
 
               {emailStatus && (
                 <div
-                  className={`p-3 rounded-xl text-xs font-medium flex items-center gap-2 ${
-                    emailStatus.type === 'success'
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                      : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                  }`}
+                  className={`p-3 rounded-xl text-xs font-medium flex items-center gap-2 ${emailStatus.type === 'success'
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                    }`}
                 >
                   {emailStatus.type === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
                   <span>{emailStatus.message}</span>
@@ -316,11 +430,10 @@ export const SecuritySettings: React.FC = () => {
 
               {passwordStatus && (
                 <div
-                  className={`p-3 rounded-xl text-xs font-medium flex items-center gap-2 ${
-                    passwordStatus.type === 'success'
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                      : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                  }`}
+                  className={`p-3 rounded-xl text-xs font-medium flex items-center gap-2 ${passwordStatus.type === 'success'
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                    }`}
                 >
                   {passwordStatus.type === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
                   <span>{passwordStatus.message}</span>
@@ -347,6 +460,11 @@ export const SecuritySettings: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Modal de Criação / Alteração de PIN */}
+      <SetupPinModal
+        isOpen={isPinModalOpen}
+        onClose={() => setIsPinModalOpen(false)}
+      />
     </div>
   );
 };

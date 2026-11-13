@@ -154,8 +154,24 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const savedReadAlerts = localStorage.getItem(`${userStoragePrefix}read_alerts`);
       const savedOpenFinance = localStorage.getItem(`${userStoragePrefix}open_finance`);
       const savedPendingBank = localStorage.getItem(`${userStoragePrefix}pending_bank_txs`);
+      const savedAppPrefs = localStorage.getItem('mobills_app_preferences');
+      let defaultPrivacy = false;
+      if (savedAppPrefs) {
+        try {
+          const parsedPrefs = JSON.parse(savedAppPrefs);
+          if (parsedPrefs.defaultPrivacyMode !== undefined) {
+            defaultPrivacy = Boolean(parsedPrefs.defaultPrivacyMode);
+          }
+        } catch {}
+      }
       const savedPrivacy = localStorage.getItem('mobills_privacy_mode');
       const savedTheme = localStorage.getItem('mobills_theme') as 'dark' | 'light' | null;
+
+      if (defaultPrivacy) {
+        setIsPrivacyMode(true);
+      } else if (savedPrivacy !== null) {
+        setIsPrivacyMode(JSON.parse(savedPrivacy));
+      }
 
       const savedGroupByCard = localStorage.getItem(`${userStoragePrefix}group_by_card`);
       const isMobileDevice = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
@@ -223,6 +239,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
           if (prefs.theme) {
             setTheme(prefs.theme as 'dark' | 'light');
+          }
+          if (prefs.default_privacy_mode !== undefined) {
+            setIsPrivacyMode(Boolean(prefs.default_privacy_mode));
           }
           const cloudOrder = isMobileDevice ? prefs.mobile_category_order : prefs.desktop_category_order;
           if (cloudOrder && cloudOrder.length > 0) {

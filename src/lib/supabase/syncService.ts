@@ -591,6 +591,11 @@ export interface UserPreferencesRecord {
   desktop_category_order?: string[];
   mobile_category_order?: string[];
   collapsed_categories?: string[];
+  default_privacy_mode?: boolean;
+  app_lock_enabled?: boolean;
+  app_lock_pin_hash?: string | null;
+  app_lock_biometrics_enabled?: boolean;
+  app_lock_timeout_minutes?: number;
   last_active_tab?: string;
   last_active_report_subtab?: string;
 }

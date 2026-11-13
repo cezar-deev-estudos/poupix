@@ -168,12 +168,14 @@ export interface AppPreferences {
   language: string;
   currency: string;
   theme: 'dark' | 'light';
+  defaultPrivacyMode: boolean;
 }
 
 export const DEFAULT_APP_PREFERENCES: AppPreferences = {
   language: 'pt-BR',
   currency: 'BRL',
   theme: 'dark',
+  defaultPrivacyMode: false,
 };
 
 export interface NotificationPreferences {

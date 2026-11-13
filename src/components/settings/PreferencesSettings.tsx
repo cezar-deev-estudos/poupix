@@ -5,7 +5,7 @@ import { useFinance } from '@/context/FinanceContext';
 import { useAuth } from '@/context/AuthContext';
 import { AppPreferences, DEFAULT_APP_PREFERENCES } from '@/types/settings';
 import { loadUserPreferencesFromSupabase, upsertUserPreferencesToSupabase } from '@/lib/supabase/syncService';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, Eye, EyeOff } from 'lucide-react';
 
 export const PreferencesSettings: React.FC = () => {
   const { theme, toggleTheme } = useFinance();
@@ -37,6 +37,7 @@ export const PreferencesSettings: React.FC = () => {
           theme: (cloudPrefs.theme as any) || prev.theme,
           language: cloudPrefs.language || prev.language,
           currency: cloudPrefs.currency || prev.currency,
+          defaultPrivacyMode: cloudPrefs.default_privacy_mode !== undefined ? Boolean(cloudPrefs.default_privacy_mode) : prev.defaultPrivacyMode,
         }));
       }
     });
@@ -51,6 +52,7 @@ export const PreferencesSettings: React.FC = () => {
         theme: prefs.theme,
         language: prefs.language,
         currency: prefs.currency,
+        default_privacy_mode: prefs.defaultPrivacyMode,
       });
     }
     if (prefs.theme !== theme) {
@@ -134,6 +136,59 @@ export const PreferencesSettings: React.FC = () => {
               }`}
             >
               Light Theme
+            </button>
+          </div>
+        </div>
+
+        {/* Modo Olhinho (Privacidade por Padrão) */}
+        <div className="space-y-2 md:col-span-2 pt-2 border-t border-slate-800/40">
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm text-white font-semibold flex items-center gap-2">
+                {prefs.defaultPrivacyMode ? (
+                  <EyeOff className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <Eye className="w-4 h-4 text-slate-400" />
+                )}
+                Privacidade ao Iniciar (Modo Olhinho)
+              </label>
+              <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                Ao habilitar, o sistema sempre abrirá no desktop e mobile com os valores ocultos (<span className="text-emerald-400 font-mono">••••••</span>) por padrão, protegendo suas informações em ambientes públicos. Você poderá revelar os dados clicando no ícone do olhinho no cabeçalho.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setPrefs(prev => ({ ...prev, defaultPrivacyMode: true }));
+                setSavedSuccess(false);
+              }}
+              className={`flex-1 py-3 px-4 rounded-2xl border text-sm font-medium transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                prefs.defaultPrivacyMode
+                  ? 'bg-emerald-500/15 border-emerald-500 text-emerald-400 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/30'
+                  : 'bg-[#18191d] border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+              }`}
+            >
+              <EyeOff className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Ocultar Valores por Padrão (Recomendado)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPrefs(prev => ({ ...prev, defaultPrivacyMode: false }));
+                setSavedSuccess(false);
+              }}
+              className={`flex-1 py-3 px-4 rounded-2xl border text-sm font-medium transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                !prefs.defaultPrivacyMode
+                  ? 'bg-slate-800 border-slate-600 text-white shadow-md'
+                  : 'bg-[#18191d] border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+              }`}
+            >
+              <Eye className="w-4 h-4 text-slate-400 shrink-0" />
+              <span>Manter Valores Visíveis</span>
             </button>
           </div>
         </div>

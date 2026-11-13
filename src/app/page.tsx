@@ -624,6 +624,8 @@ function DashboardContent() {
 
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { AuthView } from '@/components/auth/AuthView';
+import { AppLockProvider } from '@/context/AppLockContext';
+import { AppLockOverlay } from '@/components/security/AppLockOverlay';
 
 function AppGate() {
   const [isMounted, setIsMounted] = useState(false);
@@ -648,9 +650,12 @@ function AppGate() {
   }
 
   return (
-    <FinanceProvider>
-      <DashboardContent />
-    </FinanceProvider>
+    <AppLockProvider>
+      <FinanceProvider>
+        <DashboardContent />
+        <AppLockOverlay />
+      </FinanceProvider>
+    </AppLockProvider>
   );
 }
 
