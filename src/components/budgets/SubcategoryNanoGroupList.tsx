@@ -14,6 +14,7 @@ interface SubcategoryNanoGroupListProps {
   onSelectTransaction: (tx: Transaction) => void;
   onUpdateTransaction: (id: string, updates: Partial<Transaction>) => void;
   onManageNanos: () => void;
+  layoutColumns?: '1col' | '2col';
 }
 
 export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> = ({
@@ -24,6 +25,7 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
   onSelectTransaction,
   onUpdateTransaction,
   onManageNanos,
+  layoutColumns = '1col',
 }) => {
   // Nanos iniciam fechados por padrão; "Outros lançamentos" inicia sempre aberto
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
@@ -256,11 +258,12 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
             {/* Header do Grupo de Nano-Categoria */}
             <div
               onClick={() => hasTxs && toggleGroup(group.nano.id)}
-              className={`flex items-center justify-between p-2 text-xs transition-colors ${
+              className={`flex items-center justify-between gap-2 md:gap-3 p-2 text-xs transition-colors ${
                 hasTxs ? 'cursor-pointer hover:bg-slate-900/60' : 'opacity-70'
               }`}
             >
-              <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-3">
+              {/* Bloco Esquerdo: Chevron + Ponto + Nome + Quantidade + Teto (largura padronizada) */}
+              <div className="flex items-center gap-1.5 min-w-0 md:w-56 lg:w-64 shrink-0">
                 {hasTxs ? (
                   <button
                     type="button"
@@ -289,10 +292,9 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
                 )}
               </div>
 
-              {/* Bloco Direito com Posição e Alinhamento Fixo: Barra inicia estritamente no mesmo ponto e Valor tem largura padronizada */}
-              <div className="flex items-center gap-3 shrink-0">
-                {/* Mini Barra de Progresso com largura idêntica para todas */}
-                <div className="hidden sm:block w-28 md:w-36">
+              {/* Bloco Central: Barra de Progresso reduzida para a metade no modo 1 coluna (w-1/2 ml-auto) e tamanho total no modo 2 colunas (w-full) */}
+              <div className="flex-1 w-full md:w-auto min-w-0 hidden sm:block">
+                <div className={layoutColumns === '2col' ? 'w-full' : 'w-1/2 ml-auto'}>
                   {group.budget > 0 ? (
                     <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden border border-slate-800">
                       <div
@@ -306,9 +308,11 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
                     <div className="w-full h-1.5" />
                   )}
                 </div>
+              </div>
 
-                {/* Valor Gasto com largura fixa para não oscilar o final */}
-                <span className={`font-semibold text-right tabular-nums min-w-[78px] sm:min-w-[88px] ${group.isOver ? 'text-rose-400' : 'text-white'}`}>
+              {/* Bloco Direito: Valor Gasto com largura fixa para não oscilar o final */}
+              <div className="flex items-center gap-1.5 shrink-0 min-w-[78px] sm:min-w-[90px] justify-end">
+                <span className={`font-semibold text-right tabular-nums ${group.isOver ? 'text-rose-400' : 'text-white'}`}>
                   {formatCurrency(group.totalSpent)}
                 </span>
               </div>
@@ -329,9 +333,9 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
         <div className="border border-slate-800/80 rounded-xl bg-slate-950/40 overflow-hidden">
           <div
             onClick={() => toggleGroup('_others')}
-            className="flex items-center justify-between p-2 text-xs cursor-pointer hover:bg-slate-900/60 transition-colors"
+            className="flex items-center justify-between gap-2 md:gap-3 p-2 text-xs cursor-pointer hover:bg-slate-900/60 transition-colors"
           >
-            <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-3">
+            <div className="flex items-center gap-1.5 min-w-0 md:w-56 lg:w-64 shrink-0">
               <button
                 type="button"
                 className="p-0.5 text-slate-400 hover:text-emerald-400 transition-colors shrink-0"
@@ -349,9 +353,14 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
               </span>
             </div>
 
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="hidden sm:block w-28 md:w-36 h-1.5" />
-              <span className="font-semibold text-slate-300 text-right tabular-nums min-w-[78px] sm:min-w-[88px]">
+            {/* Bloco Central Vazio para manter o alinhamento idêntico */}
+            <div className="flex-1 w-full md:w-auto min-w-0 hidden sm:block">
+              <div className="w-full h-1.5" />
+            </div>
+
+            {/* Bloco Direito */}
+            <div className="flex items-center gap-1.5 shrink-0 min-w-[78px] sm:min-w-[90px] justify-end">
+              <span className="font-semibold text-slate-300 text-right tabular-nums">
                 {formatCurrency(otherTotalSpent)}
               </span>
             </div>

@@ -454,11 +454,15 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     ? activeBaseline.summaryTotals.netBalance
     : currentAnnualCashFlow;
 
-  // Helper para renderizar célula comparativa de desvio
+  // Helper para renderizar célula comparativa de desvio respeitando a regra tipográfica:
+  // - category: Mantém como está (branco com ênfase)
+  // - subcategory: Como está, porém sem o negrito (font-normal)
+  // - nano: Cinza normal sem destaque (text-slate-400 font-normal)
   const renderCellWithDiff = (
     currentVal: number,
     baseVal: number | undefined,
-    type: 'income' | 'expense' | 'net'
+    type: 'income' | 'expense' | 'net',
+    level: 'category' | 'subcategory' | 'nano' = 'category'
   ) => {
     // Formatação do valor principal
     const formatValue = (val: number) => {
@@ -472,11 +476,23 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
       return val > 0 ? formatCurrency(val) : '-';
     };
 
+    // Definição das classes de texto, tamanho e peso com distinção nítida por nível hierárquico
+    let textClass = 'text-sm font-bold text-white';
+    if (level === 'subcategory') {
+      textClass = 'text-[11.5px] font-normal text-slate-300';
+    } else if (level === 'nano') {
+      textClass = 'text-[10.5px] font-normal text-slate-500';
+    }
+
+    if (type === 'net') {
+      textClass = `text-sm ${currentVal >= 0 ? 'text-emerald-400' : 'text-rose-400'} font-bold`;
+    }
+
     if (!isCompareMode || baseVal === undefined) {
       const formatted = formatValue(currentVal);
       return (
-        <span className="text-right tabular-nums">
-          {formatted === '-' ? <span className="text-slate-600">-</span> : formatted}
+        <span className={`text-right tabular-nums ${textClass}`}>
+          {formatted === '-' ? <span className="text-slate-600 font-normal">-</span> : formatted}
         </span>
       );
     }
@@ -514,11 +530,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
 
     return (
       <div className="flex flex-col items-end leading-tight py-0.5">
-        <span className={`tabular-nums font-semibold ${
-          type === 'net'
-            ? (currentVal >= 0 ? 'text-emerald-400' : 'text-rose-400')
-            : 'text-slate-200'
-        }`}>
+        <span className={`tabular-nums ${textClass}`}>
           {mainValText}
         </span>
         <span className={`text-[9px] tabular-nums flex items-center gap-0.5 ${diffColor}`}>
@@ -1329,13 +1341,13 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                 {MONTH_SHORT_NAMES.map((_, m) => {
                                   const val = sub.monthlyValues[m] || 0;
                                   return (
-                                    <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums text-slate-400')}>
-                                      {renderCellWithDiff(val, baseSub?.monthly[m], 'income')}
+                                    <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums')}>
+                                      {renderCellWithDiff(val, baseSub?.monthly[m], 'income', 'subcategory')}
                                     </td>
                                   );
                                 })}
-                                <td className="p-2 text-right tabular-nums text-slate-300 font-medium bg-slate-950/60 border-l border-slate-800">
-                                  {renderCellWithDiff(subAnnual, baseSub?.total, 'income')}
+                                <td className="p-2 text-right tabular-nums bg-slate-950/60 border-l border-slate-800">
+                                  {renderCellWithDiff(subAnnual, baseSub?.total, 'income', 'subcategory')}
                                 </td>
                               </tr>
 
@@ -1354,12 +1366,12 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                       const val = nano.monthlyValues[m] || 0;
                                       return (
                                         <td key={m} className={getCurrentMonthColClass(m, 'p-1.5 text-right tabular-nums')}>
-                                          {renderCellWithDiff(val, baseNano?.monthly[m], 'income')}
+                                          {renderCellWithDiff(val, baseNano?.monthly[m], 'income', 'nano')}
                                         </td>
                                       );
                                     })}
-                                    <td className="p-1.5 text-right tabular-nums font-normal text-slate-400 bg-slate-950/80 border-l border-slate-800">
-                                      {renderCellWithDiff(nanoAnnual, baseNano?.total, 'income')}
+                                    <td className="p-1.5 text-right tabular-nums bg-slate-950/80 border-l border-slate-800">
+                                      {renderCellWithDiff(nanoAnnual, baseNano?.total, 'income', 'nano')}
                                     </td>
                                   </tr>
                                 );
@@ -1468,13 +1480,13 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                 {MONTH_SHORT_NAMES.map((_, m) => {
                                   const val = sub.monthlyValues[m] || 0;
                                   return (
-                                    <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums text-slate-400')}>
-                                      {renderCellWithDiff(val, baseSub?.monthly[m], 'expense')}
+                                    <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums')}>
+                                      {renderCellWithDiff(val, baseSub?.monthly[m], 'expense', 'subcategory')}
                                     </td>
                                   );
                                 })}
-                                <td className="p-2 text-right tabular-nums text-slate-300 font-medium bg-slate-950/60 border-l border-slate-800">
-                                  {renderCellWithDiff(subAnnual, baseSub?.total, 'expense')}
+                                <td className="p-2 text-right tabular-nums bg-slate-950/60 border-l border-slate-800">
+                                  {renderCellWithDiff(subAnnual, baseSub?.total, 'expense', 'subcategory')}
                                 </td>
                               </tr>
 
@@ -1493,12 +1505,12 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                       const val = nano.monthlyValues[m] || 0;
                                       return (
                                         <td key={m} className={getCurrentMonthColClass(m, 'p-1.5 text-right tabular-nums')}>
-                                          {renderCellWithDiff(val, baseNano?.monthly[m], 'expense')}
+                                          {renderCellWithDiff(val, baseNano?.monthly[m], 'expense', 'nano')}
                                         </td>
                                       );
                                     })}
-                                    <td className="p-1.5 text-right tabular-nums font-normal text-slate-400 bg-slate-950/80 border-l border-slate-800">
-                                      {renderCellWithDiff(nanoAnnual, baseNano?.total, 'expense')}
+                                    <td className="p-1.5 text-right tabular-nums bg-slate-950/80 border-l border-slate-800">
+                                      {renderCellWithDiff(nanoAnnual, baseNano?.total, 'expense', 'nano')}
                                     </td>
                                   </tr>
                                 );
@@ -1612,13 +1624,13 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                 {MONTH_SHORT_NAMES.map((_, m) => {
                                   const val = sub.monthlyValues[m] || 0;
                                   return (
-                                    <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums text-slate-400')}>
-                                      {renderCellWithDiff(val, baseSub?.monthly[m], 'expense')}
+                                    <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums')}>
+                                      {renderCellWithDiff(val, baseSub?.monthly[m], 'expense', 'subcategory')}
                                     </td>
                                   );
                                 })}
-                                <td className="p-2 text-right tabular-nums text-slate-300 font-medium bg-slate-950/60 border-l border-slate-800">
-                                  {renderCellWithDiff(subAnnual, baseSub?.total, 'expense')}
+                                <td className="p-2 text-right tabular-nums bg-slate-950/60 border-l border-slate-800">
+                                  {renderCellWithDiff(subAnnual, baseSub?.total, 'expense', 'subcategory')}
                                 </td>
                               </tr>
 
@@ -1637,12 +1649,12 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                       const val = nano.monthlyValues[m] || 0;
                                       return (
                                         <td key={m} className={getCurrentMonthColClass(m, 'p-1.5 text-right tabular-nums')}>
-                                          {renderCellWithDiff(val, baseNano?.monthly[m], 'expense')}
+                                          {renderCellWithDiff(val, baseNano?.monthly[m], 'expense', 'nano')}
                                         </td>
                                       );
                                     })}
-                                    <td className="p-1.5 text-right tabular-nums font-normal text-slate-400 bg-slate-950/80 border-l border-slate-800">
-                                      {renderCellWithDiff(nanoAnnual, baseNano?.total, 'expense')}
+                                    <td className="p-1.5 text-right tabular-nums bg-slate-950/80 border-l border-slate-800">
+                                      {renderCellWithDiff(nanoAnnual, baseNano?.total, 'expense', 'nano')}
                                     </td>
                                   </tr>
                                 );

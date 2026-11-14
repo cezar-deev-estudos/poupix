@@ -1107,8 +1107,12 @@ export const BudgetsView: React.FC = () => {
                                 }`}
                               >
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-3">
-                                  {/* Bloco Esquerdo: Chevron (se houver transações) + Drag/Move + Cor + Nome + Teto com largura padronizada */}
-                                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 md:w-44 lg:w-48 shrink-0">
+                                  {/* Bloco Esquerdo: Chevron (se houver transações) + Drag/Move + Cor + Nome + Teto com largura responsiva ao modo de colunas */}
+                                  <div className={`flex items-center gap-1.5 sm:gap-2 min-w-0 shrink-0 ${
+                                    layoutColumns === '1col'
+                                      ? 'md:w-72 lg:w-80'
+                                      : 'md:w-56 lg:w-64'
+                                  }`}>
                                     {/* Seta/Chevron para expandir os itens da subcategoria */}
                                     {subTransactions.length > 0 ? (
                                       <button
@@ -1240,16 +1244,18 @@ export const BudgetsView: React.FC = () => {
                                     )}
                                   </div>
 
-                                  {/* Bloco Direito: Valor Gasto com largura fixa + Ações */}
+                                  {/* Bloco Direito: Valor Gasto empilhado com Excedente + Ações */}
                                   <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
-                                    <span className="font-semibold text-white text-right tabular-nums min-w-[78px] sm:min-w-[90px]">
-                                      {formatCurrency(subSpent)}
+                                    <div className="flex flex-col items-end leading-tight min-w-[78px] sm:min-w-[90px]">
+                                      <span className="font-semibold text-white tabular-nums text-right">
+                                        {formatCurrency(subSpent)}
+                                      </span>
                                       {isSubOver && subBudget > 0 && (
-                                        <span className="font-bold text-rose-400 ml-1">
-                                          ({formatCurrency(subSpent - subBudget)})
+                                        <span className="text-[10px] font-normal text-rose-400 tabular-nums text-right mt-0.5">
+                                          +{formatCurrency(subSpent - subBudget)}
                                         </span>
                                       )}
-                                    </span>
+                                    </div>
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -1273,6 +1279,7 @@ export const BudgetsView: React.FC = () => {
                                     onSelectTransaction={(tx) => setEditingTransaction(tx)}
                                     onUpdateTransaction={(id, up) => updateTransaction(id, up)}
                                     onManageNanos={() => setManagingNanoSubcategory(sub)}
+                                    layoutColumns={layoutColumns}
                                   />
                                 )}
                               </div>
@@ -1415,8 +1422,8 @@ export const BudgetsView: React.FC = () => {
                     }`}
                   >
                     {/* Linha da Categoria Pai */}
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-start sm:items-center justify-between gap-2 sm:gap-3">
+                      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
                         {/* Alça de Arraste da Categoria Pai */}
                         <div
                           draggable
@@ -1484,39 +1491,28 @@ export const BudgetsView: React.FC = () => {
                         >
                           <CategoryIcon name={parentCat.icon} size={16} />
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-white text-sm">{parentCat.name}</span>
-                            <span
-                              className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${
-                                parentCat.type === 'expense'
-                                  ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                                  : parentCat.type === 'investment'
-                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                  : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              }`}
-                            >
-                              {parentCat.type === 'expense' ? 'Despesa' : parentCat.type === 'investment' ? 'Investimento' : 'Receita'}
-                            </span>
-                            {subs.length > 0 && isCollapsed && (
-                              <span className="text-[11px] text-slate-500 font-normal">
-                                ({subs.length} subcategorias recolhidas)
-                              </span>
-                            )}
-                          </div>
-                          {parentCat.budgetLimit && parentCat.budgetLimit > 0 && (
-                            <span className="text-[11px] text-slate-400 block">
-                              Teto Mensal: {formatCurrency(parentCat.budgetLimit)}
-                            </span>
-                          )}
+                        <div className="min-w-0 flex-1">
+                          <span className="font-bold text-white text-sm truncate block">{parentCat.name}</span>
+                          <span
+                            className={`text-[10.5px] font-normal block leading-tight mt-0.5 ${
+                              parentCat.type === 'expense'
+                                ? 'text-rose-400'
+                                : parentCat.type === 'investment'
+                                ? 'text-amber-400'
+                                : 'text-emerald-400'
+                            }`}
+                          >
+                            {parentCat.type === 'expense' ? 'Despesa' : parentCat.type === 'investment' ? 'Investimento' : 'Receita'}
+                          </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0 self-center">
                         {/* Botão para Adicionar Subcategoria Rápido */}
                         <button
                           onClick={() => handleOpenCreate(parentCat.id, parentCat.type)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition-colors cursor-pointer mr-2"
+                          className="flex items-center gap-1 p-1.5 sm:px-2.5 sm:py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                          title="Adicionar subcategoria"
                         >
                           <Plus className="w-3.5 h-3.5 text-emerald-400" />
                           <span className="hidden sm:inline">Subcategoria</span>
@@ -1567,7 +1563,7 @@ export const BudgetsView: React.FC = () => {
                                   : 'border-slate-800/60 hover:border-slate-700'
                               }`}
                             >
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
                                 {/* Alça de Arraste / Mover da Subcategoria */}
                                 <div
                                   draggable
@@ -1579,14 +1575,14 @@ export const BudgetsView: React.FC = () => {
                                     setDraggedSubId(null);
                                     setDragOverSubId(null);
                                   }}
-                                  className="p-1 text-slate-600 hover:text-slate-300 hover:bg-slate-800/80 rounded cursor-grab active:cursor-grabbing transition-colors"
+                                  className="p-1 text-slate-600 hover:text-slate-300 hover:bg-slate-800/80 rounded cursor-grab active:cursor-grabbing transition-colors shrink-0"
                                   title="Arraste para reordenar esta subcategoria"
                                 >
                                   <GripVertical className="w-3.5 h-3.5" />
                                 </div>
 
                                 {/* Botões rápidos de subir/descer (facilitador para mobile e desktop) */}
-                                <div className="flex flex-col gap-0.5">
+                                <div className="flex flex-col gap-0.5 shrink-0">
                                   <button
                                     type="button"
                                     disabled={sIdx === 0}
@@ -1614,25 +1610,27 @@ export const BudgetsView: React.FC = () => {
                                 </div>
 
                                 <div
-                                  className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[10px]"
+                                  className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[10px] shrink-0"
                                   style={{ backgroundColor: sub.color }}
                                 >
                                   <CategoryIcon name={sub.icon} size={12} />
                                 </div>
-                                <span className="font-semibold text-slate-200 text-xs">{sub.name}</span>
-                                {sub.budgetLimit && sub.budgetLimit > 0 && (
-                                  <span className="text-[10px] text-slate-400 font-normal">
-                                    • Teto: {formatCurrency(sub.budgetLimit)}
-                                  </span>
-                                )}
+                                <div className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
+                                  <span className="font-semibold text-slate-200 text-xs truncate">{sub.name}</span>
+                                  {sub.budgetLimit && sub.budgetLimit > 0 && (
+                                    <span className="text-[10px] text-slate-400 font-normal shrink-0">
+                                      • Teto: {formatCurrency(sub.budgetLimit)}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
 
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 shrink-0">
                                 {/* Botão de Nano-Categorias */}
                                 <button
                                   type="button"
                                   onClick={() => setManagingNanoSubcategory(sub)}
-                                  className="flex items-center gap-1 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                                  className="flex items-center gap-1 px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-lg text-xs font-medium transition-colors cursor-pointer"
                                   title="Gerenciar Nano-Categorias desta subcategoria"
                                 >
                                   <Plus className="w-3 h-3 text-emerald-400" />
