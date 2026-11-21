@@ -390,9 +390,9 @@ export const MobileAccountsView: React.FC<MobileAccountsViewProps> = ({
       </div>
 
       {/* Card Grande de Topo (Container Cinza Escuro Arredondado) */}
-      <div className="mx-3 mt-1 bg-[#25252c] rounded-3xl border border-slate-800/80 overflow-hidden shadow-2xl">
+      <div className="mx-3 mt-1 bg-[#25252c] rounded-3xl border border-slate-800/80 shadow-2xl">
         {/* Bloco de Saldos de Topo */}
-        <div className="grid grid-cols-2 p-5 gap-4 border-b border-slate-700/40">
+        <div className="grid grid-cols-2 p-5 gap-4 border-b border-slate-700/40 rounded-t-3xl">
           <div>
             <span className="text-xs text-slate-400 block mb-1">Saldo atual</span>
             <span
@@ -418,16 +418,17 @@ export const MobileAccountsView: React.FC<MobileAccountsViewProps> = ({
 
         {/* Lista Vertical de Contas */}
         <div className="divide-y divide-slate-700/40">
-          {activeAccounts.map(acc => {
+          {activeAccounts.map((acc, index) => {
             const accCurrent = acc.balance || 0;
             const accProjected = projectedBalanceMap[acc.id] ?? acc.balance;
             const isMenuOpen = activeMenuAccountId === acc.id;
+            const isLastItems = index >= activeAccounts.length - 2;
 
             return (
               <div 
                 key={acc.id} 
                 onClick={() => setSelectedAccountForDetail(acc)}
-                className="p-4 space-y-2 relative cursor-pointer active:bg-slate-800/40 transition-colors"
+                className="p-4 space-y-2 relative cursor-pointer active:bg-slate-800/40 transition-colors first:rounded-none last:rounded-b-3xl"
               >
                 {/* Linha 1: Badge + Nome + Menu ⋮ */}
                 <div className="flex items-center justify-between gap-3">
@@ -450,7 +451,9 @@ export const MobileAccountsView: React.FC<MobileAccountsViewProps> = ({
                     </button>
 
                     {isMenuOpen && (
-                      <div className="absolute right-0 top-full mt-1 w-44 bg-[#2a2a30] border border-slate-700/80 rounded-2xl shadow-2xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100 text-xs">
+                      <div className={`absolute right-0 w-44 bg-[#2a2a30] border border-slate-700/80 rounded-2xl shadow-2xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 text-xs ${
+                        isLastItems ? 'bottom-full mb-1' : 'top-full mt-1'
+                      }`}>
                         <button
                           onClick={() => {
                             setActiveMenuAccountId(null);
