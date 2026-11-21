@@ -11,6 +11,7 @@ interface CategorySelectorDropdownProps {
   selectedCategoryId: string;
   onSelectCategory: (id: string) => void;
   variant?: DateVariant;
+  showError?: boolean;
 }
 
 export const CategorySelectorDropdown: React.FC<CategorySelectorDropdownProps> = ({
@@ -18,6 +19,7 @@ export const CategorySelectorDropdown: React.FC<CategorySelectorDropdownProps> =
   selectedCategoryId,
   onSelectCategory,
   variant = 'rose',
+  showError = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -59,38 +61,45 @@ export const CategorySelectorDropdown: React.FC<CategorySelectorDropdownProps> =
 
   return (
     <div ref={containerRef} className="relative space-y-1">
-      {/* Botão Gatilho no Padrão Mobills */}
-      <div className="flex items-center gap-3 border-b border-slate-800/80 pb-2">
-        <Bookmark className="w-4 h-4 text-slate-500 shrink-0" />
+      {/* Botão Gatilho alinhado ao padrão do campo Descrição */}
+      <div className={`flex items-center gap-2 border-b transition-colors pb-2 ${
+        showError && isUncategorized ? 'border-amber-500/80' : 'border-slate-800/80'
+      }`}>
+        <Bookmark className={`w-4 h-4 shrink-0 ${showError && isUncategorized ? 'text-amber-400' : 'text-slate-500'}`} />
 
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="flex-1 flex items-center justify-between text-left cursor-pointer group"
+          className="flex-1 flex items-center justify-between text-left cursor-pointer group min-w-0"
         >
-          {/* Badge Pílula da Categoria Selecionada */}
-          <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all"
-            style={{
-              borderColor: `${themeColor}90`,
-              backgroundColor: `${themeColor}15`,
-            }}
-          >
-            <div
-              className="w-5 h-5 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm"
-              style={{ backgroundColor: isUncategorized ? '#64748B' : (selectedCategory?.color || themeColor) }}
-            >
-              <CategoryIcon name={isUncategorized ? 'Tag' : (selectedCategory?.icon || 'Tag')} size={11} />
-            </div>
-
-            <span className="text-xs font-semibold text-white truncate max-w-[240px]">
-              {isUncategorized
-                ? 'Sem categoria'
-                : parentCategory
-                ? `${parentCategory.name} / ${selectedCategory?.name}`
-                : selectedCategory?.name || 'Sem categoria'}
+          {isUncategorized ? (
+            /* Estado Inicial Não Selecionado: igual ao placeholder do campo Descrição */
+            <span className={`text-sm truncate select-none ${showError ? 'text-amber-400/90' : 'text-slate-500 group-hover:text-slate-400'}`}>
+              Categoria
             </span>
-          </div>
+          ) : (
+            /* Badge Pílula quando uma categoria foi selecionada */
+            <div
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-full border transition-all"
+              style={{
+                borderColor: `${themeColor}90`,
+                backgroundColor: `${themeColor}15`,
+              }}
+            >
+              <div
+                className="w-5 h-5 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm"
+                style={{ backgroundColor: selectedCategory?.color || themeColor }}
+              >
+                <CategoryIcon name={selectedCategory?.icon || 'Tag'} size={11} />
+              </div>
+
+              <span className="text-xs font-semibold text-white truncate max-w-[240px]">
+                {parentCategory
+                  ? `${parentCategory.name} / ${selectedCategory?.name}`
+                  : selectedCategory?.name}
+              </span>
+            </div>
+          )}
 
           <div className="text-slate-400 group-hover:text-white p-1 transition-colors">
             {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -98,28 +107,15 @@ export const CategorySelectorDropdown: React.FC<CategorySelectorDropdownProps> =
         </button>
       </div>
 
+      {showError && isUncategorized && (
+        <p className="text-[11px] font-medium text-amber-400/90 pt-0.5 animate-fadeIn">
+          Selecione uma categoria
+        </p>
+      )}
+
       {/* Menu Dropdown Suspenso com Hierarquia */}
       {isOpen && (
         <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 max-h-64 overflow-y-auto animate-fadeIn space-y-1">
-          {/* Opção Sem Categoria */}
-          <button
-            type="button"
-            onClick={() => {
-              onSelectCategory('');
-              setIsOpen(false);
-            }}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-bold transition-all cursor-pointer ${
-              isUncategorized
-                ? 'bg-slate-800 text-white border border-slate-700'
-                : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-            }`}
-          >
-            <div className="w-6 h-6 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm bg-slate-600">
-              <CategoryIcon name="Tag" size={12} />
-            </div>
-            <span className="truncate">Sem categoria</span>
-          </button>
-
           {parentCategories.map(parent => {
             const subcategories = categories.filter(c => c.parentId === parent.id);
             const isParentSelected = selectedCategoryId === parent.id;

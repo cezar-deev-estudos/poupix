@@ -43,7 +43,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
   const [paid, setPaid] = useState(initialData?.paid ?? true);
   const [description, setDescription] = useState(initialData?.description || '');
   const [isFavorite, setIsFavorite] = useState(initialData?.isFavorite ?? false);
-  const [categoryId, setCategoryId] = useState(initialData !== undefined && initialData !== null ? (initialData.categoryId ?? '') : defaultCatId);
+  const [categoryId, setCategoryId] = useState(initialData?.categoryId || '');
   const [accountId, setAccountId] = useState(initialData?.accountId || initialAccId);
   const [ignoreInTotals, setIgnoreInTotals] = useState(initialData?.ignoreInTotals ?? false);
   const [attachmentUrl, setAttachmentUrl] = useState<string | null>(initialData?.attachmentUrl || null);
@@ -90,7 +90,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
   const handleSubmit = (createAnother: boolean = false) => {
     setShowValidation(true);
     const numAmount = parseFloat(amount.replace(',', '.'));
-    if (isNaN(numAmount) || numAmount <= 0 || !description.trim()) {
+    if (isNaN(numAmount) || numAmount <= 0 || !description.trim() || !categoryId) {
       return;
     }
 
@@ -177,7 +177,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
     setAttachmentUrl(null);
   };
 
-  const isFormValid = parseFloat(amount.replace(',', '.')) > 0 && description.trim().length > 0;
+  const isFormValid = parseFloat(amount.replace(',', '.')) > 0 && description.trim().length > 0 && Boolean(categoryId);
 
   return (
     <form
@@ -244,6 +244,7 @@ export const IncomeForm: React.FC<IncomeFormProps> = ({
             selectedCategoryId={categoryId}
             onSelectCategory={setCategoryId}
             variant="emerald"
+            showError={showValidation && !categoryId}
           />
 
           {/* Conta de Entrada com Dropdown Customizado */}

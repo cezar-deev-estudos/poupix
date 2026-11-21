@@ -73,7 +73,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   const [paid, setPaid] = useState(initialData?.paid ?? true);
   const [description, setDescription] = useState(initialData?.description || '');
   const [isFavorite, setIsFavorite] = useState(initialData?.isFavorite ?? false);
-  const [categoryId, setCategoryId] = useState(initialData !== undefined && initialData !== null ? (initialData.categoryId ?? '') : defaultCatId);
+  const [categoryId, setCategoryId] = useState(initialData?.categoryId || '');
   const [accountId, setAccountId] = useState(initialData?.accountId || initialAccId);
   const [ignoreInTotals, setIgnoreInTotals] = useState(initialData?.ignoreInTotals ?? false);
   const [isDecreasing, setIsDecreasing] = useState(initialData?.isDecreasing ?? false);
@@ -151,7 +151,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
   const handleSubmit = (createAnother: boolean = false) => {
     setShowValidation(true);
     const numAmount = parseFloat(amount.replace(',', '.'));
-    if (isNaN(numAmount) || numAmount <= 0 || !description.trim()) {
+    if (isNaN(numAmount) || numAmount <= 0 || !description.trim() || !categoryId) {
       return;
     }
 
@@ -194,7 +194,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
     }
   };
 
-  const isFormValid = parseFloat(amount.replace(',', '.')) > 0 && description.trim().length > 0;
+  const isFormValid = parseFloat(amount.replace(',', '.')) > 0 && description.trim().length > 0 && Boolean(categoryId);
 
   return (
     <form
@@ -338,6 +338,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({
             selectedCategoryId={categoryId}
             onSelectCategory={setCategoryId}
             variant="rose"
+            showError={showValidation && !categoryId}
           />
 
           {/* Conta Bancária com Dropdown Customizado */}

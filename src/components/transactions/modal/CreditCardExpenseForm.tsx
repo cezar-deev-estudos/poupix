@@ -40,7 +40,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
   const [date, setDate] = useState(initialData?.date || getLocalDateString());
   const [description, setDescription] = useState(initialData?.description || '');
   const [isFavorite, setIsFavorite] = useState(initialData?.isFavorite ?? false);
-  const [categoryId, setCategoryId] = useState(initialData !== undefined && initialData !== null ? (initialData.categoryId ?? '') : defaultCatId);
+  const [categoryId, setCategoryId] = useState(initialData?.categoryId || '');
   const [creditCardId, setCreditCardId] = useState(initialSelectedCardId);
   const [ignoreInTotals, setIgnoreInTotals] = useState(initialData?.ignoreInTotals ?? false);
   const [isFixedCost, setIsFixedCost] = useState(initialData?.isFixedCost ?? false);
@@ -139,7 +139,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
   const handleSubmit = (createAnother: boolean = false) => {
     setShowValidation(true);
     const numAmount = parseFloat(amount.replace(',', '.'));
-    if (isNaN(numAmount) || numAmount <= 0 || !description.trim()) {
+    if (isNaN(numAmount) || numAmount <= 0 || !description.trim() || !categoryId) {
       return;
     }
 
@@ -171,7 +171,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
     }
   };
 
-  const isFormValid = parseFloat(amount.replace(',', '.')) > 0 && description.trim().length > 0;
+  const isFormValid = parseFloat(amount.replace(',', '.')) > 0 && description.trim().length > 0 && Boolean(categoryId);
 
   return (
     <form
@@ -232,6 +232,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
             selectedCategoryId={categoryId}
             onSelectCategory={setCategoryId}
             variant="cyan"
+            showError={showValidation && !categoryId}
           />
 
           {/* Cartão de Crédito com Dropdown Customizado */}
