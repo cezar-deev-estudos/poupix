@@ -167,11 +167,11 @@ export function useFinanceCloudSync({
         });
     }
 
-    // Revalidação com a nuvem quando o app voltar ao primeiro plano (ex: alternar abas ou desbloquear celular)
+    // Revalidação com a nuvem quando o app voltar ao primeiro plano de forma suave e espaçada
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         const timeSinceLastSync = Date.now() - lastSyncTimestampRef.current;
-        if (timeSinceLastSync > 10000 && canFetchRef.current(false)) {
+        if (timeSinceLastSync > 30000 && canFetchRef.current(false)) {
           loadCloudDataRef.current();
         }
       }

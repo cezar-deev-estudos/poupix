@@ -19,41 +19,10 @@ export const ServiceWorkerRegister: React.FC = () => {
       try {
         const registration = await navigator.serviceWorker.register('/sw.js');
 
-        // Forçar verificação de novas atualizações imediatamente no carregamento
-        registration.update().catch(() => {});
-
-        // Verificar atualização quando o app volta ao primeiro plano (desbloqueio do celular ou troca de aba)
-        const checkUpdate = () => {
-          registration.update().catch(() => {});
-        };
-
-        window.addEventListener('focus', checkUpdate);
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') {
-            checkUpdate();
-          }
-        });
-
-        // Checagem periódica a cada 5 minutos sem interromper a sessão ativa
+        // Checar atualização de forma silenciosa e não intrusiva a cada 15 minutos
         intervalId = setInterval(() => {
           registration.update().catch(() => {});
-        }, 300000);
-
-        // Se houver um novo worker esperando, ativar imediatamente
-        if (registration.waiting) {
-          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
-
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                newWorker.postMessage({ type: 'SKIP_WAITING' });
-              }
-            });
-          }
-        });
+        }, 15 * 60 * 1000);
       } catch (error) {
         console.error('[PWA] Falha ao registrar ServiceWorker:', error);
       }

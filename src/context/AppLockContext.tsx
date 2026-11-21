@@ -64,12 +64,50 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isBiometricsSupported, setIsBiometricsSupported] = useState(false);
   const lastActiveTimestampRef = useRef<number>(Date.now());
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTs = sessionStorage.getItem('poupix_app_last_active_ts') || localStorage.getItem('poupix_app_last_active_ts');
+      if (savedTs) {
+        const parsed = Number(savedTs);
+        if (!isNaN(parsed) && parsed > 0) {
+          lastActiveTimestampRef.current = parsed;
+        }
+      }
+    }
+  }, []);
+
+  const recordActivity = useCallback(() => {
+    const now = Date.now();
+    lastActiveTimestampRef.current = now;
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('poupix_app_last_active_ts', String(now));
+      localStorage.setItem('poupix_app_last_active_ts', String(now));
+    }
+  }, []);
+
+  // Monitorar interações ativas do usuário para manter o timestamp sempre fresco
+  useEffect(() => {
+    const handleUserInteraction = () => {
+      recordActivity();
+    };
+
+    window.addEventListener('touchstart', handleUserInteraction, { passive: true });
+    window.addEventListener('click', handleUserInteraction, { passive: true });
+    window.addEventListener('keydown', handleUserInteraction, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', handleUserInteraction);
+      window.removeEventListener('click', handleUserInteraction);
+      window.removeEventListener('keydown', handleUserInteraction);
+    };
+  }, [recordActivity]);
+
   // Checar suporte biométrico do hardware
   useEffect(() => {
     isBiometricsAvailable().then(setIsBiometricsSupported);
   }, []);
 
-  // Sincronizar preferências de bloqueio com o Supabase
+  // Sincronizar preferências de bloqueio com o Supabase sem bloquear a sessão se o usuário já estiver dentro
   useEffect(() => {
     if (!user?.id) return;
     loadUserPreferencesFromSupabase(user.id).then(cloudPrefs => {
@@ -83,9 +121,6 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setSettings(cloudSettings);
         if (typeof window !== 'undefined') {
           localStorage.setItem('poupix_app_lock_settings', JSON.stringify(cloudSettings));
-        }
-        if (cloudSettings.enabled && cloudSettings.pinHash) {
-          setIsLocked(true);
         }
       }
     });
@@ -125,11 +160,11 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const hashed = await hashPin(pin);
     if (hashed === settings.pinHash) {
       setIsLocked(false);
-      lastActiveTimestampRef.current = Date.now();
+      recordActivity();
       return true;
     }
     return false;
-  }, [settings.pinHash]);
+  }, [settings.pinHash, recordActivity]);
 
   // Desbloqueio via Biometria
   const unlockWithBiometrics = useCallback(async (): Promise<boolean> => {
@@ -137,11 +172,11 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const success = await authenticateWithBiometrics();
     if (success) {
       setIsLocked(false);
-      lastActiveTimestampRef.current = Date.now();
+      recordActivity();
       return true;
     }
     return false;
-  }, [settings.biometricsEnabled, isBiometricsSupported]);
+  }, [settings.biometricsEnabled, isBiometricsSupported, recordActivity]);
 
   const lockNow = useCallback(() => {
     if (settings.enabled && settings.pinHash) {
@@ -153,22 +188,35 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     if (!settings.enabled || !settings.pinHash) return;
 
-    const handleVisibilityChange = () => {
+    const checkLockOnVisibility = () => {
+      const now = Date.now();
       if (document.visibilityState === 'hidden') {
-        lastActiveTimestampRef.current = Date.now();
+        recordActivity();
       } else if (document.visibilityState === 'visible') {
-        const elapsedMinutes = (Date.now() - lastActiveTimestampRef.current) / (1000 * 60);
+        const storedTs = typeof window !== 'undefined'
+          ? Number(sessionStorage.getItem('poupix_app_last_active_ts') || localStorage.getItem('poupix_app_last_active_ts') || lastActiveTimestampRef.current)
+          : lastActiveTimestampRef.current;
+
+        const effectiveLastActive = (!isNaN(storedTs) && storedTs > 0) ? storedTs : now;
+        const elapsedMinutes = (now - effectiveLastActive) / (1000 * 60);
+
         if (settings.timeoutMinutes === 0 || elapsedMinutes >= settings.timeoutMinutes) {
           setIsLocked(true);
+        } else {
+          // Ainda está dentro da janela de permissão: atualiza atividade para continuar usando
+          recordActivity();
         }
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', checkLockOnVisibility);
+    window.addEventListener('pagehide', recordActivity);
+
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', checkLockOnVisibility);
+      window.removeEventListener('pagehide', recordActivity);
     };
-  }, [settings.enabled, settings.pinHash, settings.timeoutMinutes]);
+  }, [settings.enabled, settings.pinHash, settings.timeoutMinutes, recordActivity]);
 
   return (
     <AppLockContext.Provider
