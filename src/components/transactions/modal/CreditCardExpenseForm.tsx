@@ -34,7 +34,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
 
   const expenseCategories = categories.filter(c => c.type === 'expense');
   const defaultCatId = expenseCategories[0]?.id || '';
-  const initialSelectedCardId = initialData?.creditCardId || defaultCreditCardId || creditCards[0]?.id || '';
+  const initialSelectedCardId = initialData?.creditCardId || defaultCreditCardId || '';
 
   const [amount, setAmount] = useState(initialData?.amount ? initialData.amount.toString() : '');
   const [date, setDate] = useState(initialData?.date || getLocalDateString());
@@ -76,7 +76,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
     }
   }, [initialData, defaultCatId, initialSelectedCardId]);
 
-  const selectedCard = creditCards.find(c => c.id === creditCardId) || creditCards[0];
+  const selectedCard = creditCards.find(c => c.id === creditCardId);
 
   const defaultInvoice = useMemo(() => {
     return calculateDefaultInvoiceDueDate(date, selectedCard);
@@ -89,44 +89,70 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
     const closingDay = selectedCard.closingDay || 3;
 
     // Data base da compra
-    const [baseYear, baseMonth] = date.split('-').map(Number);
+    const [baseYear, baseMonth, baseDay] = date.split('-').map(Number);
     const seenValues = new Set<string>();
 
-    for (let offset = -2; offset <= 4; offset++) {
-      const invDate = new Date(baseYear, (baseMonth - 1) + offset, dueDay);
-      const isoValue = `${invDate.getFullYear()}-${String(invDate.getMonth() + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
-      const periodKey = `${invDate.getFullYear()}-${String(invDate.getMonth() + 1).padStart(2, '0')}`;
-      
-      const manualStatus = selectedCard.manualInvoiceStatus?.[periodKey];
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const closingDate = new Date(invDate.getFullYear(), invDate.getMonth(), closingDay);
-      closingDate.setHours(0, 0, 0, 0);
-      
-      const isReopened = manualStatus === 'open';
-      const isFutureOrCurrentOpen = today <= closingDate || offset >= 0;
-      
-      if (isReopened || isFutureOrCurrentOpen) {
-        if (!seenValues.has(isoValue)) {
-          seenValues.add(isoValue);
-          const formatted = invDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
-          options.push({ label: formatted, value: isoValue });
-        }
+    const formatOption = (invDate: Date, isoValue: string) => {
+      const formatted = invDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+      return { label: formatted, value: isoValue };
+    };
+
+    // 1. Fatura do mês atual da compra
+    const currentMonthInvDate = new Date(baseYear, baseMonth - 1, dueDay);
+    const currentMonthIso = `${currentMonthInvDate.getFullYear()}-${String(currentMonthInvDate.getMonth() + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+    const currentPeriodKey = `${currentMonthInvDate.getFullYear()}-${String(currentMonthInvDate.getMonth() + 1).padStart(2, '0')}`;
+    
+    const isCurrentPaid = selectedCard.manualInvoiceStatus?.[currentPeriodKey] === 'paid';
+    const isCurrentReopened = selectedCard.manualInvoiceStatus?.[currentPeriodKey] === 'open';
+    const isPastClosing = baseDay > closingDay;
+
+    // Se a fatura atual não foi paga E (ainda não fechou OU foi reaberta manualmente), pode ser listada
+    if (!isCurrentPaid && (!isPastClosing || isCurrentReopened)) {
+      seenValues.add(currentMonthIso);
+      options.push(formatOption(currentMonthInvDate, currentMonthIso));
+    }
+
+    // 2. Fatura do mês seguinte da compra
+    const nextMonthInvDate = new Date(baseYear, baseMonth, dueDay);
+    const nextMonthIso = `${nextMonthInvDate.getFullYear()}-${String(nextMonthInvDate.getMonth() + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+    const nextPeriodKey = `${nextMonthInvDate.getFullYear()}-${String(nextMonthInvDate.getMonth() + 1).padStart(2, '0')}`;
+    const isNextPaid = selectedCard.manualInvoiceStatus?.[nextPeriodKey] === 'paid';
+
+    // O mês seguinte só é incluído se a fatura atual já fechou/está paga OU como próxima fatura aberta válida
+    if (!isNextPaid) {
+      if (!seenValues.has(nextMonthIso)) {
+        seenValues.add(nextMonthIso);
+        options.push(formatOption(nextMonthInvDate, nextMonthIso));
       }
     }
 
-    // Se o defaultInvoice não estiver na lista (por exemplo, compra recente em fatura aberta), inclui no topo
-    if (!seenValues.has(defaultInvoice.invoiceDueDateStr)) {
+    // 3. Garante que a defaultInvoice calculada esteja presente
+    if (defaultInvoice.invoiceDueDateStr && !seenValues.has(defaultInvoice.invoiceDueDateStr)) {
       const [dY, dM, dD] = defaultInvoice.invoiceDueDateStr.split('-').map(Number);
       const dDate = new Date(dY, dM - 1, dD);
-      const formatted = dDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
-      options.unshift({ label: formatted, value: defaultInvoice.invoiceDueDateStr });
+      options.unshift(formatOption(dDate, defaultInvoice.invoiceDueDateStr));
+      seenValues.add(defaultInvoice.invoiceDueDateStr);
+    }
+
+    // 4. Se for edição de transação antiga com invoiceDate prévio, preserva essa opção
+    if (initialData?.invoiceDate && !seenValues.has(initialData.invoiceDate)) {
+      const [iY, iM, iD] = initialData.invoiceDate.split('-').map(Number);
+      const iDate = new Date(iY, iM - 1, iD);
+      options.unshift(formatOption(iDate, initialData.invoiceDate));
+      seenValues.add(initialData.invoiceDate);
     }
 
     return options;
-  }, [selectedCard, date, defaultInvoice]);
+  }, [selectedCard, date, defaultInvoice, initialData]);
 
   const [invoiceDate, setInvoiceDate] = useState(initialData?.invoiceDate || defaultInvoice.invoiceDueDateStr || '');
+
+  // Atualiza automaticamente o vencimento da fatura padrão quando o cartão selecionado ou a data mudar (para novos lançamentos)
+  useEffect(() => {
+    if (!initialData && selectedCard && defaultInvoice.invoiceDueDateStr) {
+      setInvoiceDate(defaultInvoice.invoiceDueDateStr);
+    }
+  }, [selectedCard, date, defaultInvoice.invoiceDueDateStr, initialData]);
 
   const toggleDetails = () => {
     const nextState = !showMoreDetails;
@@ -139,7 +165,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
   const handleSubmit = (createAnother: boolean = false) => {
     setShowValidation(true);
     const numAmount = parseFloat(amount.replace(',', '.'));
-    if (isNaN(numAmount) || numAmount <= 0 || !description.trim() || !categoryId) {
+    if (isNaN(numAmount) || numAmount <= 0 || !description.trim() || !categoryId || !creditCardId || !selectedCard) {
       return;
     }
 
@@ -150,7 +176,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
         date,
         type: 'expense',
         categoryId,
-        creditCardId: selectedCard?.id,
+        creditCardId: selectedCard.id,
         paid: false,
         ignoreInTotals,
         isFixedCost,
@@ -171,7 +197,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
     }
   };
 
-  const isFormValid = parseFloat(amount.replace(',', '.')) > 0 && description.trim().length > 0 && Boolean(categoryId);
+  const isFormValid = parseFloat(amount.replace(',', '.')) > 0 && description.trim().length > 0 && Boolean(categoryId) && Boolean(creditCardId);
 
   return (
     <form
@@ -240,6 +266,7 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
             creditCards={creditCards}
             selectedCardId={creditCardId}
             onSelectCard={setCreditCardId}
+            showError={showValidation && !creditCardId}
           />
 
           {/* Seletor de Fatura / Vencimento */}
@@ -250,15 +277,24 @@ export const CreditCardExpenseForm: React.FC<CreditCardExpenseFormProps> = ({
             </label>
             <div className="relative">
               <select
-                value={invoiceDate || invoiceOptions[0]?.value}
+                value={selectedCard ? (invoiceDate || invoiceOptions[0]?.value || '') : ''}
                 onChange={e => setInvoiceDate(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white appearance-none focus:outline-none focus:border-cyan-500 cursor-pointer"
+                disabled={!selectedCard}
+                className={`w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs appearance-none focus:outline-none focus:border-cyan-500 transition-colors ${
+                  !selectedCard ? 'text-slate-500 cursor-not-allowed opacity-90' : 'text-white cursor-pointer'
+                }`}
               >
-                {invoiceOptions.map(opt => (
-                  <option key={opt.value} value={opt.value}>
-                    Fatura: {opt.label}
+                {!selectedCard ? (
+                  <option value="" disabled>
+                    Selecione o Cartão de Crédito
                   </option>
-                ))}
+                ) : (
+                  invoiceOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>
+                      Fatura: {opt.label}
+                    </option>
+                  ))
+                )}
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>

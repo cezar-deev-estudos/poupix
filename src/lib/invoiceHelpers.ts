@@ -16,6 +16,14 @@ export function isSameId(id1?: string | null, id2?: string | null): boolean {
 
 /**
  * Calcula a data de vencimento padrão da fatura com base na data da compra e no dia de fechamento do cartão.
+ * Regras:
+ * 1. Se closingDay < dueDay (ex: fecha dia 3, vence dia 11 do mesmo mês):
+ *    - Se compra foi até dia 3 -> vence no mesmo mês (mês da compra).
+ *    - Se compra foi após dia 3 -> fatura já fechou, vence no mês seguinte.
+ * 2. Se closingDay > dueDay (ex: fecha dia 26 do mês anterior, vence dia 5 do mês seguinte):
+ *    - Se compra foi após dia 26 -> fatura fecha no mês seguinte, vence 2 meses à frente (mês M+1).
+ *    - Se compra foi até dia 26 -> fatura fecha neste mês, vence no mês M (mês seguinte ao da compra).
+ * 3. Se a fatura calculada já estiver paga (manualInvoiceStatus === 'paid'), avança para o próximo mês aberto.
  */
 export function calculateDefaultInvoiceDueDate(
   txDate: string,
@@ -43,12 +51,39 @@ export function calculateDefaultInvoiceDueDate(
   let invoiceYear = txYear;
   let invoiceMonth = txMonth;
 
-  // Se o dia da compra ultrapassou o dia de fechamento, a fatura de vencimento cai no mês seguinte
-  if (txDay > closingDay) {
-    invoiceMonth += 1;
-    if (invoiceMonth > 11) {
-      invoiceMonth = 0;
-      invoiceYear += 1;
+  if (dueDay < closingDay) {
+    // Caso onde o fechamento ocorre no mês anterior ao vencimento
+    // Ex: fecha dia 26, vence dia 05.
+    // Compra dia 27/Nov -> fecha 26/Dez -> vence 05/Jan (+2 meses)
+    // Compra dia 15/Nov -> fecha 26/Nov -> vence 05/Dez (+1 mês)
+    invoiceMonth += (txDay > closingDay) ? 2 : 1;
+  } else {
+    // Caso padrão onde fechamento e vencimento ocorrem no mesmo mês
+    // Ex: fecha dia 03/Nov, vence dia 11/Nov.
+    // Compra dia 21/Nov (> 3) -> fatura de Nov já fechou/venceu -> cai na fatura de Dezembro (+1 mês)
+    // Compra dia 02/Nov (<= 3) -> cai na fatura de Novembro
+    if (txDay > closingDay) {
+      invoiceMonth += 1;
+    }
+  }
+
+  // Normalização de ano e mês
+  invoiceYear += Math.floor(invoiceMonth / 12);
+  invoiceMonth = ((invoiceMonth % 12) + 12) % 12;
+
+  // Se a fatura calculada já tiver sido marcada como paga no cartão, avança até a próxima fatura não paga
+  if (card?.manualInvoiceStatus) {
+    for (let attempts = 0; attempts < 12; attempts++) {
+      const checkKey = `${invoiceYear}-${String(invoiceMonth + 1).padStart(2, '0')}`;
+      if (card.manualInvoiceStatus[checkKey] === 'paid') {
+        invoiceMonth += 1;
+        if (invoiceMonth > 11) {
+          invoiceMonth = 0;
+          invoiceYear += 1;
+        }
+      } else {
+        break;
+      }
     }
   }
 

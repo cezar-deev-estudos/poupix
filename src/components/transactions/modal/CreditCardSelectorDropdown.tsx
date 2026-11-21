@@ -8,17 +8,20 @@ interface CreditCardSelectorDropdownProps {
   creditCards: CreditCardType[];
   selectedCardId: string;
   onSelectCard: (id: string) => void;
+  showError?: boolean;
 }
 
 export const CreditCardSelectorDropdown: React.FC<CreditCardSelectorDropdownProps> = ({
   creditCards,
   selectedCardId,
   onSelectCard,
+  showError = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const selectedCard = creditCards.find(c => c.id === selectedCardId) || creditCards[0];
+  const selectedCard = creditCards.find(c => c.id === selectedCardId);
+  const isUnselected = !selectedCardId || !selectedCard;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -35,33 +38,51 @@ export const CreditCardSelectorDropdown: React.FC<CreditCardSelectorDropdownProp
   return (
     <div ref={containerRef} className="relative space-y-1">
       {/* Botão Gatilho */}
-      <div className="flex items-center gap-3 border-b border-slate-800/80 pb-2">
-        <CreditCard className="w-4 h-4 text-slate-500 shrink-0" />
+      <div
+        className={`flex items-center gap-3 border-b transition-colors pb-2 ${
+          showError && isUnselected ? 'border-amber-500/80' : 'border-slate-800/80'
+        }`}
+      >
+        <CreditCard
+          className={`w-4 h-4 shrink-0 ${
+            showError && isUnselected ? 'text-amber-400' : 'text-slate-500'
+          }`}
+        />
 
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
           className="flex-1 flex items-center justify-between text-left cursor-pointer group min-w-0"
         >
-          {/* Badge Pílula do Cartão Selecionado */}
-          <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all truncate"
-            style={{
-              borderColor: `${cardColor}90`,
-              backgroundColor: `${cardColor}15`,
-            }}
-          >
-            <div
-              className="w-5 h-5 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm text-[10px] font-bold"
-              style={{ backgroundColor: cardColor }}
+          {isUnselected ? (
+            /* Estado Inicial Não Selecionado: igual ao placeholder de Descrição e Categoria */
+            <span
+              className={`text-sm truncate select-none ${
+                showError ? 'text-amber-400/90' : 'text-slate-500 group-hover:text-slate-400'
+              }`}
             >
-              💳
-            </div>
-
-            <span className="text-xs font-semibold text-white truncate max-w-[240px]">
-              {selectedCard?.name || 'Selecione um cartão'}
+              Cartão de Crédito
             </span>
-          </div>
+          ) : (
+            /* Badge Pílula do Cartão Selecionado */
+            <div
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all truncate"
+              style={{
+                borderColor: `${cardColor}90`,
+                backgroundColor: `${cardColor}15`,
+              }}
+            >
+              <div
+                className="w-5 h-5 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm text-[10px] font-bold"
+                style={{ backgroundColor: cardColor }}
+              >
+                💳
+              </div>
+              <span className="text-xs font-semibold text-white truncate max-w-[240px]">
+                {selectedCard.name}
+              </span>
+            </div>
+          )}
 
           <div className="text-slate-400 group-hover:text-white p-1 transition-colors">
             {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -99,7 +120,7 @@ export const CreditCardSelectorDropdown: React.FC<CreditCardSelectorDropdownProp
                 </div>
 
                 <span className="text-[11px] text-slate-400 font-medium ml-2 shrink-0">
-                  Vence dia {card.dueDay}
+                  Vence dia {card.dueDay} (Fecha dia {card.closingDay})
                 </span>
               </button>
             );
