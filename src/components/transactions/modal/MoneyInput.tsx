@@ -24,7 +24,7 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
   currency,
   onCurrencyChange,
   showError = false,
-  autoOpenKeypadOnMobile = true,
+  autoOpenKeypadOnMobile,
   rightElement,
 }) => {
   const [displayValue, setDisplayValue] = useState(value);
@@ -32,9 +32,27 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
   const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [isMobileKeypadOpen, setIsMobileKeypadOpen] = useState(false);
 
-  // Abre automaticamente o teclado numérico no mobile quando o componente é montado
+  // Determinar se deve abrir automaticamente baseado nas preferências salvas (a preferência do usuário é soberana)
   useEffect(() => {
-    if (autoOpenKeypadOnMobile && typeof window !== 'undefined' && window.innerWidth < 768) {
+    if (typeof window === 'undefined' || window.innerWidth >= 768) return;
+
+    // 1. Ler preferência global salva
+    let userPref = true;
+    try {
+      const savedPrefs = localStorage.getItem('mobills_app_preferences');
+      if (savedPrefs) {
+        const parsed = JSON.parse(savedPrefs);
+        if (parsed.autoOpenKeypadOnMobile !== undefined) {
+          userPref = Boolean(parsed.autoOpenKeypadOnMobile);
+        }
+      }
+    } catch {}
+
+    // Se o usuário desabilitou nas configurações, NUNCA abre automaticamente ao carregar
+    if (!userPref) return;
+
+    // Se o usuário permite, só abre se autoOpenKeypadOnMobile não for explicitamente falso (ex: edição de item existente)
+    if (autoOpenKeypadOnMobile !== false) {
       setIsMobileKeypadOpen(true);
     }
   }, [autoOpenKeypadOnMobile]);
@@ -211,7 +229,7 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
             }}
             onBlur={handleBlur}
             className={`w-full bg-transparent text-2xl font-black ${colors.text} placeholder:text-slate-600 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-inner-spin-button]:m-0 cursor-pointer md:cursor-text`}
-            autoFocus={!isMobile}
+            autoFocus={false}
           />
         </div>
 

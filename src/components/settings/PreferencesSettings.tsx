@@ -5,7 +5,7 @@ import { useFinance } from '@/context/FinanceContext';
 import { useAuth } from '@/context/AuthContext';
 import { AppPreferences, DEFAULT_APP_PREFERENCES } from '@/types/settings';
 import { loadUserPreferencesFromSupabase, upsertUserPreferencesToSupabase } from '@/lib/supabase/syncService';
-import { Check, ChevronDown, Eye, EyeOff } from 'lucide-react';
+import { Check, ChevronDown, Eye, EyeOff, Keyboard, MousePointerClick } from 'lucide-react';
 
 export const PreferencesSettings: React.FC = () => {
   const { theme, toggleTheme } = useFinance();
@@ -38,6 +38,7 @@ export const PreferencesSettings: React.FC = () => {
           language: cloudPrefs.language || prev.language,
           currency: cloudPrefs.currency || prev.currency,
           defaultPrivacyMode: cloudPrefs.default_privacy_mode !== undefined ? Boolean(cloudPrefs.default_privacy_mode) : prev.defaultPrivacyMode,
+          autoOpenKeypadOnMobile: cloudPrefs.auto_open_keypad_on_mobile !== undefined ? Boolean(cloudPrefs.auto_open_keypad_on_mobile) : prev.autoOpenKeypadOnMobile,
         }));
       }
     });
@@ -53,6 +54,7 @@ export const PreferencesSettings: React.FC = () => {
         language: prefs.language,
         currency: prefs.currency,
         default_privacy_mode: prefs.defaultPrivacyMode,
+        auto_open_keypad_on_mobile: prefs.autoOpenKeypadOnMobile,
       });
     }
     if (prefs.theme !== theme) {
@@ -190,6 +192,52 @@ export const PreferencesSettings: React.FC = () => {
               <Eye className="w-4 h-4 text-slate-400 shrink-0" />
               <span>Manter Valores Visíveis</span>
             </button>
+          </div>
+        </div>
+
+        {/* Teclado Numérico Automático no Mobile (Design Minimalista) */}
+        <div className="space-y-2 md:col-span-2 pt-3 border-t border-slate-800/40">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <label className="text-xs sm:text-sm text-white font-semibold flex items-center gap-1.5">
+                <Keyboard className="w-4 h-4 text-cyan-400" />
+                Teclado Numérico Mobile
+              </label>
+              <span className="text-[11px] text-slate-400 block mt-0.5">
+                Como abrir ao solicitar nova transação
+              </span>
+            </div>
+
+            <div className="flex bg-[#161a23] p-1 rounded-xl border border-slate-800 gap-1 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setPrefs(prev => ({ ...prev, autoOpenKeypadOnMobile: false }));
+                  setSavedSuccess(false);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  !prefs.autoOpenKeypadOnMobile
+                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Ao tocar no valor
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPrefs(prev => ({ ...prev, autoOpenKeypadOnMobile: true }));
+                  setSavedSuccess(false);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  prefs.autoOpenKeypadOnMobile
+                    ? 'bg-slate-800 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Automático
+              </button>
+            </div>
           </div>
         </div>
       </div>

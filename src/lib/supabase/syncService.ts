@@ -592,6 +592,7 @@ export interface UserPreferencesRecord {
   mobile_category_order?: string[];
   collapsed_categories?: string[];
   default_privacy_mode?: boolean;
+  auto_open_keypad_on_mobile?: boolean;
   app_lock_enabled?: boolean;
   app_lock_pin_hash?: string | null;
   app_lock_biometrics_enabled?: boolean;

@@ -169,6 +169,7 @@ export interface AppPreferences {
   currency: string;
   theme: 'dark' | 'light';
   defaultPrivacyMode: boolean;
+  autoOpenKeypadOnMobile: boolean;
 }
 
 export const DEFAULT_APP_PREFERENCES: AppPreferences = {
@@ -176,6 +177,7 @@ export const DEFAULT_APP_PREFERENCES: AppPreferences = {
   currency: 'BRL',
   theme: 'dark',
   defaultPrivacyMode: false,
+  autoOpenKeypadOnMobile: true,
 };
 
 export interface NotificationPreferences {
