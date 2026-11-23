@@ -144,6 +144,7 @@ export const syncAllToSupabase = async (data: {
           due_day: c.dueDay || 10,
           color: c.color || '#8B5CF6',
           brand: c.brand || 'mastercard',
+          manual_invoice_status: c.manualInvoiceStatus || {},
           created_at: c.createdAt || new Date().toISOString(),
         }
       })
@@ -334,6 +335,7 @@ export const fetchAllFromSupabase = async (userId: string) => {
       dueDay: c.due_day,
       color: c.color,
       brand: c.brand,
+      manualInvoiceStatus: c.manual_invoice_status || undefined,
       createdAt: c.created_at,
     }))
 
@@ -549,7 +551,38 @@ export const upsertTransactionsDirectlyToSupabase = async (
   }
 }
 
-// 4. Exclusão Direta de Entidades (Contas, Cartões, Categorias, Tags, Metas)
+// 4. Upsert Direto de Cartão de Crédito no Supabase (incluindo manual_invoice_status)
+export const upsertCreditCardDirectlyToSupabase = async (
+  card: CreditCard,
+  userId: string
+) => {
+  const supabase = getSupabaseClient()
+  if (!supabase || !userId) return
+
+  try {
+    const cardUuid = ensureValidUUID(card.id)
+    const payload = {
+      id: cardUuid,
+      user_id: ensureValidUUID(userId),
+      name: card.name,
+      limit_amount: card.limit || 0,
+      closing_day: card.closingDay || 1,
+      due_day: card.dueDay || 10,
+      color: card.color || '#8B5CF6',
+      brand: card.brand || 'mastercard',
+      manual_invoice_status: card.manualInvoiceStatus || {},
+      created_at: card.createdAt || new Date().toISOString(),
+    }
+    const { error } = await supabase.from('credit_cards').upsert(payload as any)
+    if (error) {
+      console.warn('[Supabase Direct Card Upsert] Erro:', error.message)
+    }
+  } catch (err) {
+    console.error('[Supabase Direct Card Upsert Exception]:', err)
+  }
+}
+
+// 5. Exclusão Direta de Entidades (Contas, Cartões, Categorias, Tags, Metas)
 export const deleteEntityFromSupabase = async (
   table: 'accounts' | 'credit_cards' | 'categories' | 'tags' | 'goals',
   id: string,

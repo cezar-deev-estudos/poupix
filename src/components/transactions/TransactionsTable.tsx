@@ -112,12 +112,12 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
     return 'Despesa';
   };
 
-  const hasActiveColumnFilters = 
-    filterStatus !== 'all' || 
-    filterType !== 'all' || 
-    filterDescription.trim() !== '' || 
-    filterCategoryId !== 'all' || 
-    filterSubcategoryId !== 'all' || 
+  const hasActiveColumnFilters =
+    filterStatus !== 'all' ||
+    filterType !== 'all' ||
+    filterDescription.trim() !== '' ||
+    filterCategoryId !== 'all' ||
+    filterSubcategoryId !== 'all' ||
     filterAccountId !== 'all' ||
     filterCf !== 'all';
 
@@ -412,15 +412,15 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
           manualInvoiceStatus: updatedManual,
         });
 
-        // Atualizar todas as compras vinculadas a esta fatura
-        allTransactions.forEach(t => {
-          if (t.creditCardId === card.id) {
-            const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(t, card);
-            if (txPeriodKey === periodKey && t.paid !== nextPaidStatus) {
-              updateTransaction(t.id, { paid: nextPaidStatus });
-            }
-          }
+        // Atualizar todas as compras vinculadas a esta fatura em lote
+        const txsToUpdate = allTransactions.filter(t => {
+          if (t.creditCardId !== card.id) return false;
+          const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(t, card);
+          return txPeriodKey === periodKey && t.paid !== nextPaidStatus;
         });
+        if (txsToUpdate.length > 0) {
+          updateTransactionsBatch(txsToUpdate.map(t => t.id), { paid: nextPaidStatus });
+        }
       }
       setConfirmingPayment(null);
       return;
@@ -477,11 +477,9 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
       <tr
         key={tx.id}
         id={isToday ? 'desktop-tx-row-hoje' : isYesterday ? 'desktop-tx-row-ontem' : undefined}
-        className={`hover:bg-[#1e2330]/70 transition-colors ${
-          isSelected ? 'bg-indigo-950/20' : ''
-        } ${isGroupedCard ? 'bg-[#151921]/60' : ''} ${
-          isToday ? 'bg-indigo-500/5' : ''
-        }`}
+        className={`hover:bg-[#1e2330]/70 transition-colors ${isSelected ? 'bg-indigo-950/20' : ''
+          } ${isGroupedCard ? 'bg-[#151921]/60' : ''} ${isToday ? 'bg-indigo-500/5' : ''
+          }`}
       >
         {/* Checkbox */}
         <td className="py-3 px-4">
@@ -499,11 +497,10 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
             <button
               type="button"
               onClick={() => handleRequestTogglePaid(tx.id, isEffectivelyPaid, tx)}
-              className={`w-6 h-6 rounded-full flex items-center justify-center transition-all select-none cursor-pointer ${
-                isEffectivelyPaid
+              className={`w-6 h-6 rounded-full flex items-center justify-center transition-all select-none cursor-pointer ${isEffectivelyPaid
                   ? 'bg-emerald-500 text-slate-950 shadow-sm'
                   : 'bg-[#ef4444] text-white shadow-sm'
-              }`}
+                }`}
               title={isEffectivelyPaid ? 'Efetivado / Pago' : 'Pendente de pagamento'}
             >
               {isEffectivelyPaid ? (
@@ -694,13 +691,12 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
 
         {/* Valor */}
         <td
-          className={`py-3 px-4 text-right font-bold whitespace-nowrap ${
-            isIncome
+          className={`py-3 px-4 text-right font-bold whitespace-nowrap ${isIncome
               ? 'text-emerald-400'
               : isExpense
-              ? 'text-rose-400'
-              : 'text-blue-400'
-          }`}
+                ? 'text-rose-400'
+                : 'text-blue-400'
+            }`}
         >
           {formatCurrency(tx.amount)}
         </td>
@@ -744,8 +740,8 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                 }}
                 onEdit={onEdit}
                 onDelete={onDelete}
-                onAttach={onAttach || (() => {})}
-                onConvertTransfer={onConvertTransfer || (() => {})}
+                onAttach={onAttach || (() => { })}
+                onConvertTransfer={onConvertTransfer || (() => { })}
               />
             </>
           )}
@@ -956,9 +952,8 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status')}
-                    className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${
-                      filterStatus !== 'all' ? 'text-indigo-400 bg-indigo-500/15' : 'text-slate-500 hover:text-slate-300'
-                    }`}
+                    className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${filterStatus !== 'all' ? 'text-indigo-400 bg-indigo-500/15' : 'text-slate-500 hover:text-slate-300'
+                      }`}
                     title="Filtrar por Situação"
                   >
                     <Filter className="w-3 h-3" />
@@ -1016,9 +1011,8 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                     <button
                       type="button"
                       onClick={() => setActiveFilterDropdown(activeFilterDropdown === 'type' ? null : 'type')}
-                      className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${
-                        filterType !== 'all' ? 'text-indigo-400 bg-indigo-500/15' : 'text-slate-500 hover:text-slate-300'
-                      }`}
+                      className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${filterType !== 'all' ? 'text-indigo-400 bg-indigo-500/15' : 'text-slate-500 hover:text-slate-300'
+                        }`}
                       title="Filtrar por Tipo"
                     >
                       <Filter className="w-3 h-3" />
@@ -1107,9 +1101,8 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveFilterDropdown(activeFilterDropdown === 'description' ? null : 'description')}
-                    className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${
-                      filterDescription.trim() ? 'text-indigo-400 bg-indigo-500/15' : 'text-slate-500 hover:text-slate-300'
-                    }`}
+                    className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${filterDescription.trim() ? 'text-indigo-400 bg-indigo-500/15' : 'text-slate-500 hover:text-slate-300'
+                      }`}
                     title="Buscar na descrição"
                   >
                     <Search className="w-3 h-3" />
@@ -1167,9 +1160,8 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveFilterDropdown(activeFilterDropdown === 'category' ? null : 'category')}
-                    className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${
-                      filterCategoryId !== 'all' ? 'text-indigo-400 bg-indigo-500/15' : 'text-slate-500 hover:text-slate-300'
-                    }`}
+                    className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${filterCategoryId !== 'all' ? 'text-indigo-400 bg-indigo-500/15' : 'text-slate-500 hover:text-slate-300'
+                      }`}
                     title="Filtrar por Categoria"
                   >
                     <Filter className="w-3 h-3" />
@@ -1238,9 +1230,8 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveFilterDropdown(activeFilterDropdown === 'subcategory' ? null : 'subcategory')}
-                    className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${
-                      filterSubcategoryId !== 'all' ? 'text-indigo-400 bg-indigo-500/15' : 'text-slate-500 hover:text-slate-300'
-                    }`}
+                    className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${filterSubcategoryId !== 'all' ? 'text-indigo-400 bg-indigo-500/15' : 'text-slate-500 hover:text-slate-300'
+                      }`}
                     title="Filtrar por Subcategoria"
                   >
                     <Filter className="w-3 h-3" />
@@ -1268,26 +1259,26 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                           return true;
                         })
                         .map(sub => {
-                        const parent = categories.find(p => p.id === sub.parentId);
-                        return (
-                          <button
-                            key={sub.id}
-                            type="button"
-                            onClick={() => { setFilterSubcategoryId(sub.id); setActiveFilterDropdown(null); setCurrentPage(1); }}
-                            className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 hover:bg-slate-700/60 transition-colors ${filterSubcategoryId === sub.id ? 'text-indigo-400 font-bold bg-slate-800/80' : 'text-slate-300'}`}
-                          >
-                            <div className="flex items-center gap-2 truncate">
-                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: sub.color || parent?.color }} />
-                              <span className="truncate">{sub.name}</span>
-                            </div>
-                            {parent && filterCategoryId === 'all' && (
-                              <span className="text-[10px] text-slate-500 truncate shrink-0">
-                                {parent.name}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
+                          const parent = categories.find(p => p.id === sub.parentId);
+                          return (
+                            <button
+                              key={sub.id}
+                              type="button"
+                              onClick={() => { setFilterSubcategoryId(sub.id); setActiveFilterDropdown(null); setCurrentPage(1); }}
+                              className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 hover:bg-slate-700/60 transition-colors ${filterSubcategoryId === sub.id ? 'text-indigo-400 font-bold bg-slate-800/80' : 'text-slate-300'}`}
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: sub.color || parent?.color }} />
+                                <span className="truncate">{sub.name}</span>
+                              </div>
+                              {parent && filterCategoryId === 'all' && (
+                                <span className="text-[10px] text-slate-500 truncate shrink-0">
+                                  {parent.name}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
                     </div>
                   </>
                 )}
@@ -1313,9 +1304,8 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveFilterDropdown(activeFilterDropdown === 'account' ? null : 'account')}
-                    className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${
-                      filterAccountId !== 'all' ? 'text-indigo-400 bg-indigo-500/15' : 'text-slate-500 hover:text-slate-300'
-                    }`}
+                    className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${filterAccountId !== 'all' ? 'text-indigo-400 bg-indigo-500/15' : 'text-slate-500 hover:text-slate-300'
+                      }`}
                     title="Filtrar por Conta ou Cartão"
                   >
                     <Filter className="w-3 h-3" />
@@ -1392,9 +1382,8 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveFilterDropdown(activeFilterDropdown === 'cf' ? null : 'cf')}
-                    className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${
-                      filterCf !== 'all' ? 'text-amber-400 bg-amber-500/15' : 'text-slate-500 hover:text-slate-300'
-                    }`}
+                    className={`p-1 rounded hover:bg-slate-800 cursor-pointer transition-colors ${filterCf !== 'all' ? 'text-amber-400 bg-amber-500/15' : 'text-slate-500 hover:text-slate-300'
+                      }`}
                     title="Filtrar por Despesa Fixa (DF)"
                   >
                     <Filter className="w-3 h-3" />
@@ -1558,9 +1547,8 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                         setCurrentPage(1);
                         setIsRowsDropdownOpen(false);
                       }}
-                      className={`w-full text-center py-1 text-xs hover:bg-slate-700 cursor-pointer ${
-                        rowsPerPage === val ? 'text-indigo-400 font-bold bg-slate-800' : 'text-slate-300'
-                      }`}
+                      className={`w-full text-center py-1 text-xs hover:bg-slate-700 cursor-pointer ${rowsPerPage === val ? 'text-indigo-400 font-bold bg-slate-800' : 'text-slate-300'
+                        }`}
                     >
                       {val}
                     </button>

@@ -89,6 +89,7 @@ export interface Database {
           due_day: number
           color: string
           brand: 'visa' | 'mastercard' | 'elo' | 'amex' | 'hipercard' | 'other'
+          manual_invoice_status?: Record<string, string> | null
           created_at: string
         }
         Insert: {
@@ -100,6 +101,7 @@ export interface Database {
           due_day: number
           color?: string
           brand?: 'visa' | 'mastercard' | 'elo' | 'amex' | 'hipercard' | 'other'
+          manual_invoice_status?: Record<string, string> | null
           created_at?: string
         }
         Update: {
@@ -111,6 +113,7 @@ export interface Database {
           due_day?: number
           color?: string
           brand?: 'visa' | 'mastercard' | 'elo' | 'amex' | 'hipercard' | 'other'
+          manual_invoice_status?: Record<string, string> | null
           created_at?: string
         }
       }

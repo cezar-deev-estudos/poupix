@@ -67,6 +67,7 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
     isPrivacyMode,
     togglePrivacyMode,
     updateTransaction,
+    updateTransactionsBatch,
     deleteTransaction,
     addTransaction,
     updateCreditCard,
@@ -598,15 +599,15 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
           manualInvoiceStatus: updatedManual,
         });
 
-        // Atualizar todas as compras vinculadas a esta fatura
-        allTransactions.forEach(t => {
-          if (t.creditCardId === card.id) {
-            const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(t, card);
-            if (txPeriodKey === periodKey && t.paid !== nextPaidStatus) {
-              updateTransaction(t.id, { paid: nextPaidStatus });
-            }
-          }
+        // Atualizar todas as compras vinculadas a esta fatura em lote
+        const txsToUpdate = allTransactions.filter(t => {
+          if (t.creditCardId !== card.id) return false;
+          const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(t, card);
+          return txPeriodKey === periodKey && t.paid !== nextPaidStatus;
         });
+        if (txsToUpdate.length > 0) {
+          updateTransactionsBatch(txsToUpdate.map(t => t.id), { paid: nextPaidStatus });
+        }
       }
       setConfirmingPayment(null);
       return;

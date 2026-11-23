@@ -38,7 +38,7 @@ import { entityManager } from '@/hooks/useEntityManager';
 import { normalizeTransactionsInvoiceDates, getTransactionInvoicePeriod, isSameId, repairCorruptedInstallmentDates } from '@/lib/invoiceHelpers';
 import { reconcileAllDecreasingExpenses } from '@/lib/decreasingExpenses';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { ensureValidUUID, upsertTransactionsDirectlyToSupabase, loadUserPreferencesFromSupabase, upsertUserPreferencesToSupabase } from '@/lib/supabase/syncService';
+import { ensureValidUUID, upsertTransactionsDirectlyToSupabase, upsertCreditCardDirectlyToSupabase, loadUserPreferencesFromSupabase, upsertUserPreferencesToSupabase } from '@/lib/supabase/syncService';
 
 interface FinanceContextType {
   users: UserProfile[];
@@ -911,9 +911,27 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addAccount: acc => entityManager.addAccount(acc, setAccounts),
         updateAccount: (id, up) => entityManager.updateAccount(id, up, setAccounts),
         deleteAccount: id => entityManager.deleteAccount(id, setAccounts),
-        addCreditCard: card => entityManager.addCreditCard(card, setCreditCards),
-        updateCreditCard: (id, up) => entityManager.updateCreditCard(id, up, setCreditCards),
-        deleteCreditCard: id => entityManager.deleteCreditCard(id, setCreditCards),
+        addCreditCard: card => {
+          entityManager.addCreditCard(card, setCreditCards);
+          notifyDirectMutation();
+        },
+        updateCreditCard: (id, up) => {
+          entityManager.updateCreditCard(id, up, setCreditCards);
+          notifyDirectMutation();
+          if (user?.id) {
+            setCreditCards(currentCards => {
+              const updatedCard = currentCards.find(c => c.id === id);
+              if (updatedCard && user?.id) {
+                upsertCreditCardDirectlyToSupabase(updatedCard, user.id);
+              }
+              return currentCards;
+            });
+          }
+        },
+        deleteCreditCard: id => {
+          entityManager.deleteCreditCard(id, setCreditCards);
+          notifyDirectMutation();
+        },
         addCategory: cat => {
           entityManager.addCategory(cat, setCategories);
           if (cat.monthlyBudgets && Object.keys(cat.monthlyBudgets).length > 0) {

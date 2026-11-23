@@ -60,6 +60,7 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
     updateCreditCard,
     deleteCreditCard,
     updateTransaction,
+    updateTransactionsBatch,
     addTransaction,
     categories,
   } = useFinance();
@@ -273,14 +274,14 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
     });
 
     if (newStatus === 'open') {
-      transactions.forEach(tx => {
-        if (tx.creditCardId === card.id) {
-          const { periodKey } = getTransactionInvoicePeriod(tx, card);
-          if (periodKey === period && tx.paid) {
-            updateTransaction(tx.id, { paid: false });
-          }
-        }
+      const txsToReopen = transactions.filter(tx => {
+        if (tx.creditCardId !== card.id) return false;
+        const { periodKey } = getTransactionInvoicePeriod(tx, card);
+        return periodKey === period && tx.paid;
       });
+      if (txsToReopen.length > 0) {
+        updateTransactionsBatch(txsToReopen.map(t => t.id), { paid: false });
+      }
     }
   };
 
@@ -303,17 +304,18 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
       manualInvoiceStatus: updatedManual,
     });
 
-    transactions.forEach(tx => {
-      if (tx.creditCardId === card.id) {
-        const { periodKey } = getTransactionInvoicePeriod(tx, card);
-        if (periodKey === period && !tx.paid) {
-          updateTransaction(tx.id, {
-            paid: true,
-            ...(paymentDate ? { date: paymentDate } : {}),
-          });
-        }
-      }
+    const txsToPay = transactions.filter(tx => {
+      if (tx.creditCardId !== card.id) return false;
+      const { periodKey } = getTransactionInvoicePeriod(tx, card);
+      return periodKey === period && !tx.paid;
     });
+
+    if (txsToPay.length > 0) {
+      updateTransactionsBatch(txsToPay.map(t => t.id), {
+        paid: true,
+        ...(paymentDate ? { date: paymentDate } : {}),
+      });
+    }
 
     setPayingInvoiceCard(null);
   };
