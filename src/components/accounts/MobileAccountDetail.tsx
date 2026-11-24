@@ -51,6 +51,7 @@ export const MobileAccountDetail: React.FC<MobileAccountDetailProps> = ({
     categories,
     creditCards,
     updateTransaction,
+    updateTransactionsBatch,
     addTransaction,
     updateCreditCard,
   } = useFinance();
@@ -93,6 +94,7 @@ export const MobileAccountDetail: React.FC<MobileAccountDetailProps> = ({
     const defaultExpenseCategory = categories.find(c => c.type === 'expense');
     const todayStr = new Date().toISOString().split('T')[0];
 
+    const txsToPayIds: string[] = [];
     unpaidCardInvoices.forEach(({ card, amount }) => {
       const updatedManual = {
         ...(card.manualInvoiceStatus || {}),
@@ -106,11 +108,15 @@ export const MobileAccountDetail: React.FC<MobileAccountDetailProps> = ({
         if (t.creditCardId === card.id) {
           const { periodKey } = getTransactionInvoicePeriod(t, card);
           if (periodKey === currentPeriodKey && !t.paid) {
-            updateTransaction(t.id, { paid: true });
+            txsToPayIds.push(t.id);
           }
         }
       });
     });
+
+    if (txsToPayIds.length > 0) {
+      updateTransactionsBatch(txsToPayIds, { paid: true });
+    }
 
     setIsPayingInvoices(false);
   };

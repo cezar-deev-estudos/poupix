@@ -56,6 +56,7 @@ export const AccountDetailView: React.FC<AccountDetailViewProps> = ({
     categories,
     creditCards,
     updateTransaction,
+    updateTransactionsBatch,
     addTransaction,
     updateCreditCard,
   } = useFinance();
@@ -99,6 +100,7 @@ export const AccountDetailView: React.FC<AccountDetailViewProps> = ({
     const defaultExpenseCategory = categories.find(c => c.type === 'expense');
     const todayStr = new Date().toISOString().split('T')[0];
 
+    const txsToPayIds: string[] = [];
     unpaidCardInvoices.forEach(({ card, amount }) => {
       // 1. Atualizar status manual do cartão para pago
       const updatedManual = {
@@ -109,16 +111,20 @@ export const AccountDetailView: React.FC<AccountDetailViewProps> = ({
         manualInvoiceStatus: updatedManual,
       });
 
-      // 2. Marcar transações individuais do cartão como pagas
+      // 2. Coletar transações individuais do cartão para marcar como pagas em lote
       transactions.forEach(t => {
         if (t.creditCardId === card.id) {
           const { periodKey } = getTransactionInvoicePeriod(t, card);
           if (periodKey === currentPeriodKey && !t.paid) {
-            updateTransaction(t.id, { paid: true });
+            txsToPayIds.push(t.id);
           }
         }
       });
     });
+
+    if (txsToPayIds.length > 0) {
+      updateTransactionsBatch(txsToPayIds, { paid: true });
+    }
 
     setIsPayingInvoices(false);
   };

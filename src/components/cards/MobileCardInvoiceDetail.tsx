@@ -73,6 +73,7 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
     setSelectedYear,
     updateCreditCard,
     updateTransaction,
+    updateTransactionsBatch,
   } = useFinance();
 
   const [filterType, setFilterType] = useState<'all' | 'fixed'>(initialFilterType);
@@ -155,14 +156,15 @@ export const MobileCardInvoiceDetail: React.FC<MobileCardInvoiceDetailProps> = (
       manualInvoiceStatus: updatedManual,
     });
 
-    transactions.forEach(tx => {
-      if (tx.creditCardId === card.id) {
-        const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(tx, card);
-        if (txPeriodKey === periodKey && !tx.paid) {
-          updateTransaction(tx.id, { paid: true });
-        }
-      }
+    const txsToPay = transactions.filter(tx => {
+      if (tx.creditCardId !== card.id) return false;
+      const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(tx, card);
+      return txPeriodKey === periodKey && !tx.paid;
     });
+
+    if (txsToPay.length > 0) {
+      updateTransactionsBatch(txsToPay.map(t => t.id), { paid: true });
+    }
   };
 
   // Agrupamento por Data (ex: "ter., 11/08/2026")

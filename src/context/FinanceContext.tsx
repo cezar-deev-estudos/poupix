@@ -35,7 +35,7 @@ import { useAuth } from './AuthContext';
 import { useFinanceCloudSync } from '@/hooks/useFinanceCloudSync';
 import { transactionManager } from '@/hooks/useTransactionsManager';
 import { entityManager } from '@/hooks/useEntityManager';
-import { normalizeTransactionsInvoiceDates, getTransactionInvoicePeriod, isSameId, repairCorruptedInstallmentDates } from '@/lib/invoiceHelpers';
+import { normalizeTransactionsInvoiceDates, getTransactionInvoicePeriod, isSameId, repairCorruptedInstallmentDates, reconcileCardInvoicesPaidStatus } from '@/lib/invoiceHelpers';
 import { reconcileAllDecreasingExpenses } from '@/lib/decreasingExpenses';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { ensureValidUUID, upsertTransactionsDirectlyToSupabase, upsertCreditCardDirectlyToSupabase, loadUserPreferencesFromSupabase, upsertUserPreferencesToSupabase } from '@/lib/supabase/syncService';
@@ -593,20 +593,29 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return t;
       });
 
-      if ((hasChanges || hasOrphanAccountFix) && user?.id) {
+      // Auto-cura de faturas pagas: se o cartão estiver marcado como pago para a competência,
+      // força as transações da fatura como paid: true e persiste correções no Supabase
+      const {
+        reconciled: finalTxs,
+        hasChanges: hasInvoicePaidFix,
+        changedTransactions: invoiceFixedTxs,
+      } = reconcileCardInvoicesPaidStatus(auditedTxs, currentCards);
+
+      if ((hasChanges || hasOrphanAccountFix || hasInvoicePaidFix) && user?.id) {
         // Envia as transações corrigidas para persistência no Supabase
         const changedTxs = auditedTxs.filter(t => {
           const original = normalizedCloudTxs.find(o => o.id === t.id);
           return original && (original.date !== t.date || original.accountId !== t.accountId);
         });
-        if (changedTxs.length > 0) {
-          upsertTransactionsDirectlyToSupabase(changedTxs, user.id);
+        const allTxsToSync = [...changedTxs, ...invoiceFixedTxs];
+        if (allTxsToSync.length > 0) {
+          upsertTransactionsDirectlyToSupabase(allTxsToSync, user.id);
         }
       }
 
       // O Supabase é a Fonte Única da Verdade para todos os dispositivos e telas conectadas.
       // Substitui diretamente o estado local pelas transações oficiais da nuvem.
-      setTransactions(auditedTxs);
+      setTransactions(finalTxs);
     }
     if (cloudData.goals !== undefined) setGoals(cloudData.goals);
     if (cloudData.openFinanceConnections !== undefined && cloudData.openFinanceConnections.length > 0) {
@@ -631,8 +640,11 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Filtros de Transações por Período
   const filteredTransactions = useMemo(() => {
-    // Reconcilia despesas decrescentes com despesas do mesmo mês e mesma nanoTag
-    const reconciled = reconcileAllDecreasingExpenses(transactions, creditCards, categories);
+    // 1. Reconciliação do status de faturas pagas no cartão
+    const { reconciled: cardReconciled } = reconcileCardInvoicesPaidStatus(transactions, creditCards);
+
+    // 2. Reconcilia despesas decrescentes com despesas do mesmo mês e mesma nanoTag
+    const reconciled = reconcileAllDecreasingExpenses(cardReconciled, creditCards, categories);
 
     return reconciled.filter(t => {
       if (t.creditCardId) {

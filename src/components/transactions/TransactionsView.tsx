@@ -283,8 +283,18 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     const aggregatedCardItems: Transaction[] = [];
     cardGroupsMap.forEach((txList, cardId) => {
       const card = creditCards.find(c => isSameId(c.id, cardId));
+      // Se a fatura inteira já estiver marcada como paga e o filtro ativo for 'pending',
+      // esta fatura não deve ser gerada como pendente
+      const isInvoicePaid = card?.manualInvoiceStatus?.[currentPeriodKey] === 'paid';
+      if (advancedFilter.status === 'pending' && isInvoicePaid) {
+        return;
+      }
+      if (advancedFilter.status === 'paid' && !isInvoicePaid && !txList.every(t => t.paid)) {
+        return;
+      }
+
       const totalAmount = txList.reduce((acc, t) => acc + t.amount, 0);
-      const isPaid = card?.manualInvoiceStatus?.[currentPeriodKey] === 'paid' || txList.every(t => t.paid);
+      const isPaid = isInvoicePaid || txList.every(t => t.paid);
       
       // Data de vencimento da fatura do mês selecionado
       const dueDateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(card?.dueDay || 10).padStart(2, '0')}`;

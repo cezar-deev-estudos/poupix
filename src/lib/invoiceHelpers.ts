@@ -269,6 +269,51 @@ export function isInvoicePeriodPaid(
 }
 
 /**
+ * Reconcilia automaticamente o status pago de transações de cartão de crédito.
+ * Se a fatura do cartão tiver sido marcada como 'paid' no manualInvoiceStatus,
+ * garante que todas as transações daquela competência retornem com paid: true.
+ * Retorna as transações reconciliadas e a flag de alterações detectadas.
+ */
+export function reconcileCardInvoicesPaidStatus(
+  transactions: Transaction[],
+  creditCards: CreditCard[]
+): {
+  reconciled: Transaction[];
+  hasChanges: boolean;
+  changedTransactions: Transaction[];
+} {
+  if (!transactions.length || !creditCards.length) {
+    return { reconciled: transactions, hasChanges: false, changedTransactions: [] };
+  }
+
+  const cardsMap = new Map<string, CreditCard>();
+  creditCards.forEach(card => {
+    cardsMap.set(card.id, card);
+  });
+
+  const changedTransactions: Transaction[] = [];
+  let hasChanges = false;
+
+  const reconciled = transactions.map(tx => {
+    if (!tx.creditCardId) return tx;
+    const card = cardsMap.get(tx.creditCardId) || creditCards.find(c => isSameId(c.id, tx.creditCardId));
+    if (!card || !card.manualInvoiceStatus) return tx;
+
+    const { periodKey } = getTransactionInvoicePeriod(tx, card);
+    if (card.manualInvoiceStatus[periodKey] === 'paid' && !tx.paid) {
+      hasChanges = true;
+      const updatedTx: Transaction = { ...tx, paid: true };
+      changedTransactions.push(updatedTx);
+      return updatedTx;
+    }
+
+    return tx;
+  });
+
+  return { reconciled, hasChanges, changedTransactions };
+}
+
+/**
  * Corrige e redistribui parcelas fora de cartão que estejam acidentalmente presas
  * na mesma data devido a edições anteriores em lote.
  */

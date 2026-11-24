@@ -33,6 +33,7 @@ export const PendingAlertsView: React.FC<PendingAlertsViewProps> = ({
     unreadAlertsCount,
     updateCreditCard,
     updateTransaction,
+    updateTransactionsBatch,
   } = useFinance();
 
   const [activeTab, setActiveTab] = useState<AlertTabFilter>(initialFilter);
@@ -158,18 +159,18 @@ export const PendingAlertsView: React.FC<PendingAlertsViewProps> = ({
           manualInvoiceStatus: updatedManual,
         });
 
-        // Atualizar transações vinculadas
-        transactions.forEach(t => {
-          if (t.creditCardId === card.id) {
-            const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(t, card);
-            if (txPeriodKey === confirmingPayment.periodKey && !t.paid) {
-              updateTransaction(t.id, {
-                paid: true,
-                ...(paymentDate ? { paymentDate } : {}),
-              });
-            }
-          }
+        // Atualizar transações vinculadas em lote (atômico)
+        const txsToPay = transactions.filter(t => {
+          if (t.creditCardId !== card.id) return false;
+          const { periodKey: txPeriodKey } = getTransactionInvoicePeriod(t, card);
+          return txPeriodKey === confirmingPayment.periodKey && !t.paid;
         });
+
+        if (txsToPay.length > 0) {
+          updateTransactionsBatch(txsToPay.map(t => t.id), {
+            paid: true,
+          });
+        }
       }
     } else if (confirmingPayment.type === 'transaction' && confirmingPayment.txId) {
       updateTransaction(confirmingPayment.txId, {
