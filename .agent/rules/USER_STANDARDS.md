@@ -20,9 +20,10 @@ trigger: always_on
 
 ## 💡 Mindset & Regras de Comportamento e Commit
 
-1. **Protocolo de Validação de Plano & Execução 100% Autônoma (REGRA DE OURO / MANDATÓRIO)**:
+1. **Protocolo de Validação de Plano, Checklist de Etapas & Execução 100% Autônoma (REGRA DE OURO / MANDATÓRIO)**:
    - **NUNCA FAZER ALÉM DO QUE FOI SOLICITADO**.
    - O agente deve listar o plano e todos os arquivos que pretende modificar ANTES de iniciar.
+   - **Checklist Interativo Obrigatório**: Ao receber a aprovação do plano, o assistente DEVE OBRIGATORIAMENTE acionar o checklist visual de etapas (`update_steps`), mantendo o usuário informado em tempo real com status claros (`in_progress`, `done`) em cada transição de fase.
    - **APÓS APROVAÇÃO DO PLANO PELO USUÁRIO, EXECUTAR DE PONTA A PONTA DE FORMA 100% AUTÔNOMA (MODO TURBO)**: Não parar para fazer perguntas intermediárias, nem pedir autorizações de leitura ou edição.
    - **PROIBIDO FAZER COMMITS, PUSHES OU MERGES AUTOMÁTICOS** nas branches `develop` ou `main`. O assistente deve apenas implementar localmente, rodar testes/build e apresentar o resultado final. Qualquer commit ou push/deploy requer solicitação/autorização expressa e individual do usuário.
    - **PERSISTÊNCIA OBRIGATÓRIA EM TABELAS/CAMPOS DO SUPABASE (REGRA DE OURO)**:

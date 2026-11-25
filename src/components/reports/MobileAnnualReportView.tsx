@@ -2,12 +2,13 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useFinance } from '@/context/FinanceContext';
-import { Category, AnnualBudgetBaseline } from '@/types/finance';
+import { Category, AnnualBudgetBaseline, Transaction } from '@/types/finance';
 import { formatCurrency } from '@/lib/utils';
 import { reconcileAllDecreasingExpenses, getMatchingNanoName, normalizeKey } from '@/lib/decreasingExpenses';
 import { getTransactionInvoicePeriod, isSameId } from '@/lib/invoiceHelpers';
 import { fetchBaselinesByYear, saveBudgetBaseline, updateBudgetBaseline, deleteBudgetBaseline } from '@/lib/supabase/baselineService';
 import { BaselineManageModal } from './BaselineManageModal';
+import { AnnualReportDrilldownPopover, DrilldownPopoverTarget } from './AnnualReportDrilldownPopover';
 import {
   ChevronDown,
   ChevronRight,
@@ -32,15 +33,17 @@ const MONTH_SHORT_NAMES = [
 
 interface MobileAnnualReportViewProps {
   onBack?: () => void;
+  onEditTransaction?: (tx: Transaction) => void;
 }
 
-export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () => {
+export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = ({ onBack, onEditTransaction }) => {
   const { transactions, categories, creditCards, selectedMonth, selectedYear: currentYear, userId } = useFinance();
   const [reportYear, setReportYear] = useState<number>(currentYear || new Date().getFullYear());
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [expandedSubcategories, setExpandedSubcategories] = useState<Record<string, boolean>>({});
   const [expandedMonthDetails, setExpandedMonthDetails] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income' | 'investment' | 'compare'>('all');
+  const [drilldownTarget, setDrilldownTarget] = useState<DrilldownPopoverTarget | null>(null);
   // Padronização: Inicia no mês atual selecionado no sistema
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<number | 'all'>(() => {
     return typeof selectedMonth === 'number' && selectedMonth >= 0 && selectedMonth <= 11
@@ -393,14 +396,16 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
             icon: sub.icon,
             monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[sub.id]?.[m] || 0),
             total: getSubcategoryAnnualTotal(sub),
-            nanos: getVisibleNanosForYear(sub).map(nano => {
-              const nanoKey = normalizeKey(nano.name);
-              return {
-                name: nano.name,
-                monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
-                total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
-              };
-            }),
+            nanos: getVisibleNanosForYear(sub)
+              .map(nano => {
+                const nanoKey = normalizeKey(nano.name);
+                return {
+                  name: nano.name,
+                  monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
+                  total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
+                };
+              })
+              .sort((a, b) => b.total - a.total),
           })),
       }));
   }, [activeBaseline, parentIncomeCategories, activeCategories, matrixData, reportYear]);
@@ -409,66 +414,76 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
     if (activeBaseline) {
       return activeBaseline.matrixSnapshot.expenseCategories;
     }
-    return [...parentExpenseCategories].map(cat => ({
-      id: cat.id,
-      name: cat.name,
-      type: cat.type,
-      color: cat.color,
-      icon: cat.icon,
-      monthlyValues: MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(cat, m)),
-      total: getParentCategoryAnnualTotal(cat),
-      subcategories: activeCategories
-        .filter(c => isSameId(c.parentId, cat.id))
-        .map(sub => ({
-          id: sub.id,
-          name: sub.name,
-          color: sub.color,
-          icon: sub.icon,
-          monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[sub.id]?.[m] || 0),
-          total: getSubcategoryAnnualTotal(sub),
-          nanos: getVisibleNanosForYear(sub).map(nano => {
-            const nanoKey = normalizeKey(nano.name);
-            return {
-              name: nano.name,
-              monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
-              total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
-            };
-          }),
-        })),
-    }));
+    return [...parentExpenseCategories]
+      .sort((a, b) => getParentCategoryAnnualTotal(b) - getParentCategoryAnnualTotal(a))
+      .map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        type: cat.type,
+        color: cat.color,
+        icon: cat.icon,
+        monthlyValues: MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(cat, m)),
+        total: getParentCategoryAnnualTotal(cat),
+        subcategories: activeCategories
+          .filter(c => isSameId(c.parentId, cat.id))
+          .sort((a, b) => getSubcategoryAnnualTotal(b) - getSubcategoryAnnualTotal(a))
+          .map(sub => ({
+            id: sub.id,
+            name: sub.name,
+            color: sub.color,
+            icon: sub.icon,
+            monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[sub.id]?.[m] || 0),
+            total: getSubcategoryAnnualTotal(sub),
+            nanos: getVisibleNanosForYear(sub)
+              .map(nano => {
+                const nanoKey = normalizeKey(nano.name);
+                return {
+                  name: nano.name,
+                  monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
+                  total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
+                };
+              })
+              .sort((a, b) => b.total - a.total),
+          })),
+      }));
   }, [activeBaseline, parentExpenseCategories, activeCategories, matrixData, reportYear]);
 
   const displayInvestmentCategories = useMemo(() => {
     if (activeBaseline && activeBaseline.matrixSnapshot.investmentCategories) {
       return activeBaseline.matrixSnapshot.investmentCategories;
     }
-    return [...parentInvestmentCategories].map(cat => ({
-      id: cat.id,
-      name: cat.name,
-      type: cat.type,
-      color: cat.color,
-      icon: cat.icon,
-      monthlyValues: MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(cat, m)),
-      total: getParentCategoryAnnualTotal(cat),
-      subcategories: activeCategories
-        .filter(c => isSameId(c.parentId, cat.id))
-        .map(sub => ({
-          id: sub.id,
-          name: sub.name,
-          color: sub.color,
-          icon: sub.icon,
-          monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[sub.id]?.[m] || 0),
-          total: getSubcategoryAnnualTotal(sub),
-          nanos: getVisibleNanosForYear(sub).map(nano => {
-            const nanoKey = normalizeKey(nano.name);
-            return {
-              name: nano.name,
-              monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
-              total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
-            };
-          }),
-        })),
-    }));
+    return [...parentInvestmentCategories]
+      .sort((a, b) => getParentCategoryAnnualTotal(b) - getParentCategoryAnnualTotal(a))
+      .map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        type: cat.type,
+        color: cat.color,
+        icon: cat.icon,
+        monthlyValues: MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(cat, m)),
+        total: getParentCategoryAnnualTotal(cat),
+        subcategories: activeCategories
+          .filter(c => isSameId(c.parentId, cat.id))
+          .sort((a, b) => getSubcategoryAnnualTotal(b) - getSubcategoryAnnualTotal(a))
+          .map(sub => ({
+            id: sub.id,
+            name: sub.name,
+            color: sub.color,
+            icon: sub.icon,
+            monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[sub.id]?.[m] || 0),
+            total: getSubcategoryAnnualTotal(sub),
+            nanos: getVisibleNanosForYear(sub)
+              .map(nano => {
+                const nanoKey = normalizeKey(nano.name);
+                return {
+                  name: nano.name,
+                  monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
+                  total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
+                };
+              })
+              .sort((a, b) => b.total - a.total),
+          })),
+      }));
   }, [activeBaseline, parentInvestmentCategories, activeCategories, matrixData, reportYear]);
 
   // Snapshot Actions
@@ -479,19 +494,23 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
       return parents.map(p => {
         const pMonthly = MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(p, m));
         const pTotal = getParentCategoryAnnualTotal(p);
-        const subs = activeCategories.filter(c => isSameId(c.parentId, p.id));
+        const subs = activeCategories
+          .filter(c => isSameId(c.parentId, p.id))
+          .sort((a, b) => getSubcategoryAnnualTotal(b) - getSubcategoryAnnualTotal(a));
         const subItems = subs.map(s => {
           const sMonthly = MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[s.id]?.[m] || 0);
           const sTotal = getSubcategoryAnnualTotal(s);
           const visibleNanos = getVisibleNanosForYear(s);
-          const nanoItems = visibleNanos.map(nano => {
-            const nanoKey = normalizeKey(nano.name);
-            return {
-              name: nano.name,
-              monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[s.id]?.[nanoKey]?.[m] || 0),
-              total: getNanoCategoryAnnualTotal(s.id, nanoKey),
-            };
-          });
+          const nanoItems = visibleNanos
+            .map(nano => {
+              const nanoKey = normalizeKey(nano.name);
+              return {
+                name: nano.name,
+                monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[s.id]?.[nanoKey]?.[m] || 0),
+                total: getNanoCategoryAnnualTotal(s.id, nanoKey),
+              };
+            })
+            .sort((a, b) => b.total - a.total);
           return {
             id: s.id,
             name: s.name,
@@ -570,19 +589,23 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
       return parents.map(p => {
         const pMonthly = MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(p, m));
         const pTotal = getParentCategoryAnnualTotal(p);
-        const subs = activeCategories.filter(c => isSameId(c.parentId, p.id));
+        const subs = activeCategories
+          .filter(c => isSameId(c.parentId, p.id))
+          .sort((a, b) => getSubcategoryAnnualTotal(b) - getSubcategoryAnnualTotal(a));
         const subItems = subs.map(s => {
           const sMonthly = MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[s.id]?.[m] || 0);
           const sTotal = getSubcategoryAnnualTotal(s);
           const visibleNanos = getVisibleNanosForYear(s);
-          const nanoItems = visibleNanos.map(nano => {
-            const nanoKey = normalizeKey(nano.name);
-            return {
-              name: nano.name,
-              monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[s.id]?.[nanoKey]?.[m] || 0),
-              total: getNanoCategoryAnnualTotal(s.id, nanoKey),
-            };
-          });
+          const nanoItems = visibleNanos
+            .map(nano => {
+              const nanoKey = normalizeKey(nano.name);
+              return {
+                name: nano.name,
+                monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[s.id]?.[nanoKey]?.[m] || 0),
+                total: getNanoCategoryAnnualTotal(s.id, nanoKey),
+              };
+            })
+            .sort((a, b) => b.total - a.total);
           return {
             id: s.id,
             name: s.name,
@@ -700,8 +723,91 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
     );
   };
 
+  // Helper para abrir o Drilldown Popover Mobile
+  const handleOpenDrilldown = useCallback((
+    e: React.MouseEvent<HTMLElement> | undefined,
+    options: {
+      parentCategory?: { id: string; name: string; color?: string; icon?: string };
+      subcategory?: { id: string; name: string; color?: string; icon?: string };
+      nanoName?: string;
+      monthIndex?: number;
+      amount: number;
+    }
+  ) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    if (options.amount <= 0) return;
+
+    const parentCat = options.parentCategory;
+    const subCat = options.subcategory;
+    const nanoName = options.nanoName;
+    const mIdx = options.monthIndex;
+
+    const anchorRect = e?.currentTarget ? {
+      top: e.currentTarget.getBoundingClientRect().top,
+      bottom: e.currentTarget.getBoundingClientRect().bottom,
+      left: e.currentTarget.getBoundingClientRect().left,
+      right: e.currentTarget.getBoundingClientRect().right,
+      width: e.currentTarget.getBoundingClientRect().width,
+      height: e.currentTarget.getBoundingClientRect().height,
+    } : undefined;
+
+    const reconciled = reconcileAllDecreasingExpenses(transactions, creditCards, categories);
+
+    const filtered = reconciled.filter(tx => {
+      if (tx.ignoreInTotals) return false;
+      if (/^Pagamento de Fatura\s*-\s*/i.test(tx.description)) return false;
+
+      let txYear = 0;
+      let txMonth = -1;
+      if (tx.creditCardId) {
+        const card = creditCards.find(c => isSameId(c.id, tx.creditCardId));
+        const invoicePeriod = getTransactionInvoicePeriod(tx, card);
+        txYear = invoicePeriod.year;
+        txMonth = invoicePeriod.month;
+      } else if (tx.date) {
+        const [yStr, mStr] = tx.date.split('-');
+        txYear = parseInt(yStr, 10);
+        txMonth = parseInt(mStr, 10) - 1;
+      }
+
+      if (txYear !== reportYear) return false;
+      if (mIdx !== undefined && txMonth !== mIdx) return false;
+
+      if (nanoName && subCat) {
+        if (!isSameId(tx.categoryId, subCat.id)) return false;
+        const fullSubCat = categories.find(c => isSameId(c.id, subCat.id));
+        const matchedKey = fullSubCat ? getMatchingNanoName(tx, [fullSubCat]) : undefined;
+        const targetKey = normalizeKey(nanoName);
+        if (matchedKey !== targetKey) return false;
+      } else if (subCat) {
+        if (!isSameId(tx.categoryId, subCat.id)) return false;
+      } else if (parentCat) {
+        const subIds = new Set([parentCat.id, ...categories.filter(c => isSameId(c.parentId, parentCat.id)).map(c => c.id)]);
+        if (!subIds.has(tx.categoryId)) return false;
+      }
+
+      return true;
+    });
+
+    const monthLabel = mIdx !== undefined ? `${MONTH_SHORT_NAMES[mIdx]}/${reportYear}` : `Ano ${reportYear}`;
+
+    setDrilldownTarget({
+      parentCategoryName: parentCat?.name,
+      subcategoryName: subCat?.name,
+      nanoName,
+      categoryColor: subCat?.color || parentCat?.color || '#14b8a6',
+      categoryIcon: subCat?.icon || parentCat?.icon || 'tag',
+      monthName: monthLabel,
+      transactions: filtered,
+      totalAmount: options.amount,
+      anchorRect,
+    });
+  }, [transactions, creditCards, categories, reportYear]);
+
   // Renderizador do detalhe mês a mês de uma linha
-  const renderMonthDetailsGrid = (monthlyValues: number[], totalAnnual: number) => {
+  const renderMonthDetailsGrid = (monthlyValues: number[], totalAnnual: number, context?: { parentCategory?: { id: string; name: string; color?: string; icon?: string }; subcategory?: { id: string; name: string; color?: string; icon?: string }; nanoName?: string }) => {
     return (
       <div className="grid grid-cols-4 gap-1 p-2 bg-slate-950/80 rounded-xl border border-slate-800/80 mt-1.5 animate-fadeIn">
         {MONTH_SHORT_NAMES.map((mName, mIdx) => {
@@ -712,11 +818,19 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
               key={mName}
               onClick={(e) => {
                 e.stopPropagation();
-                setSelectedMonthFilter(mIdx);
+                if (val > 0) {
+                  handleOpenDrilldown(e, {
+                    ...context,
+                    monthIndex: mIdx,
+                    amount: val,
+                  });
+                } else {
+                  setSelectedMonthFilter(mIdx);
+                }
               }}
-              className={`p-1 rounded flex flex-col items-center justify-center cursor-pointer transition-colors ${
-                isCurrentSelected ? 'bg-teal-500/20 border border-teal-500/40' : 'hover:bg-slate-900'
-              }`}
+              className={`p-1 rounded flex flex-col items-center justify-center cursor-pointer transition-colors ${isCurrentSelected ? 'bg-teal-500/20 border border-teal-500/40' : 'hover:bg-slate-900'
+                } ${val > 0 ? 'hover:bg-teal-500/10 active:scale-95' : ''}`}
+              title={val > 0 ? `Ver lançamentos em ${mName}` : undefined}
             >
               <span className="text-[9px] text-slate-400 font-semibold">{mName}</span>
               <span className={`text-[10px] tabular-nums font-bold ${val > 0 ? 'text-slate-200' : 'text-slate-600'}`}>
@@ -773,11 +887,10 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                 setBaselineModalTab('manage');
                 setIsBaselineModalOpen(true);
               }}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold border cursor-pointer shadow-sm active:scale-95 transition-all ${
-                activeBaseline
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 ring-1 ring-amber-500/40'
-                  : 'bg-slate-950 text-slate-300 border-slate-800'
-              }`}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold border cursor-pointer shadow-sm active:scale-95 transition-all ${activeBaseline
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 ring-1 ring-amber-500/40'
+                : 'bg-slate-950 text-slate-300 border-slate-800'
+                }`}
             >
               {activeBaseline ? (
                 <Lock className="w-3.5 h-3.5 text-amber-400" />
@@ -846,43 +959,31 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
         )}
 
         {/* 2. Filtros de Aba (Completo / Receitas / Despesas / Comparativo) + Expandir / Recolher */}
-        <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-800/80">
-          <div className="flex items-center bg-slate-950 border border-slate-800 p-0.5 rounded-xl text-[10px]">
+        <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-800/80">
+          <div className="flex items-center bg-slate-950 border border-slate-800 p-0.5 rounded-xl text-[10px] shrink-0">
             <button
               type="button"
               onClick={() => setActiveTab('all')}
-              className={`px-2 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-                activeTab === 'all' ? 'bg-slate-800 text-white font-semibold' : 'text-slate-400'
-              }`}
+              className={`px-2 py-1 rounded-lg font-medium transition-all cursor-pointer ${activeTab === 'all' ? 'bg-slate-800 text-white font-semibold' : 'text-slate-400'
+                }`}
             >
               Todos
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('income')}
-              className={`px-2 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-                activeTab === 'income' ? 'bg-emerald-500/20 text-emerald-300 font-semibold' : 'text-slate-400'
-              }`}
+              className={`px-2 py-1 rounded-lg font-medium transition-all cursor-pointer ${activeTab === 'income' ? 'bg-emerald-500/20 text-emerald-300 font-semibold' : 'text-slate-400'
+                }`}
             >
               Receitas
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('expense')}
-              className={`px-2 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-                activeTab === 'expense' ? 'bg-rose-500/20 text-rose-300 font-semibold' : 'text-slate-400'
-              }`}
+              className={`px-2 py-1 rounded-lg font-medium transition-all cursor-pointer ${activeTab === 'expense' ? 'bg-rose-500/20 text-rose-300 font-semibold' : 'text-slate-400'
+                }`}
             >
               Despesas
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('investment')}
-              className={`px-2 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-                activeTab === 'investment' ? 'bg-amber-500/20 text-amber-300 font-semibold' : 'text-slate-400'
-              }`}
-            >
-              Investir
             </button>
             <button
               type="button"
@@ -890,15 +991,14 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                 setActiveTab('compare');
                 if (selectedBaselineId) setSelectedBaselineId(null);
               }}
-              className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                activeTab === 'compare' ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50' : 'text-slate-400'
-              }`}
+              className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${activeTab === 'compare' ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50' : 'text-slate-400'
+                }`}
             >
               <span>⚖️ Comparar</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-1 text-[10px]">
+          <div className="flex items-center gap-1 text-[10px] shrink-0">
             <button
               type="button"
               onClick={expandAll}
@@ -931,11 +1031,10 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
             <button
               type="button"
               onClick={() => setSelectedMonthFilter('all')}
-              className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-colors cursor-pointer ${
-                selectedMonthFilter === 'all'
-                  ? 'bg-teal-500 text-slate-950 shadow-sm'
-                  : 'bg-slate-950 text-slate-400 border border-slate-800'
-              }`}
+              className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-colors cursor-pointer ${selectedMonthFilter === 'all'
+                ? 'bg-teal-500 text-slate-950 shadow-sm'
+                : 'bg-slate-950 text-slate-400 border border-slate-800'
+                }`}
             >
               Ano Todo
             </button>
@@ -944,11 +1043,10 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                 key={m}
                 type="button"
                 onClick={() => setSelectedMonthFilter(idx)}
-                className={`px-2 py-1 rounded-lg font-semibold shrink-0 transition-colors cursor-pointer ${
-                  selectedMonthFilter === idx
-                    ? 'bg-teal-500 text-slate-950 shadow-sm'
-                    : 'bg-slate-950 text-slate-400 border border-slate-800'
-                }`}
+                className={`px-2 py-1 rounded-lg font-semibold shrink-0 transition-colors cursor-pointer ${selectedMonthFilter === idx
+                  ? 'bg-teal-500 text-slate-950 shadow-sm'
+                  : 'bg-slate-950 text-slate-400 border border-slate-800'
+                  }`}
               >
                 {m}
               </button>
@@ -1259,7 +1357,19 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <div className="text-right">
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (catVal > 0) {
+                            handleOpenDrilldown(e, {
+                              parentCategory: cat,
+                              monthIndex: typeof selectedMonthFilter === 'number' ? selectedMonthFilter : undefined,
+                              amount: catVal,
+                            });
+                          }
+                        }}
+                        className={`text-right ${catVal > 0 ? 'cursor-pointer hover:opacity-80 active:scale-95' : ''}`}
+                      >
                         <span className="text-xs font-bold text-rose-400 tabular-nums block">
                           {catVal > 0 ? formatCurrency(catVal) : '-'}
                         </span>
@@ -1280,7 +1390,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                   </div>
 
                   {/* Grid de 12 Meses da Categoria Pai (quando ativado) */}
-                  {isDetailOpen && renderMonthDetailsGrid(cat.monthlyValues, cat.total)}
+                  {isDetailOpen && renderMonthDetailsGrid(cat.monthlyValues, cat.total, { parentCategory: cat })}
 
                   {/* Subcategorias de Despesa */}
                   {isExpanded && subs.length > 0 && (
@@ -1314,7 +1424,20 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                               </div>
 
                               <div className="flex items-center gap-1.5 shrink-0">
-                                <div className="text-right">
+                                <div
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (subVal > 0) {
+                                      handleOpenDrilldown(e, {
+                                        parentCategory: cat,
+                                        subcategory: sub,
+                                        monthIndex: typeof selectedMonthFilter === 'number' ? selectedMonthFilter : undefined,
+                                        amount: subVal,
+                                      });
+                                    }
+                                  }}
+                                  className={`text-right ${subVal > 0 ? 'cursor-pointer hover:opacity-80 active:scale-95' : ''}`}
+                                >
                                   <span className="text-[11px] font-semibold text-slate-200 tabular-nums block">
                                     {subVal > 0 ? formatCurrency(subVal) : '-'}
                                   </span>
@@ -1334,7 +1457,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                             </div>
 
                             {/* Grid 12 Meses da Subcategoria */}
-                            {isSubDetailOpen && renderMonthDetailsGrid(sub.monthlyValues, sub.total)}
+                            {isSubDetailOpen && renderMonthDetailsGrid(sub.monthlyValues, sub.total, { parentCategory: cat, subcategory: sub })}
 
                             {/* Nano-Categorias de Despesa */}
                             {isSubExpanded && hasNanos && (
@@ -1350,7 +1473,21 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                                       <div className="flex items-center justify-between gap-1 text-[10px]">
                                         <span className="text-slate-400 italic truncate">↳ {nano.name}</span>
                                         <div className="flex items-center gap-1">
-                                          <div className="text-right">
+                                          <div
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (nanoVal > 0) {
+                                                handleOpenDrilldown(e, {
+                                                  parentCategory: cat,
+                                                  subcategory: sub,
+                                                  nanoName: nano.name,
+                                                  monthIndex: typeof selectedMonthFilter === 'number' ? selectedMonthFilter : undefined,
+                                                  amount: nanoVal,
+                                                });
+                                              }
+                                            }}
+                                            className={`text-right ${nanoVal > 0 ? 'cursor-pointer hover:opacity-80 active:scale-95' : ''}`}
+                                          >
                                             <span className="tabular-nums text-slate-300 block">
                                               {nanoVal > 0 ? formatCurrency(nanoVal) : '-'}
                                             </span>
@@ -1365,7 +1502,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
                                           </button>
                                         </div>
                                       </div>
-                                      {isNanoDetailOpen && renderMonthDetailsGrid(nano.monthlyValues, nano.total)}
+                                      {isNanoDetailOpen && renderMonthDetailsGrid(nano.monthlyValues, nano.total, { parentCategory: cat, subcategory: sub, nanoName: nano.name })}
                                     </div>
                                   );
                                 })}
@@ -1589,13 +1726,12 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
             </div>
             <div className="text-right">
               <span
-                className={`font-bold tabular-nums block ${
-                  (selectedMonthFilter === 'all'
-                    ? totalAnnualIncome - totalAnnualExpense
-                    : displayOperatingTotals[selectedMonthFilter] || 0) >= 0
-                    ? 'text-emerald-400'
-                    : 'text-rose-400'
-                }`}
+                className={`font-bold tabular-nums block ${(selectedMonthFilter === 'all'
+                  ? totalAnnualIncome - totalAnnualExpense
+                  : displayOperatingTotals[selectedMonthFilter] || 0) >= 0
+                  ? 'text-emerald-400'
+                  : 'text-rose-400'
+                  }`}
               >
                 {formatCurrency(
                   selectedMonthFilter === 'all'
@@ -1619,13 +1755,12 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
             </div>
             <div className="text-right">
               <span
-                className={`text-xs font-black tabular-nums block ${
-                  (selectedMonthFilter === 'all'
-                    ? totalAnnualCashFlow
-                    : displayNetTotals[selectedMonthFilter] || 0) >= 0
-                    ? 'text-emerald-400'
-                    : 'text-rose-400'
-                }`}
+                className={`text-xs font-black tabular-nums block ${(selectedMonthFilter === 'all'
+                  ? totalAnnualCashFlow
+                  : displayNetTotals[selectedMonthFilter] || 0) >= 0
+                  ? 'text-emerald-400'
+                  : 'text-rose-400'
+                  }`}
               >
                 {formatCurrency(
                   selectedMonthFilter === 'all'
@@ -1657,13 +1792,12 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
             </div>
             <div className="text-right">
               <span
-                className={`text-xs font-black tabular-nums block ${
-                  (selectedMonthFilter === 'all'
-                    ? displayAccumulatedTotals[11] || 0
-                    : displayAccumulatedTotals[selectedMonthFilter] || 0) >= 0
-                    ? 'text-teal-300'
-                    : 'text-rose-400'
-                }`}
+                className={`text-xs font-black tabular-nums block ${(selectedMonthFilter === 'all'
+                  ? displayAccumulatedTotals[11] || 0
+                  : displayAccumulatedTotals[selectedMonthFilter] || 0) >= 0
+                  ? 'text-teal-300'
+                  : 'text-rose-400'
+                  }`}
               >
                 {formatCurrency(
                   selectedMonthFilter === 'all'
@@ -1703,6 +1837,14 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = () 
         onSaveSnapshot={handleSaveSnapshot}
         onOverwriteSnapshot={handleOverwriteSnapshot}
         onDeleteBaseline={handleDeleteBaseline}
+      />
+
+      {/* Popover Flutuante de Lançamentos Reais Mobile (Drilldown) */}
+      <AnnualReportDrilldownPopover
+        isOpen={Boolean(drilldownTarget)}
+        onClose={() => setDrilldownTarget(null)}
+        target={drilldownTarget}
+        onEditTransaction={onEditTransaction}
       />
     </div>
   );

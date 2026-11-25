@@ -2,12 +2,13 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useFinance } from '@/context/FinanceContext';
-import { Category, AnnualBudgetBaseline } from '@/types/finance';
+import { Category, AnnualBudgetBaseline, Transaction } from '@/types/finance';
 import { formatCurrency } from '@/lib/utils';
 import { reconcileAllDecreasingExpenses, getMatchingNanoName, normalizeKey } from '@/lib/decreasingExpenses';
 import { getTransactionInvoicePeriod, isSameId } from '@/lib/invoiceHelpers';
 import { fetchBaselinesByYear, saveBudgetBaseline, updateBudgetBaseline, deleteBudgetBaseline } from '@/lib/supabase/baselineService';
 import { BaselineManageModal } from './BaselineManageModal';
+import { AnnualReportDrilldownPopover, DrilldownPopoverTarget } from './AnnualReportDrilldownPopover';
 import {
   Table,
   ChevronDown,
@@ -34,14 +35,16 @@ const MONTH_SHORT_NAMES = [
 
 interface AnnualMatrixReportViewProps {
   onBack?: () => void;
+  onEditTransaction?: (tx: Transaction) => void;
 }
 
-export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () => {
+export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ onBack, onEditTransaction }) => {
   const { transactions, categories, creditCards, selectedMonth, selectedYear: currentYear, userId } = useFinance();
   const [reportYear, setReportYear] = useState<number>(currentYear || new Date().getFullYear());
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [expandedSubcategories, setExpandedSubcategories] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income' | 'investment' | 'compare'>('all');
+  const [drilldownTarget, setDrilldownTarget] = useState<DrilldownPopoverTarget | null>(null);
 
   // Estado das Baselines / Snapshots Congelados (armazenados no Supabase)
   const [baselines, setBaselines] = useState<AnnualBudgetBaseline[]>([]);
@@ -454,6 +457,90 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     ? activeBaseline.summaryTotals.netBalance
     : currentAnnualCashFlow;
 
+  // Helper para abrir o Popover Flutuante Drilldown com as transações da célula
+  const handleOpenDrilldown = useCallback((
+    e: React.MouseEvent<HTMLElement>,
+    options: {
+      parentCategory?: { id: string; name: string; color?: string; icon?: string };
+      subcategory?: { id: string; name: string; color?: string; icon?: string };
+      nanoName?: string;
+      monthIndex?: number; // 0..11 ou undefined para o ano todo
+      amount: number;
+    }
+  ) => {
+    e.stopPropagation();
+    if (options.amount <= 0) return;
+
+    const parentCat = options.parentCategory;
+    const subCat = options.subcategory;
+    const nanoName = options.nanoName;
+    const mIdx = options.monthIndex;
+
+    const targetRect = e.currentTarget.getBoundingClientRect();
+    const anchorRect = {
+      top: targetRect.top,
+      bottom: targetRect.bottom,
+      left: targetRect.left,
+      right: targetRect.right,
+      width: targetRect.width,
+      height: targetRect.height,
+    };
+
+    const reconciled = reconcileAllDecreasingExpenses(transactions, creditCards, categories);
+
+    const filtered = reconciled.filter(tx => {
+      if (tx.ignoreInTotals) return false;
+      if (/^Pagamento de Fatura\s*-\s*/i.test(tx.description)) return false;
+
+      // Filtro de Ano e Mês
+      let txYear = 0;
+      let txMonth = -1;
+      if (tx.creditCardId) {
+        const card = creditCards.find(c => isSameId(c.id, tx.creditCardId));
+        const invoicePeriod = getTransactionInvoicePeriod(tx, card);
+        txYear = invoicePeriod.year;
+        txMonth = invoicePeriod.month;
+      } else if (tx.date) {
+        const [yStr, mStr] = tx.date.split('-');
+        txYear = parseInt(yStr, 10);
+        txMonth = parseInt(mStr, 10) - 1;
+      }
+
+      if (txYear !== reportYear) return false;
+      if (mIdx !== undefined && txMonth !== mIdx) return false;
+
+      // Filtro de Categoria/Subcategoria/Nano
+      if (nanoName && subCat) {
+        if (!isSameId(tx.categoryId, subCat.id)) return false;
+        const fullSubCat = categories.find(c => isSameId(c.id, subCat.id));
+        const matchedKey = fullSubCat ? getMatchingNanoName(tx, [fullSubCat]) : undefined;
+        const targetKey = normalizeKey(nanoName);
+        if (matchedKey !== targetKey) return false;
+      } else if (subCat) {
+        if (!isSameId(tx.categoryId, subCat.id)) return false;
+      } else if (parentCat) {
+        const subIds = new Set([parentCat.id, ...categories.filter(c => isSameId(c.parentId, parentCat.id)).map(c => c.id)]);
+        if (!subIds.has(tx.categoryId)) return false;
+      }
+
+      return true;
+    });
+
+    const monthLabel = mIdx !== undefined ? `${MONTH_SHORT_NAMES[mIdx]}/${reportYear}` : `Ano ${reportYear}`;
+
+    setDrilldownTarget({
+      parentCategoryName: parentCat?.name,
+      subcategoryName: subCat?.name,
+      nanoName,
+      categoryColor: subCat?.color || parentCat?.color || '#14b8a6',
+      categoryIcon: subCat?.icon || parentCat?.icon || 'tag',
+      monthName: monthLabel,
+      transactions: filtered,
+      totalAmount: options.amount,
+      anchorRect,
+    });
+  }, [transactions, creditCards, categories, reportYear]);
+
   // Helper para renderizar célula comparativa de desvio respeitando a regra tipográfica:
   // - category: Mantém como está (branco com ênfase)
   // - subcategory: Como está, porém sem o negrito (font-normal)
@@ -461,7 +548,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
   const renderCellWithDiff = (
     currentVal: number,
     baseVal: number | undefined,
-    type: 'income' | 'expense' | 'net',
+    type: 'income' | 'expense' | 'investment' | 'net',
     level: 'category' | 'subcategory' | 'nano' = 'category'
   ) => {
     // Formatação do valor principal
@@ -477,8 +564,17 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     };
 
     // Definição das classes de texto, tamanho e peso com distinção nítida por nível hierárquico
+    // No nível principal (category), aplica-se a cor correspondente (verde para receitas, vermelho para despesas, âmbar para investimentos)
     let textClass = 'text-sm font-bold text-white';
-    if (level === 'subcategory') {
+    if (level === 'category') {
+      if (type === 'income') {
+        textClass = 'text-sm font-bold text-emerald-400';
+      } else if (type === 'expense') {
+        textClass = 'text-sm font-bold text-rose-400';
+      } else if (type === 'investment') {
+        textClass = 'text-sm font-bold text-amber-400';
+      }
+    } else if (level === 'subcategory') {
       textClass = 'text-[11.5px] font-normal text-slate-300';
     } else if (level === 'nano') {
       textClass = 'text-[10.5px] font-normal text-slate-500';
@@ -606,14 +702,16 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
             icon: sub.icon,
             monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[sub.id]?.[m] || 0),
             total: getSubcategoryAnnualTotal(sub),
-            nanos: getVisibleNanosForYear(sub).map(nano => {
-              const nanoKey = normalizeKey(nano.name);
-              return {
-                name: nano.name,
-                monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
-                total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
-              };
-            }),
+            nanos: getVisibleNanosForYear(sub)
+              .map(nano => {
+                const nanoKey = normalizeKey(nano.name);
+                return {
+                  name: nano.name,
+                  monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
+                  total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
+                };
+              })
+              .sort((a, b) => b.total - a.total),
           })),
       }));
   }, [activeBaseline, parentIncomeCategories, activeCategories, matrixData, reportYear]);
@@ -623,33 +721,38 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     if (activeBaseline) {
       return activeBaseline.matrixSnapshot.expenseCategories;
     }
-    return [...parentExpenseCategories].map(cat => ({
-      id: cat.id,
-      name: cat.name,
-      type: cat.type,
-      color: cat.color,
-      icon: cat.icon,
-      monthlyValues: MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(cat, m)),
-      total: getParentCategoryAnnualTotal(cat),
-      subcategories: activeCategories
-        .filter(c => isSameId(c.parentId, cat.id))
-        .map(sub => ({
-          id: sub.id,
-          name: sub.name,
-          color: sub.color,
-          icon: sub.icon,
-          monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[sub.id]?.[m] || 0),
-          total: getSubcategoryAnnualTotal(sub),
-          nanos: getVisibleNanosForYear(sub).map(nano => {
-            const nanoKey = normalizeKey(nano.name);
-            return {
-              name: nano.name,
-              monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
-              total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
-            };
-          }),
-        })),
-    }));
+    return [...parentExpenseCategories]
+      .sort((a, b) => getParentCategoryAnnualTotal(b) - getParentCategoryAnnualTotal(a))
+      .map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        type: cat.type,
+        color: cat.color,
+        icon: cat.icon,
+        monthlyValues: MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(cat, m)),
+        total: getParentCategoryAnnualTotal(cat),
+        subcategories: activeCategories
+          .filter(c => isSameId(c.parentId, cat.id))
+          .sort((a, b) => getSubcategoryAnnualTotal(b) - getSubcategoryAnnualTotal(a))
+          .map(sub => ({
+            id: sub.id,
+            name: sub.name,
+            color: sub.color,
+            icon: sub.icon,
+            monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[sub.id]?.[m] || 0),
+            total: getSubcategoryAnnualTotal(sub),
+            nanos: getVisibleNanosForYear(sub)
+              .map(nano => {
+                const nanoKey = normalizeKey(nano.name);
+                return {
+                  name: nano.name,
+                  monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
+                  total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
+                };
+              })
+              .sort((a, b) => b.total - a.total),
+          })),
+      }));
   }, [activeBaseline, parentExpenseCategories, activeCategories, matrixData, reportYear]);
 
   // Lista de Categorias de Investimento
@@ -657,33 +760,38 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
     if (activeBaseline && activeBaseline.matrixSnapshot.investmentCategories) {
       return activeBaseline.matrixSnapshot.investmentCategories;
     }
-    return [...parentInvestmentCategories].map(cat => ({
-      id: cat.id,
-      name: cat.name,
-      type: cat.type,
-      color: cat.color,
-      icon: cat.icon,
-      monthlyValues: MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(cat, m)),
-      total: getParentCategoryAnnualTotal(cat),
-      subcategories: activeCategories
-        .filter(c => isSameId(c.parentId, cat.id))
-        .map(sub => ({
-          id: sub.id,
-          name: sub.name,
-          color: sub.color,
-          icon: sub.icon,
-          monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[sub.id]?.[m] || 0),
-          total: getSubcategoryAnnualTotal(sub),
-          nanos: getVisibleNanosForYear(sub).map(nano => {
-            const nanoKey = normalizeKey(nano.name);
-            return {
-              name: nano.name,
-              monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
-              total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
-            };
-          }),
-        })),
-    }));
+    return [...parentInvestmentCategories]
+      .sort((a, b) => getParentCategoryAnnualTotal(b) - getParentCategoryAnnualTotal(a))
+      .map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        type: cat.type,
+        color: cat.color,
+        icon: cat.icon,
+        monthlyValues: MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(cat, m)),
+        total: getParentCategoryAnnualTotal(cat),
+        subcategories: activeCategories
+          .filter(c => isSameId(c.parentId, cat.id))
+          .sort((a, b) => getSubcategoryAnnualTotal(b) - getSubcategoryAnnualTotal(a))
+          .map(sub => ({
+            id: sub.id,
+            name: sub.name,
+            color: sub.color,
+            icon: sub.icon,
+            monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[sub.id]?.[m] || 0),
+            total: getSubcategoryAnnualTotal(sub),
+            nanos: getVisibleNanosForYear(sub)
+              .map(nano => {
+                const nanoKey = normalizeKey(nano.name);
+                return {
+                  name: nano.name,
+                  monthlyValues: MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[sub.id]?.[nanoKey]?.[m] || 0),
+                  total: getNanoCategoryAnnualTotal(sub.id, nanoKey),
+                };
+              })
+              .sort((a, b) => b.total - a.total),
+          })),
+      }));
   }, [activeBaseline, parentInvestmentCategories, activeCategories, matrixData, reportYear]);
 
   // Função para salvar snapshot da tela atual na nuvem
@@ -696,23 +804,27 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
       return parents.map(p => {
         const pMonthly = MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(p, m));
         const pTotal = getParentCategoryAnnualTotal(p);
-        const subs = activeCategories.filter(c => isSameId(c.parentId, p.id));
+        const subs = activeCategories
+          .filter(c => isSameId(c.parentId, p.id))
+          .sort((a, b) => getSubcategoryAnnualTotal(b) - getSubcategoryAnnualTotal(a));
         
         const subItems = subs.map(s => {
           const sMonthly = MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[s.id]?.[m] || 0);
           const sTotal = getSubcategoryAnnualTotal(s);
           const visibleNanos = getVisibleNanosForYear(s);
           
-          const nanoItems = visibleNanos.map(nano => {
-            const nanoKey = normalizeKey(nano.name);
-            const nMonthly = MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[s.id]?.[nanoKey]?.[m] || 0);
-            const nTotal = getNanoCategoryAnnualTotal(s.id, nanoKey);
-            return {
-              name: nano.name,
-              monthlyValues: nMonthly,
-              total: nTotal,
-            };
-          });
+          const nanoItems = visibleNanos
+            .map(nano => {
+              const nanoKey = normalizeKey(nano.name);
+              const nMonthly = MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[s.id]?.[nanoKey]?.[m] || 0);
+              const nTotal = getNanoCategoryAnnualTotal(s.id, nanoKey);
+              return {
+                name: nano.name,
+                monthlyValues: nMonthly,
+                total: nTotal,
+              };
+            })
+            .sort((a, b) => b.total - a.total);
 
           return {
             id: s.id,
@@ -797,23 +909,27 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
       return parents.map(p => {
         const pMonthly = MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(p, m));
         const pTotal = getParentCategoryAnnualTotal(p);
-        const subs = activeCategories.filter(c => isSameId(c.parentId, p.id));
+        const subs = activeCategories
+          .filter(c => isSameId(c.parentId, p.id))
+          .sort((a, b) => getSubcategoryAnnualTotal(b) - getSubcategoryAnnualTotal(a));
         
         const subItems = subs.map(s => {
           const sMonthly = MONTH_SHORT_NAMES.map((_, m) => matrixData.catMonthTotals[s.id]?.[m] || 0);
           const sTotal = getSubcategoryAnnualTotal(s);
           const visibleNanos = getVisibleNanosForYear(s);
           
-          const nanoItems = visibleNanos.map(nano => {
-            const nanoKey = normalizeKey(nano.name);
-            const nMonthly = MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[s.id]?.[nanoKey]?.[m] || 0);
-            const nTotal = getNanoCategoryAnnualTotal(s.id, nanoKey);
-            return {
-              name: nano.name,
-              monthlyValues: nMonthly,
-              total: nTotal,
-            };
-          });
+          const nanoItems = visibleNanos
+            .map(nano => {
+              const nanoKey = normalizeKey(nano.name);
+              const nMonthly = MONTH_SHORT_NAMES.map((_, m) => matrixData.nanoMonthTotals[s.id]?.[nanoKey]?.[m] || 0);
+              const nTotal = getNanoCategoryAnnualTotal(s.id, nanoKey);
+              return {
+                name: nano.name,
+                monthlyValues: nMonthly,
+                total: nTotal,
+              };
+            })
+            .sort((a, b) => b.total - a.total);
 
           return {
             id: s.id,
@@ -1297,12 +1413,26 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                           {MONTH_SHORT_NAMES.map((_, m) => {
                             const val = cat.monthlyValues[m] || 0;
                             return (
-                              <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums text-slate-300')}>
+                              <td
+                                key={m}
+                                onClick={(e) => val > 0 && handleOpenDrilldown(e, { parentCategory: cat, monthIndex: m, amount: val })}
+                                className={getCurrentMonthColClass(
+                                  m,
+                                  `p-2 text-right tabular-nums text-slate-300 ${val > 0 ? 'cursor-pointer hover:bg-slate-800/60 hover:text-white transition-colors' : ''}`
+                                )}
+                                title={val > 0 ? `Ver lançamentos de ${cat.name} em ${MONTH_SHORT_NAMES[m]}` : undefined}
+                              >
                                 {renderCellWithDiff(val, baseCat?.monthly[m], 'income')}
                               </td>
                             );
                           })}
-                          <td className="p-2 text-right tabular-nums font-bold text-white bg-slate-900/50 border-l border-slate-800">
+                          <td
+                            onClick={(e) => annualTot > 0 && handleOpenDrilldown(e, { parentCategory: cat, amount: annualTot })}
+                            className={`p-2 text-right tabular-nums font-bold text-white bg-slate-900/50 border-l border-slate-800 ${
+                              annualTot > 0 ? 'cursor-pointer hover:bg-slate-800 hover:text-teal-300 transition-colors' : ''
+                            }`}
+                            title={annualTot > 0 ? `Ver lançamentos anuais de ${cat.name}` : undefined}
+                          >
                             {renderCellWithDiff(annualTot, baseCat?.total, 'income')}
                           </td>
                         </tr>
@@ -1341,12 +1471,26 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                 {MONTH_SHORT_NAMES.map((_, m) => {
                                   const val = sub.monthlyValues[m] || 0;
                                   return (
-                                    <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums')}>
+                                    <td
+                                      key={m}
+                                      onClick={(e) => val > 0 && handleOpenDrilldown(e, { parentCategory: cat, subcategory: sub, monthIndex: m, amount: val })}
+                                      className={getCurrentMonthColClass(
+                                        m,
+                                        `p-2 text-right tabular-nums ${val > 0 ? 'cursor-pointer hover:bg-slate-800/60 hover:text-white transition-colors' : ''}`
+                                      )}
+                                      title={val > 0 ? `Ver lançamentos de ${sub.name} em ${MONTH_SHORT_NAMES[m]}` : undefined}
+                                    >
                                       {renderCellWithDiff(val, baseSub?.monthly[m], 'income', 'subcategory')}
                                     </td>
                                   );
                                 })}
-                                <td className="p-2 text-right tabular-nums bg-slate-950/60 border-l border-slate-800">
+                                <td
+                                  onClick={(e) => subAnnual > 0 && handleOpenDrilldown(e, { parentCategory: cat, subcategory: sub, amount: subAnnual })}
+                                  className={`p-2 text-right tabular-nums bg-slate-950/60 border-l border-slate-800 ${
+                                    subAnnual > 0 ? 'cursor-pointer hover:bg-slate-800 hover:text-teal-300 transition-colors' : ''
+                                  }`}
+                                  title={subAnnual > 0 ? `Ver lançamentos anuais de ${sub.name}` : undefined}
+                                >
                                   {renderCellWithDiff(subAnnual, baseSub?.total, 'income', 'subcategory')}
                                 </td>
                               </tr>
@@ -1365,12 +1509,26 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                     {MONTH_SHORT_NAMES.map((_, m) => {
                                       const val = nano.monthlyValues[m] || 0;
                                       return (
-                                        <td key={m} className={getCurrentMonthColClass(m, 'p-1.5 text-right tabular-nums')}>
+                                        <td
+                                          key={m}
+                                          onClick={(e) => val > 0 && handleOpenDrilldown(e, { parentCategory: cat, subcategory: sub, nanoName: nano.name, monthIndex: m, amount: val })}
+                                          className={getCurrentMonthColClass(
+                                            m,
+                                            `p-1.5 text-right tabular-nums ${val > 0 ? 'cursor-pointer hover:bg-slate-800/70 hover:text-white transition-colors' : ''}`
+                                          )}
+                                          title={val > 0 ? `Ver lançamentos de ${nano.name} em ${MONTH_SHORT_NAMES[m]}` : undefined}
+                                        >
                                           {renderCellWithDiff(val, baseNano?.monthly[m], 'income', 'nano')}
                                         </td>
                                       );
                                     })}
-                                    <td className="p-1.5 text-right tabular-nums bg-slate-950/80 border-l border-slate-800">
+                                    <td
+                                      onClick={(e) => nanoAnnual > 0 && handleOpenDrilldown(e, { parentCategory: cat, subcategory: sub, nanoName: nano.name, amount: nanoAnnual })}
+                                      className={`p-1.5 text-right tabular-nums bg-slate-950/80 border-l border-slate-800 ${
+                                        nanoAnnual > 0 ? 'cursor-pointer hover:bg-slate-800 hover:text-teal-300 transition-colors' : ''
+                                      }`}
+                                      title={nanoAnnual > 0 ? `Ver lançamentos anuais de ${nano.name}` : undefined}
+                                    >
                                       {renderCellWithDiff(nanoAnnual, baseNano?.total, 'income', 'nano')}
                                     </td>
                                   </tr>
@@ -1436,12 +1594,26 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                           {MONTH_SHORT_NAMES.map((_, m) => {
                             const val = cat.monthlyValues[m] || 0;
                             return (
-                              <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums text-slate-300')}>
+                              <td
+                                key={m}
+                                onClick={(e) => val > 0 && handleOpenDrilldown(e, { parentCategory: cat, monthIndex: m, amount: val })}
+                                className={getCurrentMonthColClass(
+                                  m,
+                                  `p-2 text-right tabular-nums text-slate-300 ${val > 0 ? 'cursor-pointer hover:bg-slate-800/60 hover:text-white transition-colors' : ''}`
+                                )}
+                                title={val > 0 ? `Ver lançamentos de ${cat.name} em ${MONTH_SHORT_NAMES[m]}` : undefined}
+                              >
                                 {renderCellWithDiff(val, baseCat?.monthly[m], 'expense')}
                               </td>
                             );
                           })}
-                          <td className="p-2 text-right tabular-nums font-bold text-white bg-slate-900/50 border-l border-slate-800">
+                          <td
+                            onClick={(e) => annualTot > 0 && handleOpenDrilldown(e, { parentCategory: cat, amount: annualTot })}
+                            className={`p-2 text-right tabular-nums font-bold text-white bg-slate-900/50 border-l border-slate-800 ${
+                              annualTot > 0 ? 'cursor-pointer hover:bg-slate-800 hover:text-teal-300 transition-colors' : ''
+                            }`}
+                            title={annualTot > 0 ? `Ver lançamentos anuais de ${cat.name}` : undefined}
+                          >
                             {renderCellWithDiff(annualTot, baseCat?.total, 'expense')}
                           </td>
                         </tr>
@@ -1480,12 +1652,26 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                 {MONTH_SHORT_NAMES.map((_, m) => {
                                   const val = sub.monthlyValues[m] || 0;
                                   return (
-                                    <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums')}>
+                                    <td
+                                      key={m}
+                                      onClick={(e) => val > 0 && handleOpenDrilldown(e, { parentCategory: cat, subcategory: sub, monthIndex: m, amount: val })}
+                                      className={getCurrentMonthColClass(
+                                        m,
+                                        `p-2 text-right tabular-nums ${val > 0 ? 'cursor-pointer hover:bg-slate-800/60 hover:text-white transition-colors' : ''}`
+                                      )}
+                                      title={val > 0 ? `Ver lançamentos de ${sub.name} em ${MONTH_SHORT_NAMES[m]}` : undefined}
+                                    >
                                       {renderCellWithDiff(val, baseSub?.monthly[m], 'expense', 'subcategory')}
                                     </td>
                                   );
                                 })}
-                                <td className="p-2 text-right tabular-nums bg-slate-950/60 border-l border-slate-800">
+                                <td
+                                  onClick={(e) => subAnnual > 0 && handleOpenDrilldown(e, { parentCategory: cat, subcategory: sub, amount: subAnnual })}
+                                  className={`p-2 text-right tabular-nums bg-slate-950/60 border-l border-slate-800 ${
+                                    subAnnual > 0 ? 'cursor-pointer hover:bg-slate-800 hover:text-teal-300 transition-colors' : ''
+                                  }`}
+                                  title={subAnnual > 0 ? `Ver lançamentos anuais de ${sub.name}` : undefined}
+                                >
                                   {renderCellWithDiff(subAnnual, baseSub?.total, 'expense', 'subcategory')}
                                 </td>
                               </tr>
@@ -1504,12 +1690,26 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                     {MONTH_SHORT_NAMES.map((_, m) => {
                                       const val = nano.monthlyValues[m] || 0;
                                       return (
-                                        <td key={m} className={getCurrentMonthColClass(m, 'p-1.5 text-right tabular-nums')}>
+                                        <td
+                                          key={m}
+                                          onClick={(e) => val > 0 && handleOpenDrilldown(e, { parentCategory: cat, subcategory: sub, nanoName: nano.name, monthIndex: m, amount: val })}
+                                          className={getCurrentMonthColClass(
+                                            m,
+                                            `p-1.5 text-right tabular-nums ${val > 0 ? 'cursor-pointer hover:bg-slate-800/70 hover:text-white transition-colors' : ''}`
+                                          )}
+                                          title={val > 0 ? `Ver lançamentos de ${nano.name} em ${MONTH_SHORT_NAMES[m]}` : undefined}
+                                        >
                                           {renderCellWithDiff(val, baseNano?.monthly[m], 'expense', 'nano')}
                                         </td>
                                       );
                                     })}
-                                    <td className="p-1.5 text-right tabular-nums bg-slate-950/80 border-l border-slate-800">
+                                    <td
+                                      onClick={(e) => nanoAnnual > 0 && handleOpenDrilldown(e, { parentCategory: cat, subcategory: sub, nanoName: nano.name, amount: nanoAnnual })}
+                                      className={`p-1.5 text-right tabular-nums bg-slate-950/80 border-l border-slate-800 ${
+                                        nanoAnnual > 0 ? 'cursor-pointer hover:bg-slate-800 hover:text-teal-300 transition-colors' : ''
+                                      }`}
+                                      title={nanoAnnual > 0 ? `Ver lançamentos anuais de ${nano.name}` : undefined}
+                                    >
                                       {renderCellWithDiff(nanoAnnual, baseNano?.total, 'expense', 'nano')}
                                     </td>
                                   </tr>
@@ -1542,11 +1742,11 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                           'p-2.5 text-right tabular-nums text-amber-400 font-bold'
                         )}
                       >
-                        {renderCellWithDiff(tot, compareLookup?.investmentTotals?.[idx], 'expense')}
+                        {renderCellWithDiff(tot, compareLookup?.investmentTotals?.[idx], 'investment')}
                       </td>
                     ))}
                     <td className="p-2.5 text-right tabular-nums font-black text-amber-400 bg-amber-950/70 border-l border-amber-900/80">
-                      {renderCellWithDiff(totalAnnualInvestment, compareLookup?.summary.totalInvestment, 'expense')}
+                      {renderCellWithDiff(totalAnnualInvestment, compareLookup?.summary.totalInvestment, 'investment')}
                     </td>
                   </tr>
 
@@ -1580,13 +1780,27 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                           {MONTH_SHORT_NAMES.map((_, m) => {
                             const val = cat.monthlyValues[m] || 0;
                             return (
-                              <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums text-slate-300')}>
-                                {renderCellWithDiff(val, baseCat?.monthly[m], 'expense')}
+                              <td
+                                key={m}
+                                onClick={(e) => val > 0 && handleOpenDrilldown(e, { parentCategory: cat, monthIndex: m, amount: val })}
+                                className={getCurrentMonthColClass(
+                                  m,
+                                  `p-2 text-right tabular-nums text-slate-300 ${val > 0 ? 'cursor-pointer hover:bg-slate-800/60 hover:text-white transition-colors' : ''}`
+                                )}
+                                title={val > 0 ? `Ver lançamentos de ${cat.name} em ${MONTH_SHORT_NAMES[m]}` : undefined}
+                              >
+                                {renderCellWithDiff(val, baseCat?.monthly[m], 'investment')}
                               </td>
                             );
                           })}
-                          <td className="p-2 text-right tabular-nums font-bold text-white bg-slate-900/50 border-l border-slate-800">
-                            {renderCellWithDiff(annualTot, baseCat?.total, 'expense')}
+                          <td
+                            onClick={(e) => annualTot > 0 && handleOpenDrilldown(e, { parentCategory: cat, amount: annualTot })}
+                            className={`p-2 text-right tabular-nums font-bold text-white bg-slate-900/50 border-l border-slate-800 ${
+                              annualTot > 0 ? 'cursor-pointer hover:bg-slate-800 hover:text-teal-300 transition-colors' : ''
+                            }`}
+                            title={annualTot > 0 ? `Ver lançamentos anuais de ${cat.name}` : undefined}
+                          >
+                            {renderCellWithDiff(annualTot, baseCat?.total, 'investment')}
                           </td>
                         </tr>
 
@@ -1624,12 +1838,26 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                 {MONTH_SHORT_NAMES.map((_, m) => {
                                   const val = sub.monthlyValues[m] || 0;
                                   return (
-                                    <td key={m} className={getCurrentMonthColClass(m, 'p-2 text-right tabular-nums')}>
+                                    <td
+                                      key={m}
+                                      onClick={(e) => val > 0 && handleOpenDrilldown(e, { parentCategory: cat, subcategory: sub, monthIndex: m, amount: val })}
+                                      className={getCurrentMonthColClass(
+                                        m,
+                                        `p-2 text-right tabular-nums ${val > 0 ? 'cursor-pointer hover:bg-slate-800/60 hover:text-white transition-colors' : ''}`
+                                      )}
+                                      title={val > 0 ? `Ver lançamentos de ${sub.name} em ${MONTH_SHORT_NAMES[m]}` : undefined}
+                                    >
                                       {renderCellWithDiff(val, baseSub?.monthly[m], 'expense', 'subcategory')}
                                     </td>
                                   );
                                 })}
-                                <td className="p-2 text-right tabular-nums bg-slate-950/60 border-l border-slate-800">
+                                <td
+                                  onClick={(e) => subAnnual > 0 && handleOpenDrilldown(e, { parentCategory: cat, subcategory: sub, amount: subAnnual })}
+                                  className={`p-2 text-right tabular-nums bg-slate-950/60 border-l border-slate-800 ${
+                                    subAnnual > 0 ? 'cursor-pointer hover:bg-slate-800 hover:text-teal-300 transition-colors' : ''
+                                  }`}
+                                  title={subAnnual > 0 ? `Ver lançamentos anuais de ${sub.name}` : undefined}
+                                >
                                   {renderCellWithDiff(subAnnual, baseSub?.total, 'expense', 'subcategory')}
                                 </td>
                               </tr>
@@ -1648,12 +1876,26 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
                                     {MONTH_SHORT_NAMES.map((_, m) => {
                                       const val = nano.monthlyValues[m] || 0;
                                       return (
-                                        <td key={m} className={getCurrentMonthColClass(m, 'p-1.5 text-right tabular-nums')}>
+                                        <td
+                                          key={m}
+                                          onClick={(e) => val > 0 && handleOpenDrilldown(e, { parentCategory: cat, subcategory: sub, nanoName: nano.name, monthIndex: m, amount: val })}
+                                          className={getCurrentMonthColClass(
+                                            m,
+                                            `p-1.5 text-right tabular-nums ${val > 0 ? 'cursor-pointer hover:bg-slate-800/70 hover:text-white transition-colors' : ''}`
+                                          )}
+                                          title={val > 0 ? `Ver lançamentos de ${nano.name} em ${MONTH_SHORT_NAMES[m]}` : undefined}
+                                        >
                                           {renderCellWithDiff(val, baseNano?.monthly[m], 'expense', 'nano')}
                                         </td>
                                       );
                                     })}
-                                    <td className="p-1.5 text-right tabular-nums bg-slate-950/80 border-l border-slate-800">
+                                    <td
+                                      onClick={(e) => nanoAnnual > 0 && handleOpenDrilldown(e, { parentCategory: cat, subcategory: sub, nanoName: nano.name, amount: nanoAnnual })}
+                                      className={`p-1.5 text-right tabular-nums bg-slate-950/80 border-l border-slate-800 ${
+                                        nanoAnnual > 0 ? 'cursor-pointer hover:bg-slate-800 hover:text-teal-300 transition-colors' : ''
+                                      }`}
+                                      title={nanoAnnual > 0 ? `Ver lançamentos anuais de ${nano.name}` : undefined}
+                                    >
                                       {renderCellWithDiff(nanoAnnual, baseNano?.total, 'expense', 'nano')}
                                     </td>
                                   </tr>
@@ -1784,6 +2026,14 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = () 
         onSaveSnapshot={handleSaveSnapshot}
         onOverwriteSnapshot={handleOverwriteSnapshot}
         onDeleteBaseline={handleDeleteBaseline}
+      />
+
+      {/* Card Flutuante Popover de Lançamentos Reais (Drilldown) */}
+      <AnnualReportDrilldownPopover
+        isOpen={Boolean(drilldownTarget)}
+        onClose={() => setDrilldownTarget(null)}
+        target={drilldownTarget}
+        onEditTransaction={onEditTransaction}
       />
     </div>
   );

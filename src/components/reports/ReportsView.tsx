@@ -187,10 +187,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeTab === 'matrix' && (
         <div>
           <div className="hidden md:block">
-            <AnnualMatrixReportView onBack={onBack} />
+            <AnnualMatrixReportView onBack={onBack} onEditTransaction={onEditTransaction} />
           </div>
           <div className="block md:hidden">
-            <MobileAnnualReportView onBack={onBack} />
+            <MobileAnnualReportView onBack={onBack} onEditTransaction={onEditTransaction} />
           </div>
         </div>
       )}

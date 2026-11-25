@@ -10,8 +10,9 @@ trigger: always_on
 
 ## 🛑 REGRAS DE OURO & PROTOCOLO MANDATÓRIO
 
-1. **AUTORIZAÇÃO DE PLANO ÚNICA & EXECUÇÃO 100% AUTÔNOMA (MODO TURBO)**:
+1. **AUTORIZAÇÃO DE PLANO ÚNICA, CHECKLIST DE ETAPAS & EXECUÇÃO 100% AUTÔNOMA (MODO TURBO)**:
    - O assistente deve apresentar o plano e os arquivos a serem modificados antes de iniciar a implementação.
+   - **Checklist Interativo Obrigatório**: Imediatamente após a aprovação do plano, o assistente DEVE OBRIGATORIAMENTE emitir o checklist de etapas interativo (`update_steps`) com títulos claros, atualizando em tempo real cada fase (`in_progress` -> `done`).
    - **APÓS APROVAÇÃO DO PLANO PELO USUÁRIO, O ASSISTENTE DEVE EXECUTAR TUDO ATÉ O FINAL DE FORMA 100% AUTÔNOMA, SEM PARAR PARA FAZER PERGUNTAS, PEDIR AUTORIZAÇÃO INTERMEDIÁRIA OU CONFIRMAÇÃO DE LEITURA/EDIÇÃO.**
    - Fica terminantemente proibido interromper a implementação com perguntas desnecessárias. Faça o trabalho de ponta a ponta, rode os testes (`npm run test`), valide o build (`npm run build`) e apresente o resultado concluído.
 
