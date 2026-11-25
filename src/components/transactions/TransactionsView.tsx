@@ -43,11 +43,13 @@ const MONTH_NAMES = [
 interface TransactionsViewProps {
   initialTypeFilter?: 'all' | 'income' | 'expense' | 'transfer';
   initialStatusFilter?: 'all' | 'pending' | 'paid';
+  initialHeatmapOpen?: boolean;
 }
 
 export const TransactionsView: React.FC<TransactionsViewProps> = ({
   initialTypeFilter = 'all',
   initialStatusFilter = 'all',
+  initialHeatmapOpen,
 }) => {
   const {
     filteredTransactions,
@@ -87,8 +89,19 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false);
   const [alertPending, setAlertPending] = useState(false);
-  const [isHeatmapOpen, setIsHeatmapOpen] = useState(true);
+  const [isHeatmapOpen, setIsHeatmapOpen] = useState(() => {
+    if (typeof initialHeatmapOpen === 'boolean') return initialHeatmapOpen;
+    return initialStatusFilter === 'pending' ? false : false;
+  });
   const [selectedHeatmapDate, setSelectedHeatmapDate] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (typeof initialHeatmapOpen === 'boolean') {
+      setIsHeatmapOpen(initialHeatmapOpen);
+    } else if (initialStatusFilter === 'pending') {
+      setIsHeatmapOpen(false);
+    }
+  }, [initialHeatmapOpen, initialStatusFilter]);
 
   // Estados de Modais
   const [isExportExcelOpen, setIsExportExcelOpen] = useState(false);

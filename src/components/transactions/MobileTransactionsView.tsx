@@ -51,11 +51,13 @@ const WEEKDAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 interface MobileTransactionsViewProps {
   initialTypeFilter?: 'all' | 'income' | 'expense' | 'transfer';
   initialStatusFilter?: 'all' | 'pending' | 'paid';
+  initialHeatmapOpen?: boolean;
 }
 
 export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
   initialTypeFilter = 'all',
   initialStatusFilter = 'all',
+  initialHeatmapOpen,
 }) => {
   const {
     filteredTransactions,
@@ -102,9 +104,20 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false);
   const [alertPending, setAlertPending] = useState(false);
-  const [isHeatmapOpen, setIsHeatmapOpen] = useState(true);
+  const [isHeatmapOpen, setIsHeatmapOpen] = useState(() => {
+    if (typeof initialHeatmapOpen === 'boolean') return initialHeatmapOpen;
+    return initialStatusFilter === 'pending' ? false : false;
+  });
   const [selectedHeatmapDate, setSelectedHeatmapDate] = useState<string | null>(null);
   const [heatmapModalDate, setHeatmapModalDate] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (typeof initialHeatmapOpen === 'boolean') {
+      setIsHeatmapOpen(initialHeatmapOpen);
+    } else if (initialStatusFilter === 'pending') {
+      setIsHeatmapOpen(false);
+    }
+  }, [initialHeatmapOpen, initialStatusFilter]);
 
   // Estados de Detalhe e Edição
   const [selectedTxDetail, setSelectedTxDetail] = useState<Transaction | null>(null);
