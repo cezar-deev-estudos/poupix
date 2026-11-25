@@ -48,6 +48,7 @@ export interface Category {
   color: string;
   budgetLimit?: number; // Teto de gastos mensal padrão recorrente
   monthlyBudgets?: Record<string, number>; // Tetos específicos por mês no formato "YYYY-MM": valor
+  targetRevenuePercentage?: number; // Meta percentual de participação na receita mensal (ex: 20 para 20%)
   parentId?: string; // ID da categoria pai para subcategorias
   nanoCategories?: NanoCategory[]; // Nano-categorias / despesas frequentes vinculadas
   isDefault?: boolean;
@@ -301,6 +302,7 @@ export interface AnnualMatrixCategoryItem {
   type: CategoryType;
   color: string;
   icon?: string;
+  targetRevenuePercentage?: number;
   monthlyValues: number[];
   total: number;
   subcategories: AnnualMatrixSubcategoryItem[];

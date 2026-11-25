@@ -26,6 +26,7 @@ import {
   Lock,
   Eye,
   PiggyBank,
+  Percent,
 } from 'lucide-react';
 
 const MONTH_SHORT_NAMES = [
@@ -45,6 +46,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
   const [expandedSubcategories, setExpandedSubcategories] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income' | 'investment' | 'compare'>('all');
   const [drilldownTarget, setDrilldownTarget] = useState<DrilldownPopoverTarget | null>(null);
+  const [showRevenuePercentages, setShowRevenuePercentages] = useState(false);
 
   // Estado das Baselines / Snapshots Congelados (armazenados no Supabase)
   const [baselines, setBaselines] = useState<AnnualBudgetBaseline[]>([]);
@@ -549,7 +551,9 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
     currentVal: number,
     baseVal: number | undefined,
     type: 'income' | 'expense' | 'investment' | 'net',
-    level: 'category' | 'subcategory' | 'nano' = 'category'
+    level: 'category' | 'subcategory' | 'nano' = 'category',
+    monthIdx?: number,
+    targetPerc?: number
   ) => {
     // Formatação do valor principal
     const formatValue = (val: number) => {
@@ -564,7 +568,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
     };
 
     // Definição das classes de texto, tamanho e peso com distinção nítida por nível hierárquico
-    // No nível principal (category), aplica-se a cor correspondente (verde para receitas, vermelho para despesas, âmbar para investimentos)
+    // No nível principal (category), aplica-se a cor correspondente (verde para receitas, vermelho para despesas, azul claro para investimentos)
     let textClass = 'text-sm font-bold text-white';
     if (level === 'category') {
       if (type === 'income') {
@@ -572,7 +576,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
       } else if (type === 'expense') {
         textClass = 'text-sm font-bold text-rose-400';
       } else if (type === 'investment') {
-        textClass = 'text-sm font-bold text-amber-400';
+        textClass = 'text-sm font-bold text-sky-400';
       }
     } else if (level === 'subcategory') {
       textClass = 'text-[11.5px] font-normal text-slate-300';
@@ -586,6 +590,56 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
 
     if (!isCompareMode || baseVal === undefined) {
       const formatted = formatValue(currentVal);
+
+      // Micro-badge vertical de Meta % quando o botão estiver ativo em células mensais de despesa/investimento
+      let monthPercBadge = null;
+      if (showRevenuePercentages && monthIdx !== undefined && currentVal > 0 && (type === 'expense' || type === 'investment')) {
+        const monthIncome = displayIncomeTotals[monthIdx] || 0;
+        if (monthIncome > 0) {
+          const actualPerc = (currentVal / monthIncome) * 100;
+          const hasTarget = typeof targetPerc === 'number' && targetPerc > 0;
+          const isOverTarget = hasTarget && actualPerc > targetPerc;
+
+          let badgeColor = 'text-slate-400 bg-slate-800/60 border-slate-700/60';
+          let indicatorIcon = '●';
+
+          if (hasTarget) {
+            if (isOverTarget) {
+              badgeColor = 'text-rose-300 bg-rose-950/60 border-rose-500/50';
+              indicatorIcon = '▲';
+            } else {
+              badgeColor = 'text-emerald-300 bg-emerald-950/60 border-emerald-500/50';
+              indicatorIcon = '●';
+            }
+          }
+
+          monthPercBadge = (
+            <span
+              className={`text-[9px] font-semibold tracking-tight px-1 py-0.2 rounded border inline-flex items-center gap-0.5 mt-0.5 ${badgeColor}`}
+              title={
+                hasTarget
+                  ? `${actualPerc.toFixed(1)}% da receita de ${MONTH_SHORT_NAMES[monthIdx]} (Meta: ${targetPerc}% - ${isOverTarget ? 'Acima' : 'Dentro'})`
+                  : `${actualPerc.toFixed(1)}% da receita de ${MONTH_SHORT_NAMES[monthIdx]}`
+              }
+            >
+              <span>{actualPerc.toFixed(1)}%</span>
+              <span className="text-[7px] leading-none">{indicatorIcon}</span>
+            </span>
+          );
+        }
+      }
+
+      if (monthPercBadge) {
+        return (
+          <div className="flex flex-col items-end leading-tight py-0.5">
+            <span className={`tabular-nums ${textClass}`}>
+              {formatted === '-' ? <span className="text-slate-600 font-normal">-</span> : formatted}
+            </span>
+            {monthPercBadge}
+          </div>
+        );
+      }
+
       return (
         <span className={`text-right tabular-nums ${textClass}`}>
           {formatted === '-' ? <span className="text-slate-600 font-normal">-</span> : formatted}
@@ -690,6 +744,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
         type: cat.type,
         color: cat.color,
         icon: cat.icon,
+        targetRevenuePercentage: cat.targetRevenuePercentage,
         monthlyValues: MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(cat, m)),
         total: getParentCategoryAnnualTotal(cat),
         subcategories: activeCategories
@@ -729,6 +784,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
         type: cat.type,
         color: cat.color,
         icon: cat.icon,
+        targetRevenuePercentage: cat.targetRevenuePercentage,
         monthlyValues: MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(cat, m)),
         total: getParentCategoryAnnualTotal(cat),
         subcategories: activeCategories
@@ -768,6 +824,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
         type: cat.type,
         color: cat.color,
         icon: cat.icon,
+        targetRevenuePercentage: cat.targetRevenuePercentage,
         monthlyValues: MONTH_SHORT_NAMES.map((_, m) => getParentCategoryMonthTotal(cat, m)),
         total: getParentCategoryAnnualTotal(cat),
         subcategories: activeCategories
@@ -1113,6 +1170,24 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
             Recolher
           </button>
 
+          {/* Botão de Alternar Meta % da Receita */}
+          <button
+            type="button"
+            onClick={() => setShowRevenuePercentages(prev => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shadow transition-all cursor-pointer ${
+              showRevenuePercentages
+                ? 'bg-sky-500/25 text-sky-300 border border-sky-500/60 ring-1 ring-sky-500/40'
+                : 'bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+            title="Exibir percentual de comprometimento da receita em cada mês e comparar com a meta"
+          >
+            <Percent className="w-3.5 h-3.5 text-sky-400" />
+            <span>% Metas</span>
+            {showRevenuePercentages && (
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+            )}
+          </button>
+
           {/* Exportar CSV */}
           <button
             type="button"
@@ -1297,15 +1372,15 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3 flex items-center justify-between">
           <div>
             <span className="text-slate-400 text-[11px] block">Investimentos Totais {reportYear}</span>
-            <span className="text-base font-bold text-amber-400">{formatCurrency(totalAnnualInvestment)}</span>
+            <span className="text-base font-bold text-sky-400">{formatCurrency(totalAnnualInvestment)}</span>
             {isCompareMode && compareLookup && (
-              <span className={`text-[10px] block font-semibold ${(totalAnnualInvestment) >= (compareLookup.summary.totalInvestment || 0) ? 'text-emerald-400' : 'text-amber-400'}`}>
+              <span className={`text-[10px] block font-semibold ${(totalAnnualInvestment) >= (compareLookup.summary.totalInvestment || 0) ? 'text-emerald-400' : 'text-sky-400'}`}>
                 {(totalAnnualInvestment) >= (compareLookup.summary.totalInvestment || 0) ? '+' : ''}
                 {formatCurrency(totalAnnualInvestment - (compareLookup.summary.totalInvestment || 0))} vs. meta
               </span>
             )}
           </div>
-          <PiggyBank className="w-6 h-6 text-amber-400/40" />
+          <PiggyBank className="w-6 h-6 text-sky-400/40" />
         </div>
 
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3 flex items-center justify-between">
@@ -1333,7 +1408,12 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
             <thead>
               <tr className="bg-slate-950 border-b border-slate-800 text-slate-300">
                 <th className="p-3 sticky left-0 z-20 bg-slate-950 font-bold uppercase tracking-wider text-[11px] w-64 min-w-[240px] border-r border-slate-800/80 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
-                  {reportYear} / Categorias
+                  <div className="flex items-center justify-between">
+                    <span>{reportYear} / Categorias</span>
+                    <span className="text-[10px] text-sky-400/90 font-semibold lowercase tracking-normal">
+                      meta %
+                    </span>
+                  </div>
                 </th>
                 {MONTH_SHORT_NAMES.map((m, mIdx) => {
                   const isCurrent = isCurrentYear && mIdx === currentMonthIndex;
@@ -1392,7 +1472,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
                     return (
                       <React.Fragment key={cat.id}>
                         <tr className="hover:bg-slate-800/30 transition-colors">
-                          <td className="p-2.5 pl-5 sticky left-0 z-10 bg-slate-900/95 border-r border-slate-800 font-medium text-slate-200 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                          <td className="p-2.5 pl-5 sticky left-0 z-10 bg-slate-900/95 border-r border-slate-800 text-sm font-semibold text-white shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
                             <div className="flex items-center gap-2">
                               {subs.length > 0 && (
                                 <button
@@ -1573,22 +1653,31 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
                     return (
                       <React.Fragment key={cat.id}>
                         <tr className="hover:bg-slate-800/30 transition-colors">
-                          <td className="p-2.5 pl-5 sticky left-0 z-10 bg-slate-900/95 border-r border-slate-800 font-medium text-slate-200 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
-                            <div className="flex items-center gap-2">
-                              {subs.length > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleExpand(cat.id)}
-                                  className="p-0.5 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                                >
-                                  {isExpanded ? (
-                                    <ChevronDown className="w-3.5 h-3.5 text-teal-400" />
-                                  ) : (
-                                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                                  )}
-                                </button>
+                          <td className="p-2.5 pl-5 sticky left-0 z-10 bg-slate-900/95 border-r border-slate-800 text-sm font-semibold text-white shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {subs.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleExpand(cat.id)}
+                                    className="p-0.5 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronDown className="w-3.5 h-3.5 text-teal-400" />
+                                    ) : (
+                                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                    )}
+                                  </button>
+                                )}
+                                <span className="truncate">{cat.name}</span>
+                              </div>
+                              {cat.targetRevenuePercentage ? (
+                                <span className="text-[10.5px] font-bold text-sky-300 bg-sky-950/60 border border-sky-500/40 px-1.5 py-0.5 rounded shrink-0 shadow-sm" title={`Meta de ${cat.targetRevenuePercentage}% da receita mensal`}>
+                                  {cat.targetRevenuePercentage}%
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-600 shrink-0 font-normal mr-1">-</span>
                               )}
-                              <span className="truncate">{cat.name}</span>
                             </div>
                           </td>
                           {MONTH_SHORT_NAMES.map((_, m) => {
@@ -1603,7 +1692,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
                                 )}
                                 title={val > 0 ? `Ver lançamentos de ${cat.name} em ${MONTH_SHORT_NAMES[m]}` : undefined}
                               >
-                                {renderCellWithDiff(val, baseCat?.monthly[m], 'expense')}
+                                {renderCellWithDiff(val, baseCat?.monthly[m], 'expense', 'category', m, cat.targetRevenuePercentage)}
                               </td>
                             );
                           })}
@@ -1727,10 +1816,10 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
               {/* ================= SEÇÃO: INVESTIMENTOS ================= */}
               {(activeTab === 'all' || activeTab === 'investment' || activeTab === 'compare') && (
                 <>
-                  <tr className="bg-gradient-to-r from-amber-950/60 to-slate-900/90 font-bold border-t-2 border-amber-900/60">
-                    <td className="p-3 pl-3 sticky left-0 z-10 bg-amber-950/90 border-r border-amber-900/80 text-amber-300 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                  <tr className="bg-gradient-to-r from-sky-950/60 to-slate-900/90 font-bold border-t-2 border-sky-900/60">
+                    <td className="p-3 pl-3 sticky left-0 z-10 bg-sky-950/90 border-r border-sky-900/80 text-sky-300 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
                       <div className="flex items-center gap-2">
-                        <PiggyBank className="w-3.5 h-3.5 text-amber-400" />
+                        <PiggyBank className="w-3.5 h-3.5 text-sky-400" />
                         <span>INVESTIMENTOS</span>
                       </div>
                     </td>
@@ -1739,13 +1828,13 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
                         key={idx}
                         className={getCurrentMonthColClass(
                           idx,
-                          'p-2.5 text-right tabular-nums text-amber-400 font-bold'
+                          'p-2.5 text-right tabular-nums text-sky-400 font-bold'
                         )}
                       >
                         {renderCellWithDiff(tot, compareLookup?.investmentTotals?.[idx], 'investment')}
                       </td>
                     ))}
-                    <td className="p-2.5 text-right tabular-nums font-black text-amber-400 bg-amber-950/70 border-l border-amber-900/80">
+                    <td className="p-2.5 text-right tabular-nums font-black text-sky-400 bg-sky-950/70 border-l border-sky-900/80">
                       {renderCellWithDiff(totalAnnualInvestment, compareLookup?.summary.totalInvestment, 'investment')}
                     </td>
                   </tr>
@@ -1763,18 +1852,27 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
                           onClick={() => toggleExpand(cat.id)}
                           className="border-b border-slate-800/40 hover:bg-slate-800/30 transition-colors cursor-pointer group"
                         >
-                          <td className="p-2.5 pl-6 sticky left-0 z-10 bg-slate-900/95 border-r border-slate-800 font-semibold text-slate-200 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
-                            <div className="flex items-center gap-2">
-                              {subs.length > 0 ? (
-                                isExpanded ? (
-                                  <ChevronDown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <td className="p-2.5 pl-6 sticky left-0 z-10 bg-slate-900/95 border-r border-slate-800 text-sm font-semibold text-white shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {subs.length > 0 ? (
+                                  isExpanded ? (
+                                    <ChevronDown className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                                  ) : (
+                                    <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0 group-hover:text-sky-400" />
+                                  )
                                 ) : (
-                                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0 group-hover:text-amber-400" />
-                                )
+                                  <span className="w-3.5 inline-block" />
+                                )}
+                                <span className="truncate">{cat.name}</span>
+                              </div>
+                              {cat.targetRevenuePercentage ? (
+                                <span className="text-[10.5px] font-bold text-sky-300 bg-sky-950/60 border border-sky-500/40 px-1.5 py-0.5 rounded shrink-0 shadow-sm" title={`Meta de ${cat.targetRevenuePercentage}% da receita mensal`}>
+                                  {cat.targetRevenuePercentage}%
+                                </span>
                               ) : (
-                                <span className="w-3.5 inline-block" />
+                                <span className="text-[10px] text-slate-600 shrink-0 font-normal mr-1">-</span>
                               )}
-                              <span className="truncate">{cat.name}</span>
                             </div>
                           </td>
                           {MONTH_SHORT_NAMES.map((_, m) => {
@@ -1789,7 +1887,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
                                 )}
                                 title={val > 0 ? `Ver lançamentos de ${cat.name} em ${MONTH_SHORT_NAMES[m]}` : undefined}
                               >
-                                {renderCellWithDiff(val, baseCat?.monthly[m], 'investment')}
+                                {renderCellWithDiff(val, baseCat?.monthly[m], 'investment', 'category', m, cat.targetRevenuePercentage)}
                               </td>
                             );
                           })}

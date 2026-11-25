@@ -367,6 +367,7 @@ export const BudgetsView: React.FC = () => {
   const [type, setType] = useState<CategoryType>('expense');
   const [parentId, setParentId] = useState<string>('');
   const [budgetLimit, setBudgetLimit] = useState('');
+  const [targetRevenuePercentage, setTargetRevenuePercentage] = useState('');
   const [budgetMode, setBudgetMode] = useState<'default' | 'month'>('default');
   const [monthBudgetLimit, setMonthBudgetLimit] = useState('');
   const [autoSumSubcategories, setAutoSumSubcategories] = useState(false);
@@ -451,6 +452,7 @@ export const BudgetsView: React.FC = () => {
     setType(suggestedType || 'expense');
     setParentId(suggestedParentId || '');
     setBudgetLimit('');
+    setTargetRevenuePercentage('');
     setMonthBudgetLimit('');
     setAutoSumSubcategories(false);
     setBudgetMode('default');
@@ -466,6 +468,7 @@ export const BudgetsView: React.FC = () => {
     setType(cat.type);
     setParentId(cat.parentId || '');
     setBudgetLimit(cat.budgetLimit ? String(cat.budgetLimit) : '');
+    setTargetRevenuePercentage(typeof cat.targetRevenuePercentage === 'number' ? String(cat.targetRevenuePercentage) : '');
     setAutoSumSubcategories(Boolean(cat.autoSumSubcategories));
 
     const monthKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
@@ -491,6 +494,9 @@ export const BudgetsView: React.FC = () => {
     const numDefaultBudget = budgetLimit ? parseFloat(budgetLimit.replace(',', '.')) : undefined;
     const cleanDefaultBudget = isNaN(Number(numDefaultBudget)) ? undefined : numDefaultBudget;
 
+    const numTargetPerc = targetRevenuePercentage ? parseFloat(targetRevenuePercentage.replace(',', '.')) : undefined;
+    const cleanTargetPerc = isNaN(Number(numTargetPerc)) ? undefined : numTargetPerc;
+
     const numMonthBudget = monthBudgetLimit ? parseFloat(monthBudgetLimit.replace(',', '.')) : undefined;
     const cleanMonthBudget = isNaN(Number(numMonthBudget)) ? undefined : numMonthBudget;
 
@@ -514,6 +520,7 @@ export const BudgetsView: React.FC = () => {
         type,
         parentId: parentId || undefined,
         budgetLimit: cleanDefaultBudget,
+        targetRevenuePercentage: cleanTargetPerc,
         monthlyBudgets: updatedMonthlyBudgets,
         autoSumSubcategories,
         icon,
@@ -530,6 +537,7 @@ export const BudgetsView: React.FC = () => {
         type,
         parentId: parentId || undefined,
         budgetLimit: cleanDefaultBudget,
+        targetRevenuePercentage: cleanTargetPerc,
         monthlyBudgets: Object.keys(initialMonthlyBudgets).length > 0 ? initialMonthlyBudgets : undefined,
         autoSumSubcategories,
         icon,
@@ -1901,6 +1909,43 @@ export const BudgetsView: React.FC = () => {
                         }`}
                       />
                     </div>
+                  </div>
+
+                  {/* Opção 3: Meta de Participação na Receita (%) */}
+                  <div className="p-2.5 rounded-xl border border-sky-500/30 bg-sky-950/20">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-sky-300">
+                          Meta de Participação na Receita (%)
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          (Planejamento Anual)
+                        </span>
+                      </div>
+                      {targetRevenuePercentage && (
+                        <span className="text-[10px] bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded font-medium">
+                          {targetRevenuePercentage}%
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        placeholder="Ex: 20 (para 20% da receita mensal)"
+                        value={targetRevenuePercentage}
+                        onChange={e => setTargetRevenuePercentage(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-1.5 pr-8 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                        %
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Define a porcentagem saudável que esta categoria deve representar da receita de cada mês no relatório anual.
+                    </p>
                   </div>
                 </div>
               )}

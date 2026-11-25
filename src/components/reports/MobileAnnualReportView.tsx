@@ -1083,11 +1083,11 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = ({ 
         </div>
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
           <span className="text-slate-400 text-[10px] block truncate">Investimentos {reportYear}</span>
-          <span className="text-xs font-bold text-amber-400 tabular-nums truncate">
+          <span className="text-xs font-bold text-sky-400 tabular-nums truncate">
             {formatCurrency(totalAnnualInvestment)}
           </span>
           {isCompareMode && compareLookup && (
-            <span className={`text-[9px] block font-semibold truncate ${(totalAnnualInvestment) >= (compareLookup.summary.totalInvestment || 0) ? 'text-emerald-400' : 'text-amber-400'}`}>
+            <span className={`text-[9px] block font-semibold truncate ${(totalAnnualInvestment) >= (compareLookup.summary.totalInvestment || 0) ? 'text-emerald-400' : 'text-sky-400'}`}>
               {(totalAnnualInvestment) >= (compareLookup.summary.totalInvestment || 0) ? '+' : ''}
               {formatCurrency(totalAnnualInvestment - (compareLookup.summary.totalInvestment || 0))}
             </span>
@@ -1524,13 +1524,13 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = ({ 
       {(activeTab === 'all' || activeTab === 'investment' || activeTab === 'compare') && (
         <div className="space-y-2">
           {/* Header da Seção de Investimentos */}
-          <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-300">
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-sky-950/40 border border-sky-500/30 text-sky-300">
             <div className="flex items-center gap-1.5 font-bold text-xs">
-              <PiggyBank className="w-4 h-4 text-amber-400" />
+              <PiggyBank className="w-4 h-4 text-sky-400" />
               <span>INVESTIMENTOS</span>
             </div>
             <div className="text-right">
-              <span className="text-xs font-black tabular-nums text-amber-400 block">
+              <span className="text-xs font-black tabular-nums text-sky-400 block">
                 {formatCurrency(
                   selectedMonthFilter === 'all'
                     ? totalAnnualInvestment
@@ -1570,7 +1570,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = ({ 
                       {subs.length > 0 ? (
                         <span className="p-0.5 text-slate-400">
                           {isExpanded ? (
-                            <ChevronDown className="w-3.5 h-3.5 text-amber-400" />
+                            <ChevronDown className="w-3.5 h-3.5 text-sky-400" />
                           ) : (
                             <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                           )}
@@ -1604,7 +1604,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = ({ 
                           e.stopPropagation();
                           toggleMonthDetails(`cat-${cat.id}`);
                         }}
-                        className="p-1 text-slate-400 hover:text-amber-400 rounded-lg bg-slate-800/60 transition-colors"
+                        className="p-1 text-slate-400 hover:text-sky-400 rounded-lg bg-slate-800/60 transition-colors"
                         title="Ver 12 meses desta categoria"
                       >
                         <Calendar className="w-3 h-3" />

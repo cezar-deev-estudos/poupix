@@ -71,6 +71,7 @@ export const syncAllToSupabase = async (data: {
           color: cat.color || '#64748B',
           parent_id: cat.parentId ? ensureValidUUID(cat.parentId) : null,
           budget_limit: cat.budgetLimit || null,
+          target_revenue_percentage: typeof cat.targetRevenuePercentage === 'number' ? cat.targetRevenuePercentage : null,
           is_default: cat.isDefault ?? false,
           is_archived: cat.isArchived ?? false,
           auto_sum_subcategories: cat.autoSumSubcategories ?? false,
@@ -79,14 +80,19 @@ export const syncAllToSupabase = async (data: {
       })
       const { error: catErr } = await supabase.from('categories').upsert(categoriesPayload as any)
       if (catErr) {
-        // Fallback 1: tenta sem nano_categories caso a tabela ainda não tenha a coluna
-        const fallbackWithoutNano = categoriesPayload.map(({ nano_categories, ...rest }: any) => rest)
-        const { error: fbNanoErr } = await supabase.from('categories').upsert(fallbackWithoutNano as any)
-        if (fbNanoErr) {
-          // Fallback 2: tenta sem nano_categories e sem is_archived
-          const fallbackMinimal = fallbackWithoutNano.map(({ is_archived, ...rest }: any) => rest)
-          const { error: fbMinErr } = await supabase.from('categories').upsert(fallbackMinimal as any)
-          if (fbMinErr) console.warn('[Supabase Sync] Erro no fallback de categorias:', fbMinErr.message)
+        // Fallback 1: tenta sem target_revenue_percentage caso a tabela ainda não tenha a coluna
+        const fallbackWithoutTarget = categoriesPayload.map(({ target_revenue_percentage, ...rest }: any) => rest)
+        const { error: fbTargetErr } = await supabase.from('categories').upsert(fallbackWithoutTarget as any)
+        if (fbTargetErr) {
+          // Fallback 2: tenta sem nano_categories
+          const fallbackWithoutNano = fallbackWithoutTarget.map(({ nano_categories, ...rest }: any) => rest)
+          const { error: fbNanoErr } = await supabase.from('categories').upsert(fallbackWithoutNano as any)
+          if (fbNanoErr) {
+            // Fallback 3: tenta sem nano_categories e sem is_archived
+            const fallbackMinimal = fallbackWithoutNano.map(({ is_archived, ...rest }: any) => rest)
+            const { error: fbMinErr } = await supabase.from('categories').upsert(fallbackMinimal as any)
+            if (fbMinErr) console.warn('[Supabase Sync] Erro no fallback de categorias:', fbMinErr.message)
+          }
         }
       }
     }
@@ -347,6 +353,7 @@ export const fetchAllFromSupabase = async (userId: string) => {
       color: cat.color,
       parentId: cat.parent_id || undefined,
       budgetLimit: cat.budget_limit ? Number(cat.budget_limit) : undefined,
+      targetRevenuePercentage: cat.target_revenue_percentage !== null && cat.target_revenue_percentage !== undefined ? Number(cat.target_revenue_percentage) : undefined,
       isDefault: cat.is_default ?? false,
       isArchived: cat.is_archived ?? false,
       autoSumSubcategories: cat.auto_sum_subcategories ?? false,

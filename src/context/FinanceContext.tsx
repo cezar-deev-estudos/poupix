@@ -809,6 +809,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             color: cat.color || '#64748B',
             parent_id: cat.parentId ? ensureValidUUID(cat.parentId) : null,
             budget_limit: cat.budgetLimit || null,
+            target_revenue_percentage: typeof cat.targetRevenuePercentage === 'number' ? cat.targetRevenuePercentage : null,
             is_default: cat.isDefault ?? false,
             is_archived: cat.isArchived ?? false,
             nano_categories: cat.nanoCategories || [],
@@ -816,11 +817,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
           const { error: catErr } = await supabase.from('categories').upsert(categoriesPayload as any);
           if (catErr) {
-            const fallbackWithoutNano = categoriesPayload.map(({ nano_categories, ...rest }: any) => rest);
-            const { error: fbErr } = await supabase.from('categories').upsert(fallbackWithoutNano as any);
-            if (fbErr) {
-              const fallbackMin = fallbackWithoutNano.map(({ is_archived, ...rest }: any) => rest);
-              await supabase.from('categories').upsert(fallbackMin as any);
+            const fallbackWithoutTarget = categoriesPayload.map(({ target_revenue_percentage, ...rest }: any) => rest);
+            const { error: fbTargetErr } = await supabase.from('categories').upsert(fallbackWithoutTarget as any);
+            if (fbTargetErr) {
+              const fallbackWithoutNano = fallbackWithoutTarget.map(({ nano_categories, ...rest }: any) => rest);
+              const { error: fbErr } = await supabase.from('categories').upsert(fallbackWithoutNano as any);
+              if (fbErr) {
+                const fallbackMin = fallbackWithoutNano.map(({ is_archived, ...rest }: any) => rest);
+                await supabase.from('categories').upsert(fallbackMin as any);
+              }
             }
           }
         }
