@@ -631,6 +631,60 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
         if (txsToUpdate.length > 0) {
           updateTransactionsBatch(txsToUpdate.map(t => t.id), { paid: nextPaidStatus });
         }
+
+        // Se estiver marcando como pago, lançar débito na conta selecionada
+        if (nextPaidStatus) {
+          const targetAccountId =
+            accountId ||
+            accounts.find(a => !a.isArchived && (a.name.toLowerCase().includes('itau') || a.name.toLowerCase().includes('itaú')))?.id ||
+            accounts.find(a => !a.isArchived)?.id;
+
+          const invoiceTotal = txsToUpdate.reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0) || (invoiceInfo?.amount || 0);
+
+          if (targetAccountId && invoiceTotal > 0) {
+            const invoicePaidDesc = `Pagamento de Fatura - ${card.name}`;
+            const effectivePaymentDate = paymentDate || new Date().toISOString().split('T')[0];
+
+            const existingDebit = allTransactions.find(
+              t =>
+                isSameId(t.accountId, targetAccountId) &&
+                t.description.toLowerCase() === invoicePaidDesc.toLowerCase() &&
+                t.date.startsWith(periodKey)
+            );
+
+            if (existingDebit) {
+              updateTransaction(existingDebit.id, {
+                amount: Math.max(0, invoiceTotal),
+                date: effectivePaymentDate,
+                paid: true,
+              });
+            } else {
+              const defaultExpenseCat = categories.find(c => c.type === 'expense');
+              addTransaction({
+                description: invoicePaidDesc,
+                amount: Math.max(0, invoiceTotal),
+                date: effectivePaymentDate,
+                type: 'expense',
+                categoryId: defaultExpenseCat?.id || '',
+                accountId: targetAccountId,
+                paid: true,
+                notes: `Débito automático gerado pela quitação da fatura de ${card.name}`,
+              });
+            }
+          }
+        } else {
+          // Se estiver desmarcando / reabrindo a fatura, remove o débito da conta
+          const invoicePaidDesc = `Pagamento de Fatura - ${card.name}`;
+          const debitTx = allTransactions.find(
+            t =>
+              !t.creditCardId &&
+              t.description.toLowerCase() === invoicePaidDesc.toLowerCase() &&
+              (t.date.startsWith(periodKey) || t.notes?.includes(card.name))
+          );
+          if (debitTx) {
+            deleteTransaction(debitTx.id, 'single');
+          }
+        }
       }
       setConfirmingPayment(null);
       return;
@@ -1197,8 +1251,10 @@ export const MobileTransactionsView: React.FC<MobileTransactionsViewProps> = ({
                     <div
                       key={tx.id}
                       onClick={() => !isGroupedCard && setSelectedTxDetail(tx)}
-                      className={`flex items-center justify-between p-3.5 bg-[#242732]/90 border border-slate-800/70 hover:border-slate-700 rounded-2xl transition-all active:scale-[0.99] cursor-pointer ${
-                        isGroupedCard ? 'border-teal-500/30 bg-[#1d2729]/60' : ''
+                      className={`flex items-center justify-between p-3.5 rounded-2xl transition-all active:scale-[0.99] cursor-pointer ${
+                        isGroupedCard
+                          ? 'bg-sky-500/10 border border-sky-500/40'
+                          : 'bg-[#242732]/90 border border-slate-800/70 hover:border-slate-700'
                       }`}
                     >
                       {/* Ícone e Descrição */}

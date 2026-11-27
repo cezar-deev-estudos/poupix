@@ -58,68 +58,6 @@ export const MobileAccountDetail: React.FC<MobileAccountDetailProps> = ({
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
-  const [isPayingInvoices, setIsPayingInvoices] = useState(false);
-
-  // Período chave
-  const currentPeriodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
-
-  // Identificar faturas pendentes que podem ser quitadas por esta conta
-  const unpaidCardInvoices = useMemo(() => {
-    return creditCards
-      .filter(c => !c.isArchived)
-      .map(card => {
-        const cardExpenses = transactions
-          .filter(t => isTransactionInInvoicePeriod(t, card, selectedYear, selectedMonth))
-          .reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0);
-
-        const invoicePaidDesc = `Pagamento de Fatura - ${card.name}`;
-        const hasPaymentRecord = transactions.some(
-          t => t.accountId === account.id && t.description.toLowerCase() === invoicePaidDesc.toLowerCase() && t.date.startsWith(currentPeriodKey)
-        );
-
-        return {
-          card,
-          amount: Math.max(0, cardExpenses),
-          isPaidInAccount: hasPaymentRecord,
-        };
-      })
-      .filter(item => item.amount > 0 && !item.isPaidInAccount);
-  }, [creditCards, transactions, selectedYear, selectedMonth, account.id, currentPeriodKey]);
-
-  // Handler para pagamento de faturas nesta conta
-  const handlePayAllInvoicesFromAccount = () => {
-    if (unpaidCardInvoices.length === 0) return;
-    setIsPayingInvoices(true);
-
-    const defaultExpenseCategory = categories.find(c => c.type === 'expense');
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    const txsToPayIds: string[] = [];
-    unpaidCardInvoices.forEach(({ card, amount }) => {
-      const updatedManual = {
-        ...(card.manualInvoiceStatus || {}),
-        [currentPeriodKey]: 'paid' as const,
-      };
-      updateCreditCard(card.id, {
-        manualInvoiceStatus: updatedManual,
-      });
-
-      transactions.forEach(t => {
-        if (t.creditCardId === card.id) {
-          const { periodKey } = getTransactionInvoicePeriod(t, card);
-          if (periodKey === currentPeriodKey && !t.paid) {
-            txsToPayIds.push(t.id);
-          }
-        }
-      });
-    });
-
-    if (txsToPayIds.length > 0) {
-      updateTransactionsBatch(txsToPayIds, { paid: true });
-    }
-
-    setIsPayingInvoices(false);
-  };
 
   const {
     statementTxs,
@@ -207,18 +145,6 @@ export const MobileAccountDetail: React.FC<MobileAccountDetailProps> = ({
 
         {/* Botões de Ação */}
         <div className="flex items-center gap-1.5">
-          {unpaidCardInvoices.length > 0 && (
-            <button
-              onClick={handlePayAllInvoicesFromAccount}
-              disabled={isPayingInvoices}
-              className="px-2.5 py-1.5 bg-teal-500/15 text-teal-300 rounded-xl border border-teal-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-              title="Quitar Faturas de Cartão"
-            >
-              <CreditCardIcon className="w-3.5 h-3.5" />
-              <span>Faturas ({unpaidCardInvoices.length})</span>
-            </button>
-          )}
-
           <button
             onClick={() => onOpenNewTransaction(account.id, 'expense')}
             className="p-2 bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/30 cursor-pointer"
@@ -287,11 +213,17 @@ export const MobileAccountDetail: React.FC<MobileAccountDetailProps> = ({
             const category = categories.find(c => c.id === tx.categoryId);
             const isIncome = tx.type === 'income' || (tx.type === 'transfer' && tx.destinationAccountId === account.id);
 
+            const isCardInvoice = /^Pagamento de Fatura\s*-\s*/i.test(tx.description);
+
             return (
               <div
                 key={tx.id}
                 onClick={() => onEditTransaction(tx)}
-                className="bg-[#18181b] border border-slate-800/80 rounded-2xl p-3 flex flex-col gap-2 active:bg-slate-800/60 transition-colors"
+                className={`border rounded-2xl p-3 flex flex-col gap-2 transition-colors ${
+                  isCardInvoice
+                    ? 'bg-sky-500/10 border-sky-500/40 active:bg-sky-500/20'
+                    : 'bg-[#18181b] border-slate-800/80 active:bg-slate-800/60'
+                }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
@@ -311,11 +243,24 @@ export const MobileAccountDetail: React.FC<MobileAccountDetailProps> = ({
                     </button>
                     <div className="min-w-0">
                       <span className="font-semibold text-white text-xs truncate block">{tx.description}</span>
-                      <div className="flex items-center gap-2 mt-0.5">
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-[10px] text-slate-400">{formatDateBR(tx.date)}</span>
                         <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">
                           {category?.name || 'Geral'}
                         </span>
+                        {tx.type === 'transfer' ? (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-300 border border-blue-500/30">
+                            Transferência
+                          </span>
+                        ) : /^Pagamento de Fatura\s*-\s*/i.test(tx.description) ? (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                            Fatura Cartão
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">
+                            {account.name}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

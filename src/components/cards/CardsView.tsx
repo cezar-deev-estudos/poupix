@@ -11,7 +11,8 @@ import { ArchivedCardsModal } from './ArchivedCardsModal';
 import { AdvancePaymentModal } from './AdvancePaymentModal';
 import { NewTransactionModal } from '../transactions/NewTransactionModal';
 import { ConfirmPaymentModal } from '../transactions/ConfirmPaymentModal';
-import { isTransactionInInvoicePeriod, getTransactionInvoicePeriod, isInvoicePeriodPaid } from '@/lib/invoiceHelpers';
+import { ConfirmModal } from '../ui/ConfirmModal';
+import { isTransactionInInvoicePeriod, getTransactionInvoicePeriod, isInvoicePeriodPaid, isSameId } from '@/lib/invoiceHelpers';
 import { Plus, MoreVertical, ThumbsUp, CreditCard as CardIcon, DollarSign } from 'lucide-react';
 
 const MONTH_NAMES = [
@@ -38,7 +39,9 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
     updateTransaction,
     updateTransactionsBatch,
     addTransaction,
+    deleteTransaction,
     categories,
+    accounts,
   } = useFinance();
 
   // Seleção de Cartão para Visualização Detalhada da Fatura
@@ -63,6 +66,7 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
   const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [advancePaymentCard, setAdvancePaymentCard] = useState<CreditCard | null>(null);
+  const [cardToConfirmReopen, setCardToConfirmReopen] = useState<{ card: CreditCard; period: string } | null>(null);
 
   // Modal de Transação
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
@@ -71,6 +75,7 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
 
   // Modal de Confirmação de Pagamento de Fatura
   const [payingInvoiceCard, setPayingInvoiceCard] = useState<CreditCard | null>(null);
+  const [payingInvoicePeriodKey, setPayingInvoicePeriodKey] = useState<string | null>(null);
 
   // Cartões Ativos vs Arquivados
   const activeCards = useMemo(() => {
@@ -209,6 +214,19 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
   // Alternar Status da Fatura (Reabrir se Fechada/Vencida/Paga, ou Fechar se Aberta)
   const handleToggleInvoiceStatus = (card: CreditCard, period: string = targetPeriodKey) => {
     const currentStatus = getCardInvoiceStatus(card);
+    const isClosedOrPaid = currentStatus === 'closed' || currentStatus === 'overdue' || currentStatus === 'paid';
+    
+    // Se estiver reabrindo, solicita confirmação via modal antes de executar
+    if (isClosedOrPaid) {
+      setCardToConfirmReopen({ card, period });
+      return;
+    }
+
+    executeToggleInvoiceStatus(card, period);
+  };
+
+  const executeToggleInvoiceStatus = (card: CreditCard, period: string = targetPeriodKey) => {
+    const currentStatus = getCardInvoiceStatus(card);
     const newStatus: 'open' | 'closed' = (currentStatus === 'closed' || currentStatus === 'overdue' || currentStatus === 'paid') ? 'open' : 'closed';
 
     const updatedManual = {
@@ -228,6 +246,18 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
       });
       if (txsToReopen.length > 0) {
         updateTransactionsBatch(txsToReopen.map(t => t.id), { paid: false });
+      }
+
+      // Remover o lançamento de débito na conta referente a esta fatura, se existir
+      const invoicePaidDesc = `Pagamento de Fatura - ${card.name}`;
+      const debitTx = transactions.find(
+        t =>
+          !t.creditCardId &&
+          t.description.toLowerCase() === invoicePaidDesc.toLowerCase() &&
+          (t.date.startsWith(period) || t.notes?.includes(card.name))
+      );
+      if (debitTx) {
+        deleteTransaction(debitTx.id, 'single');
       }
     }
   };
@@ -259,18 +289,67 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
         ...(paymentDate ? { date: paymentDate } : {}),
       });
     }
+
+    // Identificar a conta a ser debitada (da seleção do modal, ou das transações da fatura, ou preferencial Itaú)
+    const txWithAccount = txsToPay.find(t => t.accountId);
+    const targetAccountId =
+      accountId ||
+      txWithAccount?.accountId ||
+      accounts.find(a => !a.isArchived && (a.name.toLowerCase().includes('itau') || a.name.toLowerCase().includes('itaú')))?.id ||
+      accounts.find(a => !a.isArchived)?.id;
+
+    // Calcular o valor total da fatura
+    const invoiceTotal = transactions
+      .filter(tx => tx.creditCardId === card.id && getTransactionInvoicePeriod(tx, card).periodKey === period)
+      .reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0);
+
+    if (targetAccountId && invoiceTotal > 0) {
+      const invoicePaidDesc = `Pagamento de Fatura - ${card.name}`;
+      const effectivePaymentDate = paymentDate || new Date().toISOString().split('T')[0];
+
+      // Se já existir lançamento idêntico para a fatura deste cartão neste período, atualizamos a data e valor em vez de ignorar
+      const existingDebit = transactions.find(
+        t =>
+          isSameId(t.accountId, targetAccountId) &&
+          t.description.toLowerCase() === invoicePaidDesc.toLowerCase() &&
+          t.date.startsWith(period)
+      );
+
+      if (existingDebit) {
+        updateTransaction(existingDebit.id, {
+          amount: Math.max(0, invoiceTotal),
+          date: effectivePaymentDate,
+          paid: true,
+        });
+      } else {
+        const defaultExpenseCat = categories.find(c => c.type === 'expense');
+        addTransaction({
+          description: invoicePaidDesc,
+          amount: Math.max(0, invoiceTotal),
+          date: effectivePaymentDate,
+          type: 'expense',
+          categoryId: defaultExpenseCat?.id || '',
+          accountId: targetAccountId,
+          paid: true,
+          notes: `Débito automático gerado pela quitação da fatura de ${card.name}`,
+        });
+      }
+    }
   };
 
   // Solicitar Confirmação de Pagamento de Fatura
-  const handleOpenPayInvoice = (card: CreditCard) => {
+  const handleOpenPayInvoice = (card: CreditCard, periodKey: string = targetPeriodKey) => {
     setPayingInvoiceCard(card);
+    setPayingInvoicePeriodKey(periodKey);
   };
 
   // Confirmar Execução do Pagamento da Fatura pelo Modal
   const handleConfirmPayInvoice = (paymentDate?: string, accountId?: string) => {
     if (!payingInvoiceCard) return;
-    handlePayInvoice(payingInvoiceCard, targetPeriodKey, paymentDate, accountId);
+    const period = payingInvoicePeriodKey || targetPeriodKey;
+    handlePayInvoice(payingInvoiceCard, period, paymentDate, accountId);
     setPayingInvoiceCard(null);
+    setPayingInvoicePeriodKey(null);
   };
 
   // Handlers
@@ -340,8 +419,46 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
             setIsTxModalOpen(true);
           }}
           onToggleInvoiceStatus={(c, pKey) => handleToggleInvoiceStatus(c, pKey)}
-          onPayInvoice={(c, pKey) => handlePayInvoice(c, pKey)}
+          onPayInvoice={(c, pKey) => handleOpenPayInvoice(c, pKey)}
         />
+
+        {payingInvoiceCard && (
+          <ConfirmPaymentModal
+            isOpen={!!payingInvoiceCard}
+            transaction={null}
+            isGroupedCard={true}
+            invoiceInfo={{
+              cardName: `Fatura ${payingInvoiceCard.name}`,
+              amount:
+                transactions
+                  .filter(
+                    tx =>
+                      tx.creditCardId === payingInvoiceCard.id &&
+                      getTransactionInvoicePeriod(tx, payingInvoiceCard).periodKey ===
+                        (payingInvoicePeriodKey || targetPeriodKey)
+                  )
+                  .reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0) ||
+                cardExpensesMap[payingInvoiceCard.id] ||
+                0,
+              dueDate: (() => {
+                const parts = (payingInvoicePeriodKey || targetPeriodKey).split('-');
+                const y = parts[0] || String(targetYear);
+                const m = parts[1] || String(targetMonth + 1).padStart(2, '0');
+                return `${y}-${m}-${String(payingInvoiceCard.dueDay).padStart(2, '0')}`;
+              })(),
+            }}
+            onConfirm={handleConfirmPayInvoice}
+            onCancel={() => {
+              setPayingInvoiceCard(null);
+              setPayingInvoicePeriodKey(null);
+            }}
+            onClose={() => {
+              setPayingInvoiceCard(null);
+              setPayingInvoicePeriodKey(null);
+            }}
+            currentPaid={false}
+          />
+        )}
 
         {isTxModalOpen && (
           <NewTransactionModal
@@ -613,13 +730,50 @@ export const CardsView: React.FC<CardsViewProps> = ({ onNavigateToTransactions, 
           isGroupedCard={true}
           invoiceInfo={{
             cardName: `Fatura ${payingInvoiceCard.name}`,
-            amount: cardExpensesMap[payingInvoiceCard.id] || 0,
-            dueDate: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(payingInvoiceCard.dueDay).padStart(2, '0')}`,
+            amount:
+              transactions
+                .filter(
+                  tx =>
+                    tx.creditCardId === payingInvoiceCard.id &&
+                    getTransactionInvoicePeriod(tx, payingInvoiceCard).periodKey ===
+                      (payingInvoicePeriodKey || targetPeriodKey)
+                )
+                .reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0) ||
+              cardExpensesMap[payingInvoiceCard.id] ||
+              0,
+            dueDate: (() => {
+              const parts = (payingInvoicePeriodKey || targetPeriodKey).split('-');
+              const y = parts[0] || String(targetYear);
+              const m = parts[1] || String(targetMonth + 1).padStart(2, '0');
+              return `${y}-${m}-${String(payingInvoiceCard.dueDay).padStart(2, '0')}`;
+            })(),
           }}
           onConfirm={handleConfirmPayInvoice}
-          onCancel={() => setPayingInvoiceCard(null)}
-          onClose={() => setPayingInvoiceCard(null)}
+          onCancel={() => {
+            setPayingInvoiceCard(null);
+            setPayingInvoicePeriodKey(null);
+          }}
+          onClose={() => {
+            setPayingInvoiceCard(null);
+            setPayingInvoicePeriodKey(null);
+          }}
           currentPaid={false}
+        />
+      )}
+      {cardToConfirmReopen && (
+        <ConfirmModal
+          isOpen={!!cardToConfirmReopen}
+          title="Reabrir Fatura"
+          message={`Deseja realmente reabrir a fatura de ${cardToConfirmReopen.card.name}? As compras desta fatura voltarão para o status pendente e qualquer lançamento de pagamento anterior na conta será revertido.`}
+          confirmLabel="Sim, Reabrir Fatura"
+          cancelLabel="Cancelar"
+          variant="warning"
+          onConfirm={() => {
+            const { card, period } = cardToConfirmReopen;
+            setCardToConfirmReopen(null);
+            executeToggleInvoiceStatus(card, period);
+          }}
+          onCancel={() => setCardToConfirmReopen(null)}
         />
       )}
     </div>

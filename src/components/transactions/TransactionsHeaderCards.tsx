@@ -263,7 +263,9 @@ export const TransactionsHeaderCards: React.FC<TransactionsHeaderCardsProps> = (
           </div>
           <div className="min-w-0">
             <span className="text-xs text-slate-400 block truncate">Saldo atual</span>
-            <span className="text-base font-bold text-white tracking-tight block truncate">
+            <span className={`text-base font-bold tracking-tight block truncate ${
+              summary.totalBalance >= 0 ? 'text-emerald-400' : 'text-rose-500'
+            }`}>
               {displayVal(summary.totalBalance)}
             </span>
           </div>

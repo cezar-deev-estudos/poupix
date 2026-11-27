@@ -43,12 +43,14 @@ export const ConfirmPaymentModal: React.FC<ConfirmPaymentModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setPaymentDate(getLocalDateString(new Date()));
+      // Se for fatura e tiver dueDate, pode sugerir a dueDate ou hoje se não houver
+      const initialDate = invoiceInfo?.dueDate || getLocalDateString(new Date());
+      setPaymentDate(initialDate);
       if (activeAccounts.length > 0 && !selectedAccountId) {
         setSelectedAccountId(activeAccounts[0].id);
       }
     }
-  }, [isOpen, transaction, activeAccounts, selectedAccountId]);
+  }, [isOpen, transaction?.id, invoiceInfo?.dueDate]);
 
   if (!isOpen || (!transaction && !invoiceInfo)) return null;
 
@@ -130,6 +132,19 @@ export const ConfirmPaymentModal: React.FC<ConfirmPaymentModalProps> = ({
             </span>
           </div>
 
+          {/* Vencimento da Fatura */}
+          {isInvoice && invoiceInfo?.dueDate && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                Vencimento da fatura
+              </span>
+              <span className="text-xs font-semibold text-white">
+                {formatDateBR(invoiceInfo.dueDate)}
+              </span>
+            </div>
+          )}
+
           {!isUnpaying && (
             <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
               <span className="text-xs text-slate-400 flex items-center gap-1.5">
@@ -145,7 +160,26 @@ export const ConfirmPaymentModal: React.FC<ConfirmPaymentModalProps> = ({
             </div>
           )}
 
-          {/* Se for fatura, a quitação marca os lançamentos do cartão como pagos sem gerar nova transação avulsa */}
+          {/* Seleção de Conta para Débito da Fatura */}
+          {isInvoice && !isUnpaying && activeAccounts.length > 0 && (
+            <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+              <span className="text-xs text-slate-400 flex items-center gap-1.5">
+                <Wallet className="w-3.5 h-3.5 text-cyan-400" />
+                Debitar da Conta:
+              </span>
+              <select
+                value={selectedAccountId}
+                onChange={e => setSelectedAccountId(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 cursor-pointer"
+              >
+                {activeAccounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Ações */}

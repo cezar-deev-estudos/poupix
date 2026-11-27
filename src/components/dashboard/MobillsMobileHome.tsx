@@ -332,7 +332,9 @@ export const MobillsMobileHome: React.FC<MobillsMobileHomeProps> = ({
           </span>
           <div 
             onClick={() => onNavigateTab('accounts')}
-            className="text-2xl font-bold text-white tracking-tight cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-transform leading-tight"
+            className={`text-2xl font-bold tracking-tight cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-transform leading-tight ${
+              summary.totalBalance >= 0 ? 'text-emerald-400' : 'text-rose-500'
+            }`}
           >
             {displayVal(summary.totalBalance)}
           </div>

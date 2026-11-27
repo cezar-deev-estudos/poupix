@@ -580,15 +580,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       let hasOrphanAccountFix = false;
       const auditedTxs = repaired.map(t => {
-        if (!t.creditCardId) {
-          const hasValidAcc = (cloudData.accounts || accounts).some(a => isSameId(a.id, t.accountId));
-          if (!hasValidAcc && itauAccount) {
-            hasOrphanAccountFix = true;
-            return {
-              ...t,
-              accountId: itauAccount.id,
-            };
-          }
+        const hasValidAcc = (cloudData.accounts || accounts).some(a => isSameId(a.id, t.accountId));
+        if (!hasValidAcc && itauAccount) {
+          hasOrphanAccountFix = true;
+          return {
+            ...t,
+            accountId: itauAccount.id,
+          };
         }
         return t;
       });
@@ -875,9 +873,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           transactionManager.addTransaction(tx, setTransactions, setAccounts, creditCards, categories, user?.id);
           notifyDirectMutation();
           if (user?.id) {
-            // Persiste imediatamente na nuvem com ID gerado
+            // Persiste imediatamente na nuvem garantindo os dados da nova transação
             setTransactions(currentTxs => {
-              const latestTx = currentTxs[0];
+              const latestTx = currentTxs.find(t => 
+                t.description === tx.description && 
+                t.amount === tx.amount && 
+                t.date === tx.date &&
+                t.accountId === tx.accountId
+              ) || currentTxs[0];
               if (latestTx && user?.id) {
                 upsertTransactionsDirectlyToSupabase([latestTx], user.id);
               }
@@ -960,12 +963,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         },
         updateCategory: (id, up) => {
           entityManager.updateCategory(id, up, setCategories);
-          if (up.monthlyBudgets !== undefined || up.nanoCategories !== undefined) {
-            setCategories(prev => {
+          setCategories(prev => {
+            if (up.monthlyBudgets !== undefined || up.nanoCategories !== undefined) {
               persistMonthlyBudgetsToCloud(prev);
-              return prev;
-            });
-          }
+            }
+            return [...prev];
+          });
         },
         deleteCategory: id => entityManager.deleteCategory(id, setCategories),
         reorderCategories: handleReorderCategories,

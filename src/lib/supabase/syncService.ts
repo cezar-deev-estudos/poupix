@@ -95,6 +95,29 @@ export const syncAllToSupabase = async (data: {
           }
         }
       }
+
+      // Persistir também o mapa de tetos mensais e nano-categorias nos metadados do usuário para redundância e resiliência
+      const monthlyMap: Record<string, Record<string, number>> = {};
+      const nanoMap: Record<string, any[]> = {};
+      data.categories.forEach(cat => {
+        if (cat.monthlyBudgets && Object.keys(cat.monthlyBudgets).length > 0) {
+          monthlyMap[cat.id] = cat.monthlyBudgets;
+          monthlyMap[ensureValidUUID(cat.id)] = cat.monthlyBudgets;
+        }
+        if (cat.nanoCategories && cat.nanoCategories.length > 0) {
+          nanoMap[cat.id] = cat.nanoCategories;
+          nanoMap[ensureValidUUID(cat.id)] = cat.nanoCategories;
+        }
+      });
+
+      if (Object.keys(monthlyMap).length > 0 || Object.keys(nanoMap).length > 0) {
+        await supabase.auth.updateUser({
+          data: {
+            category_monthly_budgets: monthlyMap,
+            category_nano_categories: nanoMap,
+          }
+        }).catch(err => console.warn('[Supabase Sync] Aviso ao atualizar user_metadata:', err));
+      }
     }
 
     // 2.1. Sincronizar Tags
@@ -179,7 +202,7 @@ export const syncAllToSupabase = async (data: {
         return {
           id: ensureValidUUID(tx.id),
           user_id: userId,
-          account_id: cardId ? null : (accId && validAccountIds.has(accId) ? accId : null),
+          account_id: accId && validAccountIds.has(accId) ? accId : null,
           destination_account_id: destAccId && validAccountIds.has(destAccId) ? destAccId : null,
           credit_card_id: cardId,
           category_id: catId && validCategoryIds.has(catId) ? catId : null,
@@ -220,7 +243,7 @@ export const syncAllToSupabase = async (data: {
           return {
             id: ensureValidUUID(tx.id),
             user_id: userId,
-            account_id: cardId ? null : (accId && validAccountIds.has(accId) ? accId : null),
+            account_id: accId && validAccountIds.has(accId) ? accId : null,
             destination_account_id: destAccId && validAccountIds.has(destAccId) ? destAccId : null,
             credit_card_id: cardId,
             category_id: catId && validCategoryIds.has(catId) ? catId : null,
@@ -515,7 +538,7 @@ export const upsertTransactionsDirectlyToSupabase = async (
       return {
         id: ensureValidUUID(tx.id),
         user_id: userUuid,
-        account_id: cardId ? null : (tx.accountId ? ensureValidUUID(tx.accountId) : null),
+        account_id: tx.accountId ? ensureValidUUID(tx.accountId) : null,
         destination_account_id: tx.destinationAccountId ? ensureValidUUID(tx.destinationAccountId) : null,
         credit_card_id: cardId,
         category_id: tx.categoryId ? ensureValidUUID(tx.categoryId) : null,

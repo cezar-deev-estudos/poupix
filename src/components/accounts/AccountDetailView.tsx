@@ -63,71 +63,6 @@ export const AccountDetailView: React.FC<AccountDetailViewProps> = ({
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
-  const [isPayingInvoices, setIsPayingInvoices] = useState(false);
-
-  // Período chave
-  const currentPeriodKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
-
-  // Identificar cartões que possuem despesas no mês selecionado e se já foram pagos nesta conta
-  const unpaidCardInvoices = useMemo(() => {
-    return creditCards
-      .filter(c => !c.isArchived)
-      .map(card => {
-        const cardExpenses = transactions
-          .filter(t => isTransactionInInvoicePeriod(t, card, selectedYear, selectedMonth))
-          .reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0);
-
-        // Verificar se já existe um lançamento de pagamento desta fatura nesta conta
-        const invoicePaidDesc = `Pagamento de Fatura - ${card.name}`;
-        const hasPaymentRecord = transactions.some(
-          t => t.accountId === account.id && t.description.toLowerCase() === invoicePaidDesc.toLowerCase() && t.date.startsWith(currentPeriodKey)
-        );
-
-        return {
-          card,
-          amount: Math.max(0, cardExpenses),
-          isPaidInAccount: hasPaymentRecord,
-        };
-      })
-      .filter(item => item.amount > 0 && !item.isPaidInAccount);
-  }, [creditCards, transactions, selectedYear, selectedMonth, account.id, currentPeriodKey]);
-
-  // Handler para quitar todas as faturas pendentes debitando nesta conta
-  const handlePayAllInvoicesFromAccount = () => {
-    if (unpaidCardInvoices.length === 0) return;
-    setIsPayingInvoices(true);
-
-    const defaultExpenseCategory = categories.find(c => c.type === 'expense');
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    const txsToPayIds: string[] = [];
-    unpaidCardInvoices.forEach(({ card, amount }) => {
-      // 1. Atualizar status manual do cartão para pago
-      const updatedManual = {
-        ...(card.manualInvoiceStatus || {}),
-        [currentPeriodKey]: 'paid' as const,
-      };
-      updateCreditCard(card.id, {
-        manualInvoiceStatus: updatedManual,
-      });
-
-      // 2. Coletar transações individuais do cartão para marcar como pagas em lote
-      transactions.forEach(t => {
-        if (t.creditCardId === card.id) {
-          const { periodKey } = getTransactionInvoicePeriod(t, card);
-          if (periodKey === currentPeriodKey && !t.paid) {
-            txsToPayIds.push(t.id);
-          }
-        }
-      });
-    });
-
-    if (txsToPayIds.length > 0) {
-      updateTransactionsBatch(txsToPayIds, { paid: true });
-    }
-
-    setIsPayingInvoices(false);
-  };
 
   const {
     statementTxs,
@@ -137,15 +72,27 @@ export const AccountDetailView: React.FC<AccountDetailViewProps> = ({
     finalBalanceOfMonth,
   } = useAccountStatement(account, transactions, selectedYear, selectedMonth);
 
-  // Filtro de busca textual
+  // Normalização de texto sem acentos para busca
+  const normalize = (text: string) =>
+    (text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+  // Filtro de busca textual insensível a acentos
   const filteredTxs = useMemo(() => {
     if (!searchTerm.trim()) return statementTxs;
-    const term = searchTerm.toLowerCase();
+    const term = normalize(searchTerm);
     return statementTxs.filter(t => {
       const cat = categories.find(c => c.id === t.categoryId);
+      const isCardInvoice = /^Pagamento de Fatura\s*-\s*/i.test(t.description);
+      const descNorm = normalize(t.description);
+      const catNorm = cat ? normalize(cat.name) : '';
+      const notesNorm = t.notes ? normalize(t.notes) : '';
+      const cardInvoiceTag = isCardInvoice ? 'fatura cartao debito automatico' : '';
+
       return (
-        t.description.toLowerCase().includes(term) ||
-        (cat && cat.name.toLowerCase().includes(term))
+        descNorm.includes(term) ||
+        catNorm.includes(term) ||
+        notesNorm.includes(term) ||
+        cardInvoiceTag.includes(term)
       );
     });
   }, [statementTxs, searchTerm, categories]);
@@ -255,18 +202,6 @@ export const AccountDetailView: React.FC<AccountDetailViewProps> = ({
             <Plus className="w-3.5 h-3.5" />
             <span>Despesa</span>
           </button>
-
-          {unpaidCardInvoices.length > 0 && (
-            <button
-              onClick={handlePayAllInvoicesFromAccount}
-              disabled={isPayingInvoices}
-              className="flex items-center gap-1.5 px-3 py-2 bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 rounded-2xl text-xs font-bold transition-all cursor-pointer shadow-sm disabled:opacity-50"
-              title={`Lançar quitação consolidada das faturas de cartão (${unpaidCardInvoices.length}) debitando nesta conta`}
-            >
-              <CreditCardIcon className="w-3.5 h-3.5" />
-              <span>Quitar Faturas do Mês ({unpaidCardInvoices.length})</span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -341,6 +276,7 @@ export const AccountDetailView: React.FC<AccountDetailViewProps> = ({
                 <th className="py-3.5 px-4">Status</th>
                 <th className="py-3.5 px-4">Data</th>
                 <th className="py-3.5 px-4">Descrição</th>
+                <th className="py-3.5 px-4">Conta / Cartão</th>
                 <th className="py-3.5 px-4">Categoria</th>
                 <th className="py-3.5 px-4 text-right">Valor</th>
                 <th className="py-3.5 px-4 text-right">Saldo Resultante</th>
@@ -349,7 +285,7 @@ export const AccountDetailView: React.FC<AccountDetailViewProps> = ({
             <tbody className="divide-y divide-slate-800/50">
               {filteredTxs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-500">
+                  <td colSpan={7} className="py-12 text-center text-slate-500">
                     Nenhuma transação encontrada nesta conta para este mês.
                   </td>
                 </tr>
@@ -357,12 +293,17 @@ export const AccountDetailView: React.FC<AccountDetailViewProps> = ({
                 filteredTxs.map(tx => {
                   const category = categories.find(c => c.id === tx.categoryId);
                   const isIncome = tx.type === 'income' || (tx.type === 'transfer' && tx.destinationAccountId === account.id);
+                  const isCardInvoice = /^Pagamento de Fatura\s*-\s*/i.test(tx.description);
 
                   return (
                     <tr
                       key={tx.id}
                       onClick={() => onEditTransaction(tx)}
-                      className="hover:bg-slate-800/40 transition-colors cursor-pointer group"
+                      className={`transition-colors cursor-pointer group ${
+                        isCardInvoice
+                          ? 'bg-sky-500/10 hover:bg-sky-500/20 border-l-2 border-l-sky-400'
+                          : 'hover:bg-slate-800/40'
+                      }`}
                     >
                       {/* Status */}
                       <td className="py-3 px-4">
@@ -398,6 +339,26 @@ export const AccountDetailView: React.FC<AccountDetailViewProps> = ({
                         </div>
                         {tx.notes && (
                           <div className="text-[11px] text-slate-400 truncate max-w-xs">{tx.notes}</div>
+                        )}
+                      </td>
+
+                      {/* Conta / Cartão */}
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        {tx.type === 'transfer' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-blue-500/10 text-blue-300 border border-blue-500/30">
+                            <ArrowRightLeft className="w-3 h-3 text-blue-400" />
+                            <span>Transferência</span>
+                          </span>
+                        ) : /^Pagamento de Fatura\s*-\s*/i.test(tx.description) ? (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                            <CreditCardIcon className="w-3 h-3 text-cyan-400" />
+                            <span>Fatura Cartão</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-slate-800 text-slate-300 border border-slate-700/60">
+                            <BankBadge institution={account.institution} name={account.name} color={account.color} size="sm" />
+                            <span>{account.name}</span>
+                          </span>
                         )}
                       </td>
 

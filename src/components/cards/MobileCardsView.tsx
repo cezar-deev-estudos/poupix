@@ -13,7 +13,7 @@ import { AdvancePaymentModal } from './AdvancePaymentModal';
 import { MobileCardInvoiceDetail } from './MobileCardInvoiceDetail';
 import { NewTransactionModal } from '../transactions/NewTransactionModal';
 import { ConfirmPaymentModal } from '../transactions/ConfirmPaymentModal';
-import { isTransactionInInvoicePeriod, isInvoicePeriodPaid, getTransactionInvoicePeriod } from '@/lib/invoiceHelpers';
+import { isTransactionInInvoicePeriod, isInvoicePeriodPaid, getTransactionInvoicePeriod, isSameId } from '@/lib/invoiceHelpers';
 import {
   ArrowLeft,
   Archive,
@@ -63,6 +63,7 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
     updateTransactionsBatch,
     addTransaction,
     categories,
+    accounts,
   } = useFinance();
 
   // Seleção para Detalhe da Fatura
@@ -315,6 +316,45 @@ export const MobileCardsView: React.FC<MobileCardsViewProps> = ({
         paid: true,
         ...(paymentDate ? { date: paymentDate } : {}),
       });
+    }
+
+    // Identificar conta para débito
+    const txWithAccount = txsToPay.find(t => t.accountId);
+    const targetAccountId =
+      accountId ||
+      txWithAccount?.accountId ||
+      accounts.find(a => !a.isArchived && (a.name.toLowerCase().includes('itau') || a.name.toLowerCase().includes('itaú')))?.id ||
+      accounts.find(a => !a.isArchived)?.id;
+
+    // Calcular o total da fatura
+    const invoiceTotal = transactions
+      .filter(tx => tx.creditCardId === card.id && getTransactionInvoicePeriod(tx, card).periodKey === period)
+      .reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0);
+
+    if (targetAccountId && invoiceTotal > 0) {
+      const invoicePaidDesc = `Pagamento de Fatura - ${card.name}`;
+      const effectivePaymentDate = paymentDate || new Date().toISOString().split('T')[0];
+
+      const alreadyHasDebit = transactions.some(
+        t =>
+          isSameId(t.accountId, targetAccountId) &&
+          t.description.toLowerCase() === invoicePaidDesc.toLowerCase() &&
+          t.date.startsWith(period)
+      );
+
+      if (!alreadyHasDebit) {
+        const defaultExpenseCat = categories.find(c => c.type === 'expense');
+        addTransaction({
+          description: invoicePaidDesc,
+          amount: Math.max(0, invoiceTotal),
+          date: effectivePaymentDate,
+          type: 'expense',
+          categoryId: defaultExpenseCat?.id || '',
+          accountId: targetAccountId,
+          paid: true,
+          notes: `Débito automático gerado pela quitação da fatura de ${card.name}`,
+        });
+      }
     }
 
     setPayingInvoiceCard(null);

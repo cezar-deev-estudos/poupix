@@ -95,6 +95,7 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
   const [advanceInstallmentTx, setAdvanceInstallmentTx] = useState<Transaction | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
   const [deleteMode, setDeleteMode] = useState<ScopeMode>('single');
+  const [isConfirmReopenModalOpen, setIsConfirmReopenModalOpen] = useState(false);
 
   // Handler de Exclusão
   const handleConfirmDelete = () => {
@@ -331,7 +332,7 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
                   <button
                     onClick={() => {
                       setIsOptionsMenuOpen(false);
-                      onToggleInvoiceStatus(card, periodKey);
+                      setIsConfirmReopenModalOpen(true);
                     }}
                     className="w-full px-4 py-2.5 font-bold text-left transition-colors cursor-pointer flex items-center gap-2 text-teal-300 hover:bg-teal-500/20"
                   >
@@ -761,6 +762,21 @@ export const CardInvoiceDetailView: React.FC<CardInvoiceDetailViewProps> = ({
           onCancel={() => setDeletingTransaction(null)}
         />
       )}
+
+      {/* Modal de Confirmação para Reabrir Fatura */}
+      <ConfirmModal
+        isOpen={isConfirmReopenModalOpen}
+        title="Reabrir Fatura"
+        message={`Deseja realmente reabrir a fatura de ${card.name} (${MONTH_NAMES[selectedMonth]} de ${selectedYear})? As compras desta fatura voltarão para o status pendente e qualquer lançamento de pagamento anterior na conta será revertido.`}
+        confirmLabel="Sim, Reabrir Fatura"
+        cancelLabel="Cancelar"
+        variant="warning"
+        onConfirm={() => {
+          setIsConfirmReopenModalOpen(false);
+          onToggleInvoiceStatus(card, periodKey);
+        }}
+        onCancel={() => setIsConfirmReopenModalOpen(false)}
+      />
     </div>
   );
 };

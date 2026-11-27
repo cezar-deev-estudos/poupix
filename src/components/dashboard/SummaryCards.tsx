@@ -23,19 +23,31 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({ onNavigateTab }) => 
       {/* Saldo Total Consolidado -> Abre Contas */}
       <div 
         onClick={() => onNavigateTab?.('accounts')}
-        className={`relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-950/90 border border-slate-800/80 p-5 rounded-3xl shadow-xl backdrop-blur-md group hover:border-emerald-500/50 transition-all ${onNavigateTab ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.99]' : ''}`}
+        className={`relative overflow-hidden bg-gradient-to-br from-slate-900/90 to-slate-950/90 border border-slate-800/80 p-5 rounded-3xl shadow-xl backdrop-blur-md group ${
+          summary.totalBalance >= 0 ? 'hover:border-emerald-500/50' : 'hover:border-rose-500/50'
+        } transition-all ${onNavigateTab ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.99]' : ''}`}
       >
-        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/15 transition-all"></div>
+        <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-2xl transition-all ${
+          summary.totalBalance >= 0 ? 'bg-emerald-500/10 group-hover:bg-emerald-500/15' : 'bg-rose-500/10 group-hover:bg-rose-500/15'
+        }`}></div>
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Saldo Geral das Contas</span>
-          <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-all">
+          <div className={`w-10 h-10 rounded-2xl border flex items-center justify-center transition-all ${
+            summary.totalBalance >= 0
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 group-hover:bg-emerald-500/20'
+              : 'bg-rose-500/10 border-rose-500/20 text-rose-400 group-hover:bg-rose-500/20'
+          }`}>
             <Wallet className="w-5 h-5" />
           </div>
         </div>
-        <div className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight">
+        <div className={`text-2xl lg:text-3xl font-extrabold tracking-tight ${
+          summary.totalBalance >= 0 ? 'text-emerald-400' : 'text-rose-500'
+        }`}>
           {displayVal(summary.totalBalance)}
         </div>
-        <div className="flex items-center gap-1.5 mt-2 text-xs text-emerald-400 font-medium">
+        <div className={`flex items-center gap-1.5 mt-2 text-xs font-medium ${
+          summary.totalBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'
+        }`}>
           <ShieldCheck className="w-3.5 h-3.5" />
           <span>Contas ativas e sincronizadas</span>
         </div>

@@ -421,6 +421,60 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
         if (txsToUpdate.length > 0) {
           updateTransactionsBatch(txsToUpdate.map(t => t.id), { paid: nextPaidStatus });
         }
+
+        // Se estiver marcando como pago, lançar débito na conta selecionada
+        if (nextPaidStatus) {
+          const targetAccountId =
+            accountId ||
+            accounts.find(a => !a.isArchived && (a.name.toLowerCase().includes('itau') || a.name.toLowerCase().includes('itaú')))?.id ||
+            accounts.find(a => !a.isArchived)?.id;
+
+          const invoiceTotal = txsToUpdate.reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : -t.amount), 0) || (invoiceInfo?.amount || 0);
+
+          if (targetAccountId && invoiceTotal > 0) {
+            const invoicePaidDesc = `Pagamento de Fatura - ${card.name}`;
+            const effectivePaymentDate = paymentDate || new Date().toISOString().split('T')[0];
+
+            const existingDebit = allTransactions.find(
+              t =>
+                isSameId(t.accountId, targetAccountId) &&
+                t.description.toLowerCase() === invoicePaidDesc.toLowerCase() &&
+                t.date.startsWith(periodKey)
+            );
+
+            if (existingDebit) {
+              updateTransaction(existingDebit.id, {
+                amount: Math.max(0, invoiceTotal),
+                date: effectivePaymentDate,
+                paid: true,
+              });
+            } else {
+              const defaultExpenseCat = categories.find(c => c.type === 'expense');
+              addTransaction({
+                description: invoicePaidDesc,
+                amount: Math.max(0, invoiceTotal),
+                date: effectivePaymentDate,
+                type: 'expense',
+                categoryId: defaultExpenseCat?.id || '',
+                accountId: targetAccountId,
+                paid: true,
+                notes: `Débito automático gerado pela quitação da fatura de ${card.name}`,
+              });
+            }
+          }
+        } else {
+          // Se estiver desmarcando / reabrindo a fatura, remove o débito da conta
+          const invoicePaidDesc = `Pagamento de Fatura - ${card.name}`;
+          const debitTx = allTransactions.find(
+            t =>
+              !t.creditCardId &&
+              t.description.toLowerCase() === invoicePaidDesc.toLowerCase() &&
+              (t.date.startsWith(periodKey) || t.notes?.includes(card.name))
+          );
+          if (debitTx) {
+            deleteTransaction(debitTx.id, 'single');
+          }
+        }
       }
       setConfirmingPayment(null);
       return;
@@ -477,9 +531,15 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
       <tr
         key={tx.id}
         id={isToday ? 'desktop-tx-row-hoje' : isYesterday ? 'desktop-tx-row-ontem' : undefined}
-        className={`hover:bg-[#1e2330]/70 transition-colors ${isSelected ? 'bg-indigo-950/20' : ''
-          } ${isGroupedCard ? 'bg-[#151921]/60' : ''} ${isToday ? 'bg-indigo-500/5' : ''
-          }`}
+        className={`transition-colors ${
+          isGroupedCard
+            ? 'bg-sky-500/10 hover:bg-sky-500/20 border-l-2 border-l-sky-400'
+            : isSelected
+            ? 'bg-indigo-950/20 hover:bg-[#1e2330]/70'
+            : isToday
+            ? 'bg-indigo-500/5 hover:bg-[#1e2330]/70'
+            : 'hover:bg-[#1e2330]/70'
+        }`}
       >
         {/* Checkbox */}
         <td className="py-3 px-4">
