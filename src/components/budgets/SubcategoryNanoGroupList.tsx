@@ -15,6 +15,7 @@ interface SubcategoryNanoGroupListProps {
   onUpdateTransaction: (id: string, updates: Partial<Transaction>) => void;
   onManageNanos: () => void;
   layoutColumns?: '1col' | '2col';
+  selectedYear?: number;
 }
 
 export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> = ({
@@ -26,6 +27,7 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
   onUpdateTransaction,
   onManageNanos,
   layoutColumns = '1col',
+  selectedYear,
 }) => {
   // Nanos iniciam fechados por padrão; "Outros lançamentos" inicia sempre aberto
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
@@ -173,7 +175,16 @@ export const SubcategoryNanoGroupList: React.FC<SubcategoryNanoGroupListProps> =
     );
   };
 
-  const nanos = sub.nanoCategories || [];
+  // Filtrar nano-categorias considerando o ano selecionado:
+  // - active !== false
+  // - Se nano.year estiver definido, deve corresponder a selectedYear
+  const nanos = (sub.nanoCategories || []).filter(nano => {
+    if (nano.active === false) return false;
+    if (selectedYear !== undefined && nano.year !== undefined && nano.year !== null) {
+      return nano.year === selectedYear;
+    }
+    return true;
+  });
 
   // Se a subcategoria NÃO tiver nano-categorias cadastradas, exibe a listagem flat normal
   if (nanos.length === 0) {

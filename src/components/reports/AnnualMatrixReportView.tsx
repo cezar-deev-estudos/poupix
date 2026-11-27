@@ -416,7 +416,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
 
     // Fluxo de Caixa
     rows.push([
-      '"FLUXO DE CAIXA LÍQUIDO"',
+      '"SALDO TOTAL (LÍQUIDO FINAL)"',
       ...matrixData.monthlyCashFlow.map(v => v.toFixed(2).replace('.', ',')),
       matrixData.monthlyCashFlow.reduce((a, b) => a + b, 0).toFixed(2).replace('.', ',')
     ]);
@@ -615,7 +615,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
 
           monthPercBadge = (
             <span
-              className={`text-[9px] font-semibold tracking-tight px-1 py-0.2 rounded border inline-flex items-center gap-0.5 mt-0.5 ${badgeColor}`}
+              className={`text-[9px] font-semibold tracking-tight px-1 py-0.2 rounded border inline-flex items-center gap-0.5 mt-0.5 whitespace-nowrap ${badgeColor}`}
               title={
                 hasTarget
                   ? `${actualPerc.toFixed(1)}% da receita de ${MONTH_SHORT_NAMES[monthIdx]} (Meta: ${targetPerc}% - ${isOverTarget ? 'Acima' : 'Dentro'})`
@@ -631,7 +631,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
 
       if (monthPercBadge) {
         return (
-          <div className="flex flex-col items-end leading-tight py-0.5">
+          <div className="flex flex-col items-end leading-tight py-0.5 whitespace-nowrap">
             <span className={`tabular-nums ${textClass}`}>
               {formatted === '-' ? <span className="text-slate-600 font-normal">-</span> : formatted}
             </span>
@@ -641,7 +641,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
       }
 
       return (
-        <span className={`text-right tabular-nums ${textClass}`}>
+        <span className={`text-right tabular-nums whitespace-nowrap ${textClass}`}>
           {formatted === '-' ? <span className="text-slate-600 font-normal">-</span> : formatted}
         </span>
       );
@@ -678,12 +678,21 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
 
     const mainValText = formatValue(currentVal);
 
+    // Se o valor principal for nulo/zero/traço mas tiver baseVal ou vice-versa, exibe em linha única ou compacto
+    if (mainValText === '-') {
+      return (
+        <span className={`text-right tabular-nums whitespace-nowrap ${textClass}`}>
+          <span className="text-slate-600 font-normal">-</span>
+        </span>
+      );
+    }
+
     return (
-      <div className="flex flex-col items-end leading-tight py-0.5">
+      <div className="flex flex-col items-end leading-tight py-0.5 whitespace-nowrap">
         <span className={`tabular-nums ${textClass}`}>
           {mainValText}
         </span>
-        <span className={`text-[9px] tabular-nums flex items-center gap-0.5 ${diffColor}`}>
+        <span className={`text-[9px] tabular-nums flex items-center gap-0.5 whitespace-nowrap ${diffColor}`}>
           {isZero ? (
             <span className="text-slate-500">meta ok</span>
           ) : (
@@ -1407,7 +1416,7 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
             {/* Cabeçalho da Matriz */}
             <thead>
               <tr className="bg-slate-950 border-b border-slate-800 text-slate-300">
-                <th className="p-3 sticky left-0 z-20 bg-slate-950 font-bold uppercase tracking-wider text-[11px] w-64 min-w-[240px] border-r border-slate-800/80 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                <th className="p-3 sticky left-0 z-20 bg-slate-950 font-bold uppercase tracking-wider text-[11px] w-72 min-w-[285px] border-r border-slate-800/80 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
                   <div className="flex items-center justify-between">
                     <span>{reportYear} / Categorias</span>
                     <span className="text-[10px] text-sky-400/90 font-semibold lowercase tracking-normal">
@@ -2013,10 +2022,10 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
                 <>
                   {/* Linha Operacional: Resultado antes dos Investimentos */}
                   <tr className="bg-slate-950/80 font-bold border-t-2 border-slate-700 text-xs">
-                    <td className="p-2.5 pl-3 sticky left-0 z-10 bg-slate-950 border-r border-slate-800 text-slate-300 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                    <td className="p-2.5 pl-3 sticky left-0 z-10 bg-slate-950 border-r border-slate-800 text-slate-300 shadow-[2px_0_5px_rgba(0,0,0,0.5)] whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <MinusCircle className="w-3.5 h-3.5 text-slate-400" />
-                        <span>RESULTADO OPERACIONAL (CUSTO DE VIDA)</span>
+                        <MinusCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="whitespace-nowrap">SALDO PARCIAL (S/ INVESTIMENTOS)</span>
                       </div>
                     </td>
                     {displayOperatingTotals.map((op, idx) => (
@@ -2041,10 +2050,10 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
 
                   {/* Linha 1: Fluxo de Caixa Líquido do Mês (Após Investimentos) */}
                   <tr className="bg-slate-950/90 font-bold border-t border-slate-700">
-                    <td className="p-3 pl-3 sticky left-0 z-10 bg-slate-950 border-r border-slate-800 text-white shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                    <td className="p-3 pl-3 sticky left-0 z-10 bg-slate-950 border-r border-slate-800 text-white shadow-[2px_0_5px_rgba(0,0,0,0.5)] whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <MinusCircle className="w-3.5 h-3.5 text-teal-400" />
-                        <span>FLUXO DE CAIXA (LÍQUIDO FINAL)</span>
+                        <MinusCircle className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                        <span className="whitespace-nowrap">SALDO TOTAL (LÍQUIDO FINAL)</span>
                       </div>
                     </td>
                     {displayNetTotals.map((cf, idx) => (
@@ -2069,10 +2078,10 @@ export const AnnualMatrixReportView: React.FC<AnnualMatrixReportViewProps> = ({ 
 
                   {/* Linha 2: Saldo Acumulado */}
                   <tr className="bg-teal-950/30 font-bold border-t border-slate-800">
-                    <td className="p-3 pl-3 sticky left-0 z-10 bg-teal-950/90 border-r border-slate-800 text-teal-300 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">
+                    <td className="p-3 pl-3 sticky left-0 z-10 bg-teal-950/90 border-r border-slate-800 text-teal-300 shadow-[2px_0_5px_rgba(0,0,0,0.5)] whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <Layers className="w-3.5 h-3.5 text-teal-400" />
-                        <span>FLUXO ACUMULADO</span>
+                        <Layers className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                        <span className="whitespace-nowrap">FLUXO ACUMULADO</span>
                       </div>
                     </td>
                     {displayAccumulatedTotals.map((acc, idx) => {

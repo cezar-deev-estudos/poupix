@@ -1720,8 +1720,8 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = ({ 
             <div className="flex items-center gap-2">
               <MinusCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <div>
-                <span className="font-semibold text-slate-300 block text-[11px]">RESULTADO OPERACIONAL</span>
-                <span className="text-[9px] text-slate-500">Custo de Vida (Rec. - Desp.)</span>
+                <span className="font-semibold text-slate-300 block text-[11px]">SALDO PARCIAL (S/ INVESTIMENTOS)</span>
+                <span className="text-[9px] text-slate-500">Receitas - Despesas</span>
               </div>
             </div>
             <div className="text-right">
@@ -1747,7 +1747,7 @@ export const MobileAnnualReportView: React.FC<MobileAnnualReportViewProps> = ({ 
             <div className="flex items-center gap-2">
               <MinusCircle className="w-4 h-4 text-teal-400 shrink-0" />
               <div>
-                <span className="font-bold text-white text-xs block">FLUXO DE CAIXA (LÍQUIDO FINAL)</span>
+                <span className="font-bold text-white text-xs block">SALDO TOTAL (LÍQUIDO FINAL)</span>
                 <span className="text-[10px] text-slate-400">
                   {selectedMonthFilter === 'all' ? `Ano ${reportYear}` : MONTH_SHORT_NAMES[selectedMonthFilter]}
                 </span>

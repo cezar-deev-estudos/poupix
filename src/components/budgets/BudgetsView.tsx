@@ -1288,6 +1288,7 @@ export const BudgetsView: React.FC = () => {
                                     onUpdateTransaction={(id, up) => updateTransaction(id, up)}
                                     onManageNanos={() => setManagingNanoSubcategory(sub)}
                                     layoutColumns={layoutColumns}
+                                    selectedYear={selectedYear}
                                   />
                                 )}
                               </div>
@@ -1875,7 +1876,14 @@ export const BudgetsView: React.FC = () => {
                                 setAutoSumSubcategories(checked);
                                 if (checked) {
                                   const nanos = editingCategory.nanoCategories || [];
-                                  const sumNanos = nanos.reduce((sum, n) => sum + (n.budgetLimit || 0), 0);
+                                  const activeYearNanos = nanos.filter(n => {
+                                    if (n.active === false) return false;
+                                    if (n.year !== undefined && n.year !== null) {
+                                      return n.year === selectedYear;
+                                    }
+                                    return true;
+                                  });
+                                  const sumNanos = activeYearNanos.reduce((sum, n) => sum + (n.budgetLimit || 0), 0);
                                   setMonthBudgetLimit(sumNanos > 0 ? String(sumNanos) : '');
                                   setBudgetMode('month');
                                 }
